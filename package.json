@@ -1,0 +1,71 @@
+{
+  "name": "slash-doc",
+  "displayName": "Slash Doc",
+  "description": "A VS Code extension with a Shoelace UI and Editor.js document editor.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:slashDoc.openEditor",
+    "onView:slashDoc.actions"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "slashDoc",
+          "title": "Slash Doc",
+          "icon": "assets/slash-doc.svg"
+        }
+      ]
+    },
+    "views": {
+      "slashDoc": [
+        {
+          "id": "slashDoc.actions",
+          "name": "Slash Doc",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "slashDoc.openEditor",
+        "title": "Slash Doc: Open Editor"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "vscode:prepublish": "npm run compile",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@editorjs/editorjs": "^2.30.8",
+    "@editorjs/header": "^2.8.8",
+    "@editorjs/image": "^2.10.3",
+    "@editorjs/inline-code": "^1.5.2",
+    "@editorjs/list": "^1.10.0",
+    "@editorjs/marker": "^1.4.0",
+    "@editorjs/table": "^2.4.5",
+    "@editorjs/underline": "^1.2.1",
+    "@shoelace-style/shoelace": "^2.15.1",
+    "express": "^5.2.1",
+    "mermaid": "^11.15.0",
+    "puppeteer": "^25.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.14.8",
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.5.2"
+  }
+}
