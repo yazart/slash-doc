@@ -31,18 +31,30 @@ const sidebarConfig = {
   outfile: 'dist/sidebar.js'
 };
 
+const fileProcessorRunnerConfig = {
+  entryPoints: ['src/file-processor-runner.ts'],
+  bundle: true,
+  format: 'cjs',
+  platform: 'node',
+  sourcemap: false,
+  outfile: 'dist/file-processor-runner.js'
+};
+
 if (watch) {
   const extensionContext = await esbuild.context(extensionConfig);
   const webviewContext = await esbuild.context(webviewConfig);
   const sidebarContext = await esbuild.context(sidebarConfig);
+  const fileProcessorRunnerContext = await esbuild.context(fileProcessorRunnerConfig);
   await extensionContext.watch();
   await webviewContext.watch();
   await sidebarContext.watch();
+  await fileProcessorRunnerContext.watch();
   console.log('Watching extension, editor webview, and sidebar sources...');
 } else {
   await Promise.all([
     esbuild.build(extensionConfig),
     esbuild.build(webviewConfig),
-    esbuild.build(sidebarConfig)
+    esbuild.build(sidebarConfig),
+    esbuild.build(fileProcessorRunnerConfig)
   ]);
 }

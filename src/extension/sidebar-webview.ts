@@ -1,0 +1,513 @@
+import * as vscode from 'vscode';
+import { getWorkspaceRoot, pathExists } from './filesystem';
+import { readMenu, renderMenuTree } from './pages';
+import { getDefaultSettings } from './settings';
+import { readSettings } from './settings-store';
+import { renderSettingsPanel } from './sidebar-render';
+import type { EditorAddonDefinition } from './types';
+import { getNonce } from './utils';
+
+type SidebarView = 'menu' | 'settings';
+
+export async function getSidebarHtml(
+  webview: vscode.Webview,
+  extensionUri: vscode.Uri,
+  addonDefinitions: EditorAddonDefinition[],
+  view: SidebarView = 'menu'
+): Promise<string> {
+  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'sidebar.js'));
+  const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'sidebar.css'));
+  const nonce = getNonce();
+  const workspaceRoot = getWorkspaceRoot();
+  const isInitialized = workspaceRoot ? await pathExists(vscode.Uri.joinPath(workspaceRoot, '.slash-doc')) : false;
+  const menu = workspaceRoot && isInitialized ? await readMenu(workspaceRoot) : undefined;
+  const settings = workspaceRoot && isInitialized ? await readSettings(workspaceRoot) : getDefaultSettings();
+
+  const content = workspaceRoot
+    ? isInitialized
+      ? view === 'settings'
+        ? renderSettingsPanel(settings, addonDefinitions)
+        : `<div class="panel panel-ready">
+          <div class="menu-panel">
+            <div class="actions-row">
+              <sl-button id="create-page" size="small" variant="primary">Создать страницу</sl-button>
+              <sl-tooltip class="import-tooltip" content="Импорт">
+                <sl-button id="import-page" size="small" variant="default" aria-label="Импорт">
+                  <svg class="import-icon" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5M4 11.5V16h12v-4.5" />
+                  </svg>
+                </sl-button>
+              </sl-tooltip>
+            </div>
+            <nav class="tree" aria-label="Страницы">
+              ${renderMenuTree(menu?.items ?? [])}
+            </nav>
+          </div>
+          <div class="settings-button-row">
+            <sl-button id="open-settings" size="small" variant="default">Настройки</sl-button>
+          </div>
+        </div>`
+      : `<div class="panel panel-empty">
+          <sl-button id="initialize" size="small" variant="primary">Инициализировать документацию</sl-button>
+        </div>`
+    : `<div class="panel panel-empty">
+        <p class="empty-text">Откройте папку проекта</p>
+      </div>`;
+
+  return /* html */ `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource};">
+  <link rel="stylesheet" href="${styleUri}">
+  <title>Slash Doc</title>
+  <style>
+    :root {
+      --focus-ring: var(--vscode-focusBorder, var(--vscode-button-background));
+
+      --sl-font-sans: var(--vscode-font-family);
+      --sl-font-size-small: var(--vscode-font-size);
+      --sl-font-size-medium: var(--vscode-font-size);
+      --sl-input-height-small: 24px;
+      --sl-line-height-small: 1;
+      --sl-line-height-normal: 1;
+      --sl-spacing-2x-small: 4px;
+      --sl-spacing-x-small: 6px;
+      --sl-spacing-small: 8px;
+      --sl-border-radius-small: 2px;
+      --sl-border-radius-medium: 2px;
+      --sl-focus-ring-color: var(--focus-ring);
+      --sl-focus-ring-width: 1px;
+      --sl-focus-ring-offset: 1px;
+
+      --sl-color-primary-600: var(--vscode-button-background);
+      --sl-color-primary-700: var(--vscode-button-hoverBackground, var(--vscode-button-background));
+      --sl-color-primary-500: var(--vscode-button-background);
+      --sl-color-neutral-0: var(--vscode-button-foreground);
+      --sl-color-neutral-600: var(--vscode-foreground);
+      --sl-color-neutral-700: var(--vscode-foreground);
+      --sl-color-neutral-800: var(--vscode-foreground);
+      --sl-color-neutral-900: var(--vscode-foreground);
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+      background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+    }
+
+    .panel {
+      box-sizing: border-box;
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    .panel-empty {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .panel-ready {
+      display: grid;
+      grid-template-rows: minmax(120px, 1fr) auto;
+      gap: 12px;
+    }
+
+    .panel-settings {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+    }
+
+    .menu-panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 0;
+      gap: 10px;
+    }
+
+    .actions-row {
+      display: flex;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .actions-row #create-page {
+      flex: 1 1 90%;
+    }
+
+    .import-tooltip #import-page {
+      flex: 0 1 10%;
+      width: 10%;
+      min-width: 28px;
+    }
+
+    .import-tooltip #import-page::part(base) {
+      justify-content: center;
+      padding: 4px;
+    }
+
+    .import-icon {
+      display: block;
+      width: 15px;
+      height: 15px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .settings-button-row {
+      display: flex;
+      min-width: 0;
+      padding-top: 12px;
+      border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
+    }
+
+    .empty-text {
+      margin: 0;
+      color: var(--vscode-descriptionForeground);
+      text-align: center;
+    }
+
+    sl-button {
+      flex: 1;
+      max-width: 100%;
+    }
+
+    sl-button::part(base) {
+      min-width: 0;
+      min-height: 24px;
+      padding: 4px 10px;
+      border-radius: 2px;
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+      font-weight: 400;
+      line-height: normal;
+      box-shadow: none;
+      transition: none;
+    }
+
+    sl-button::part(label) {
+      overflow: hidden;
+      padding: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    sl-button[variant="primary"]::part(base) {
+      color: var(--vscode-button-foreground);
+      border-color: var(--vscode-button-border, transparent);
+      background: var(--vscode-button-background);
+    }
+
+    sl-button[variant="primary"]::part(base):hover {
+      color: var(--vscode-button-foreground);
+      border-color: var(--vscode-button-border, transparent);
+      background: var(--vscode-button-hoverBackground);
+    }
+
+    sl-button[variant="default"]::part(base) {
+      color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+      border-color: var(--vscode-button-border, var(--vscode-input-border, transparent));
+      background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
+    }
+
+    sl-button[variant="default"]::part(base):hover {
+      color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+      border-color: var(--vscode-button-border, var(--vscode-input-border, transparent));
+      background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+    }
+
+    sl-button::part(base):focus-visible {
+      outline: 1px solid var(--focus-ring);
+      outline-offset: 2px;
+    }
+
+    .tree {
+      min-width: 0;
+      overflow: auto;
+    }
+
+    .tree-list {
+      display: grid;
+      gap: 1px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .tree-list .tree-list {
+      margin-left: 12px;
+    }
+
+    .tree-node {
+      min-width: 0;
+    }
+
+    .tree-row {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .tree-item {
+      display: flex;
+      align-items: center;
+      flex: 1 1 auto;
+      width: 100%;
+      min-width: 0;
+      min-height: 22px;
+      padding: 2px 6px;
+      color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+      border: 0;
+      border-radius: 2px;
+      background: transparent;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .tree-item:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .tree-item:focus-visible {
+      outline: 1px solid var(--focus-ring);
+      outline-offset: -1px;
+    }
+
+    .tree-item[aria-selected="true"] {
+      color: var(--vscode-list-activeSelectionForeground, var(--vscode-sideBar-foreground));
+      background: var(--vscode-list-activeSelectionBackground);
+    }
+
+    .tree-rename,
+    .tree-delete {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 22px;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      color: var(--vscode-descriptionForeground);
+      border: 0;
+      border-radius: 2px;
+      background: transparent;
+      cursor: pointer;
+      opacity: 0;
+    }
+
+    .tree-row:hover .tree-rename,
+    .tree-row:hover .tree-delete,
+    .tree-rename:focus-visible,
+    .tree-delete:focus-visible {
+      opacity: 1;
+    }
+
+    .tree-rename:hover {
+      color: var(--vscode-foreground);
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .tree-delete:hover {
+      color: var(--vscode-errorForeground, var(--vscode-foreground));
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .tree-rename:focus-visible,
+    .tree-delete:focus-visible {
+      outline: 1px solid var(--focus-ring);
+      outline-offset: -1px;
+    }
+
+    .tree-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tree-empty {
+      margin: 4px 0 0;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .settings-panel {
+      display: grid;
+      align-items: start;
+      gap: 12px;
+      min-width: 0;
+      overflow: auto;
+    }
+
+    .settings-panel sl-button {
+      justify-self: start;
+    }
+
+    .settings-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .settings-header sl-button {
+      flex: 0 0 auto;
+    }
+
+    .settings-title {
+      margin: 0;
+      color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-sideBar-foreground));
+      font-size: var(--vscode-font-size);
+      font-weight: 600;
+    }
+
+    .settings-group {
+      display: grid;
+      align-items: start;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .settings-list {
+      display: grid;
+      align-items: start;
+      gap: 6px;
+    }
+
+    .settings-group-title {
+      color: var(--vscode-descriptionForeground);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .addon-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 24px;
+    }
+
+    .addon-info {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .addon-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      color: var(--vscode-icon-foreground, currentColor);
+      flex: 0 0 auto;
+    }
+
+    .addon-icon svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .addon-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .settings-row {
+      display: grid;
+      align-items: start;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 6px;
+    }
+
+    .service-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto;
+    }
+
+    .custom-addon-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) auto auto;
+    }
+
+    .api-settings-row {
+      grid-template-columns: minmax(0, 1fr) 72px;
+    }
+
+    .settings-input {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      height: 24px;
+      padding: 2px 6px;
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border, transparent);
+      border-radius: 2px;
+      background: var(--vscode-input-background);
+      font: inherit;
+    }
+
+    .settings-input:focus {
+      outline: 1px solid var(--focus-ring);
+      outline-offset: -1px;
+    }
+
+    .settings-open-button {
+      box-sizing: border-box;
+      height: 24px;
+      padding: 0 8px;
+      color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+      border: 1px solid var(--vscode-button-border, var(--vscode-input-border, transparent));
+      border-radius: 2px;
+      background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .settings-open-button:hover {
+      background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+    }
+
+    .service-actions {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .service-actions sl-button {
+      flex: 0 1 auto;
+    }
+
+    sl-switch::part(base) {
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+    }
+
+    sl-switch::part(control) {
+      border-color: var(--vscode-input-border, transparent);
+      background: var(--vscode-input-background);
+    }
+
+    sl-switch[checked]::part(control) {
+      border-color: var(--vscode-button-background);
+      background: var(--vscode-button-background);
+    }
+  </style>
+</head>
+<body>
+  ${content}
+  <script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
+}

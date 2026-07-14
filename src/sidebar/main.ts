@@ -1,6 +1,7 @@
 import '@shoelace-style/shoelace/dist/themes/light.css';
 import '@shoelace-style/shoelace/dist/components/button/button.js';
 import '@shoelace-style/shoelace/dist/components/switch/switch.js';
+import '@shoelace-style/shoelace/dist/components/tooltip/tooltip.js';
 
 type VSCodeApi = {
   postMessage(message: unknown): void;
@@ -79,31 +80,31 @@ document.querySelectorAll<HTMLButtonElement>('[data-delete-page-id]').forEach((b
   });
 });
 
-document.querySelector('#add-local-service')?.addEventListener('click', () => {
-  vscode.postMessage({
-    type: 'createApiService',
-    scope: 'local'
+document.querySelectorAll<HTMLButtonElement>('[data-rename-page-id]').forEach((button) => {
+  button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    vscode.postMessage({
+      type: 'renamePage',
+      pageId: button.dataset.renamePageId ?? null
+    });
   });
 });
 
-document.querySelector('#add-global-service')?.addEventListener('click', () => {
+document.querySelector('#add-service')?.addEventListener('click', () => {
   vscode.postMessage({
-    type: 'createApiService',
-    scope: 'global'
+    type: 'createApiService'
   });
 });
 
-document.querySelector('#add-local-addon')?.addEventListener('click', () => {
+document.querySelector('#reload-api-services')?.addEventListener('click', () => {
   vscode.postMessage({
-    type: 'createCustomAddon',
-    scope: 'local'
+    type: 'reloadApiServices'
   });
 });
 
-document.querySelector('#add-global-addon')?.addEventListener('click', () => {
+document.querySelector('#add-addon')?.addEventListener('click', () => {
   vscode.postMessage({
-    type: 'createCustomAddon',
-    scope: 'global'
+    type: 'createCustomAddon'
   });
 });
 
@@ -178,16 +179,21 @@ function collectSettings() {
     editorAddons: {
       header: isAddonEnabled('header'),
       list: isAddonEnabled('list'),
-      table: isAddonEnabled('table'),
+      confluenceTable: isAddonEnabled('confluenceTable'),
       image: isAddonEnabled('image'),
       marker: isAddonEnabled('marker'),
       inlineCode: isAddonEnabled('inlineCode'),
       underline: isAddonEnabled('underline'),
-      mermaid: isAddonEnabled('mermaid')
+      mermaid: isAddonEnabled('mermaid'),
+      flowDesigner: isAddonEnabled('flowDesigner'),
+      networkCanvas: isAddonEnabled('networkCanvas'),
+      imageAnnotation: isAddonEnabled('imageAnnotation'),
+      apiEndpoint: isAddonEnabled('apiEndpoint'),
+      fileProcessor: isAddonEnabled('fileProcessor'),
+      taskTable: isAddonEnabled('taskTable')
     },
     customEditorAddons: Array.from(document.querySelectorAll<HTMLElement>('[data-custom-addon-id]')).map((row) => ({
       id: row.dataset.customAddonId ?? createId('addon'),
-      scope: getRowInput(row, 'custom-addon', 'scope'),
       name: getRowInput(row, 'custom-addon', 'name'),
       toolName: getRowInput(row, 'custom-addon', 'toolName'),
       file: getRowInput(row, 'custom-addon', 'file'),
@@ -197,7 +203,6 @@ function collectSettings() {
     apiPort: Number(document.querySelector<HTMLInputElement>('#api-port')?.value ?? '4317'),
     apiServices: Array.from(document.querySelectorAll<HTMLElement>('[data-service-id]')).map((row) => ({
       id: row.dataset.serviceId ?? createId('service'),
-      scope: getRowInput(row, 'service', 'scope'),
       name: getRowInput(row, 'service', 'name'),
       file: getRowInput(row, 'service', 'file')
     })),

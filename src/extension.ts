@@ -1,11 +1,61 @@
 import * as vscode from 'vscode';
-import express = require('express');
-import type { Router } from 'express';
-import type { Server } from 'http';
-import { PuppeteerNode } from 'puppeteer/lib/cjs/puppeteer/node/Puppeteer.js';
-import { PUPPETEER_REVISIONS } from 'puppeteer/lib/cjs/puppeteer/revisions.js';
-import { pathToFileURL } from 'url';
-import { networkIconContent, type NetworkIconName } from './webview/network-icons';
+import type {
+  ApiService,
+  CustomEditorAddon,
+  EditorAddonDefinition,
+  SlashDocMenuItem,
+  SlashDocSettings
+} from './extension/types';
+import {
+  createPageId,
+  createSettingsId,
+} from './extension/utils';
+import {
+  getApiRouteTemplate,
+  getCustomAddonTemplate,
+  getDefaultSettings,
+  normalizeSettings,
+  normalizeToolName,
+  slugify
+} from './extension/settings';
+import {
+  getApiServiceUri,
+  getCustomAddonUri,
+  getGlobalAddonRootUri,
+  getGlobalApiRootUri,
+  getPageContentUri,
+  getPagesRootUri,
+  getWorkspaceRoot,
+  pathExists,
+  writeJson,
+  writeJsonIfMissing,
+  writeTextIfMissing
+} from './extension/filesystem';
+import {
+  addChildToMenu,
+  collectMenuItemIds,
+  createDefaultPageContent,
+  findMenuItem,
+  getFirstHeaderText,
+  readMenu,
+  readPageContent,
+  removeMenuItem,
+  updateMenuItemTitle,
+  updatePageContentTitle,
+  writeMenu
+} from './extension/pages';
+import { readSettings, writeSettings } from './extension/settings-store';
+import { exportPageContent } from './extension/document-export';
+import { importDocumentContent } from './extension/document-import';
+import { ApiServerManager, migrateLegacyModules } from './extension/api-server';
+import { getWebviewHtml } from './extension/editor-webview';
+import { getSidebarHtml } from './extension/sidebar-webview';
+import {
+  downloadProcessorFile,
+  runPageProcessor,
+  uploadProcessorFiles,
+  type UploadedProcessorFile
+} from './extension/file-processor';
 
 const viewType = 'slashDoc.editor';
 const sidebarViewId = 'slashDoc.actions';
@@ -17,92 +67,24 @@ type SidebarMessage = {
   settings?: SlashDocSettings;
   serviceId?: string | null;
   addonId?: string | null;
-  scope?: ApiServiceScope;
 };
 
 type SidebarView = 'menu' | 'settings';
-
-type SlashDocMenu = {
-  items: SlashDocMenuItem[];
-};
-
-type SlashDocMenuItem = {
-  id: string;
-  title: string;
-  file: string;
-  children: SlashDocMenuItem[];
-};
 
 type EditorMessage = {
   type?: string;
   data?: unknown;
   source?: 'auto' | 'manual';
   format?: ExportFormat;
+  requestId?: string;
+  files?: UploadedProcessorFile[];
+  script?: string;
+  inputFiles?: string[];
+  fileName?: string;
 };
 
 type ExportFormat = 'html' | 'md';
 
-type SlashDocSettings = {
-  version: 1;
-  editorAddons: {
-    header: boolean;
-    list: boolean;
-    table: boolean;
-    image: boolean;
-    marker: boolean;
-    inlineCode: boolean;
-    underline: boolean;
-    mermaid: boolean;
-    flowDesigner: boolean;
-    networkCanvas: boolean;
-  };
-  customEditorAddons: CustomEditorAddon[];
-  apiPrefix: string;
-  apiPort: number;
-  apiServices: ApiService[];
-  variables: SettingsVariable[];
-};
-
-type ApiService = {
-  id: string;
-  scope: ApiServiceScope;
-  name: string;
-  file: string;
-};
-
-type ApiServiceScope = 'local' | 'global';
-type AddonScope = 'local' | 'global';
-
-type CustomEditorAddon = {
-  id: string;
-  scope: AddonScope;
-  name: string;
-  toolName: string;
-  file: string;
-  enabled: boolean;
-};
-
-type SettingsVariable = {
-  key: string;
-  value: string;
-};
-
-type EditorAddonDefinition = {
-  id: keyof SlashDocSettings['editorAddons'];
-  label: string;
-  icon: string;
-};
-
-type ImportedDocument = {
-  title: string;
-  content: unknown;
-};
-
-type CustomAddonWebviewModule = {
-  id: string;
-  toolName: string;
-  uri: string;
-};
 
 const editorAddonDefinitions: EditorAddonDefinition[] = [
   {
@@ -116,8 +98,8 @@ const editorAddonDefinitions: EditorAddonDefinition[] = [
     icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><line x1="9" x2="19" y1="7" y2="7" stroke="currentColor" stroke-linecap="round" stroke-width="2"/><line x1="9" x2="19" y1="12" y2="12" stroke="currentColor" stroke-linecap="round" stroke-width="2"/><line x1="9" x2="19" y1="17" y2="17" stroke="currentColor" stroke-linecap="round" stroke-width="2"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5.00001 17H4.99002"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5.00001 12H4.99002"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5.00001 7H4.99002"/></svg>'
   },
   {
-    id: 'table',
-    label: 'Table',
+    id: 'confluenceTable',
+    label: 'Confluence Table',
     icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2" d="M10 5V18.5"/><path stroke="currentColor" stroke-width="2" d="M14 5V18.5"/><path stroke="currentColor" stroke-width="2" d="M5 10H19"/><path stroke="currentColor" stroke-width="2" d="M5 14H19"/><rect width="14" height="14" x="5" y="5" stroke="currentColor" stroke-width="2" rx="4"/></svg>'
   },
   {
@@ -154,15 +136,38 @@ const editorAddonDefinitions: EditorAddonDefinition[] = [
     id: 'networkCanvas',
     label: 'Network Canvas',
     icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="5" rx="1" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="6.5" r="2.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="16" width="7" height="5" rx="1" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="M10 6.5h5.5M18 9v3a6 6 0 0 1-6 6H7a4 4 0 0 1-4-4V9"/></svg>'
+  },
+  {
+    id: 'imageAnnotation',
+    label: 'Image Annotation',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="m4 17 5-5 4 4 3-3 4 4"/><rect x="13" y="6" width="6" height="5" rx="1" stroke="currentColor" stroke-width="2"/></svg>'
+  },
+  {
+    id: 'apiEndpoint',
+    label: 'API Endpoint',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m8 5-5 7 5 7M16 5l5 7-5 7M14 3l-4 18"/></svg>'
+  },
+  {
+    id: 'fileProcessor',
+    label: 'File Processor',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2" d="M6 3h8l4 4v14H6z"/><path stroke="currentColor" stroke-width="2" d="M14 3v5h5M9 12h6M9 16h4"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m4 9-2 3 2 3"/></svg>'
+  },
+  {
+    id: 'taskTable',
+    label: 'Task Table',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="M9 4v16M15 4v16M5 8h2M11 8h2M17 8h2"/></svg>'
   }
 ];
 
 let apiServerManager: ApiServerManager | undefined;
+const openPagePanels = new Map<string, Set<vscode.WebviewPanel>>();
 
 export function activate(context: vscode.ExtensionContext) {
   const sidebarProvider = new SlashDocSidebarProvider(context.extensionUri);
   apiServerManager = new ApiServerManager(context.extensionUri);
-  void apiServerManager.reload();
+  void migrateLegacyModules(context.extensionUri)
+    .catch((error) => console.error('Failed to migrate legacy Slash Doc modules', error))
+    .then(() => apiServerManager?.reload());
 
   const disposable = vscode.commands.registerCommand('slashDoc.openEditor', async (pageId?: string) => {
     const workspaceRoot = getWorkspaceRoot();
@@ -182,14 +187,73 @@ export function activate(context: vscode.ExtensionContext) {
         localResourceRoots: [
           vscode.Uri.joinPath(context.extensionUri, 'dist'),
           vscode.Uri.joinPath(context.extensionUri, 'assets'),
-          getGlobalAddonRootUri(context.extensionUri),
-          ...(workspaceRoot ? [getLocalAddonRootUri(workspaceRoot)] : [])
+          getGlobalAddonRootUri(context.extensionUri)
         ]
       }
     );
 
+    if (pageId) {
+      const panels = openPagePanels.get(pageId) ?? new Set<vscode.WebviewPanel>();
+      panels.add(panel);
+      openPagePanels.set(pageId, panels);
+      panel.onDidDispose(() => {
+        panels.delete(panel);
+
+        if (panels.size === 0) {
+          openPagePanels.delete(pageId);
+        }
+      });
+    }
+
     panel.webview.onDidReceiveMessage(
       async (message: EditorMessage) => {
+        if (message.type === 'readClipboard') {
+          let text = '';
+          try {
+            text = await vscode.env.clipboard.readText();
+          } catch (error) {
+            console.error('Slash Doc: failed to read clipboard', error);
+          }
+          await panel.webview.postMessage({ type: 'clipboardResponse', requestId: message.requestId, text });
+          return;
+        }
+
+        if (message.type?.startsWith('fileProcessor')) {
+          const respond = (ok: boolean, data?: unknown, error?: string) => panel.webview.postMessage({
+            type: 'fileProcessorResponse',
+            requestId: message.requestId,
+            ok,
+            data,
+            error
+          });
+
+          if (!workspaceRoot || !pageId) {
+            await respond(false, undefined, 'Сначала сохраните виджет на странице документа.');
+            return;
+          }
+
+          try {
+            if (message.type === 'fileProcessorUpload') {
+              await respond(true, await uploadProcessorFiles(workspaceRoot, pageId, message.files ?? []));
+            } else if (message.type === 'fileProcessorRun') {
+              const result = await runPageProcessor(
+                context.extensionUri,
+                workspaceRoot,
+                pageId,
+                message.script ?? '',
+                message.inputFiles ?? []
+              );
+              await respond(true, result);
+            } else if (message.type === 'fileProcessorDownload' && message.fileName) {
+              await downloadProcessorFile(workspaceRoot, pageId, message.fileName);
+              await respond(true);
+            }
+          } catch (error) {
+            await respond(false, undefined, error instanceof Error ? error.message : String(error));
+          }
+          return;
+        }
+
         if (message.type !== 'save') {
           if (message.type === 'export' && message.format) {
             const content = await exportPageContent(
@@ -246,492 +310,6 @@ export function deactivate() {
   return apiServerManager?.dispose();
 }
 
-function getWebviewHtml(
-  webview: vscode.Webview,
-  extensionUri: vscode.Uri,
-  workspaceRoot: vscode.Uri | undefined,
-  initialData: unknown,
-  settings: SlashDocSettings
-): string {
-  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'webview.js'));
-  const iconUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'assets', 'slash-doc.svg'));
-  const nonce = getNonce();
-  const initialDataJson = escapeScriptJson(initialData);
-  const settingsJson = escapeScriptJson(settings);
-  const customAddonsJson = escapeScriptJson(getCustomAddonWebviewModules(webview, extensionUri, workspaceRoot, settings));
-
-  return /* html */ `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data: blob:; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'nonce-${nonce}'; font-src ${webview.cspSource};">
-    <title>Slash Doc</title>
-    <style>
-      :root {
-        --surface: var(--vscode-sideBar-background, var(--vscode-editor-background));
-        --surface-raised: var(--vscode-editorWidget-background, var(--vscode-editor-background));
-        --border: var(--vscode-panel-border, color-mix(in srgb, var(--vscode-editor-foreground) 16%, transparent));
-        --focus-ring: var(--vscode-focusBorder, var(--vscode-button-background));
-
-        --sl-font-sans: var(--vscode-font-family);
-        --sl-font-size-small: var(--vscode-font-size);
-        --sl-font-size-medium: var(--vscode-font-size);
-        --sl-font-weight-normal: 400;
-        --sl-font-weight-semibold: 600;
-        --sl-input-height-small: 26px;
-        --sl-line-height-small: 1;
-        --sl-line-height-normal: 1;
-        --sl-spacing-2x-small: 4px;
-        --sl-spacing-x-small: 6px;
-        --sl-spacing-small: 8px;
-        --sl-border-radius-small: 2px;
-        --sl-border-radius-medium: 2px;
-        --sl-focus-ring-color: var(--focus-ring);
-        --sl-focus-ring-width: 1px;
-        --sl-focus-ring-offset: 1px;
-
-        --sl-color-primary-600: var(--vscode-button-background);
-        --sl-color-primary-700: var(--vscode-button-hoverBackground, var(--vscode-button-background));
-        --sl-color-primary-500: var(--vscode-button-background);
-        --sl-color-neutral-0: var(--vscode-button-foreground);
-        --sl-color-neutral-50: var(--vscode-input-background, var(--surface-raised));
-        --sl-color-neutral-100: var(--vscode-input-background, var(--surface-raised));
-        --sl-color-neutral-200: var(--vscode-input-border, var(--border));
-        --sl-color-neutral-300: var(--vscode-input-border, var(--border));
-        --sl-color-neutral-600: var(--vscode-foreground);
-        --sl-color-neutral-700: var(--vscode-foreground);
-        --sl-color-neutral-800: var(--vscode-foreground);
-        --sl-color-neutral-900: var(--vscode-foreground);
-
-        --color-border: var(--border);
-        --color-bg-main: var(--vscode-editor-background);
-        --color-bg-secondary: var(--vscode-editorWidget-background, var(--vscode-editor-background));
-        --color-text-main: var(--vscode-editor-foreground);
-        --color-text-secondary: var(--vscode-descriptionForeground);
-      }
-
-      body {
-        overflow: auto;
-        min-height: 100vh;
-        margin: 0;
-        color: var(--vscode-editor-foreground);
-        background: var(--vscode-editor-background);
-        font-family: var(--vscode-font-family);
-      }
-
-      .shell {
-        min-height: 100vh;
-      }
-
-      .toolbar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 20;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 8px 12px;
-        border-bottom: 1px solid var(--border);
-        background: var(--surface);
-      }
-
-      .title {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        margin: 0;
-        font-size: 14px;
-        font-weight: 600;
-      }
-
-      .title-icon {
-        display: inline-block;
-        flex: 0 0 auto;
-        width: 20px;
-        height: 20px;
-        background: var(--vscode-icon-foreground, var(--vscode-editor-foreground));
-        -webkit-mask: url("${iconUri}") center / contain no-repeat;
-        mask: url("${iconUri}") center / contain no-repeat;
-      }
-
-      .export-actions {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-
-      .export-button {
-        box-sizing: border-box;
-        height: 24px;
-        padding: 0 10px;
-        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-        border: 1px solid var(--vscode-button-border, var(--vscode-input-border, transparent));
-        border-radius: 2px;
-        background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
-        font: inherit;
-        cursor: pointer;
-      }
-
-      .export-button:hover {
-        background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
-      }
-
-      .export-button:focus-visible {
-        outline: 1px solid var(--focus-ring);
-        outline-offset: 2px;
-      }
-
-      sl-button::part(base) {
-        min-width: 0;
-        min-height: 24px;
-        padding: 4px 10px;
-        border-radius: 2px;
-        font-family: var(--vscode-font-family);
-        font-size: var(--vscode-font-size);
-        font-weight: 400;
-        line-height: normal;
-        box-shadow: none;
-        transition: none;
-      }
-
-      sl-button::part(label) {
-        padding: 0;
-      }
-
-      sl-button[variant="default"]::part(base) {
-        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-        border-color: var(--vscode-button-border, var(--vscode-input-border, transparent));
-        background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
-      }
-
-      sl-button[variant="default"]::part(base):hover {
-        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-        border-color: var(--vscode-button-border, var(--vscode-input-border, transparent));
-        background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
-      }
-
-      sl-button[variant="primary"]::part(base) {
-        color: var(--vscode-button-foreground);
-        border-color: var(--vscode-button-border, transparent);
-        background: var(--vscode-button-background);
-      }
-
-      sl-button[variant="default"]::part(base) {
-        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-        border-color: var(--vscode-button-border, var(--vscode-input-border, transparent));
-        background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
-      }
-
-      sl-button[variant="default"]::part(base):hover {
-        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-        border-color: var(--vscode-button-border, var(--vscode-input-border, transparent));
-        background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
-      }
-
-      sl-button[variant="primary"]::part(base):hover {
-        color: var(--vscode-button-foreground);
-        border-color: var(--vscode-button-border, transparent);
-        background: var(--vscode-button-hoverBackground);
-      }
-
-      sl-button[variant="default"]::part(base) {
-        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-        border-color: var(--vscode-button-border, var(--vscode-input-border, transparent));
-        background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
-      }
-
-      sl-button[variant="default"]::part(base):hover {
-        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-        border-color: var(--vscode-button-border, var(--vscode-input-border, transparent));
-        background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
-      }
-
-      sl-button::part(base):focus-visible {
-        outline: 1px solid var(--focus-ring);
-        outline-offset: 2px;
-      }
-
-      #editor {
-        width: min(860px, 100vw);
-        margin: 0 auto 48px;
-        padding: 0;
-        border: 0;
-        border-radius: 0;
-        background: transparent;
-      }
-
-      .ce-block__content,
-      .ce-toolbar__content {
-        max-width: 760px;
-      }
-
-      .codex-editor,
-      .codex-editor__redactor {
-        color: var(--vscode-editor-foreground);
-      }
-
-      .ce-paragraph,
-      .ce-header,
-      .cdx-list,
-      .tc-table {
-        color: var(--vscode-editor-foreground);
-      }
-
-      .ce-toolbar__plus,
-      .ce-toolbar__settings-btn,
-      .ce-inline-toolbar__button,
-      .ce-popover__item,
-      .ce-popover-item,
-      .ce-inline-tool,
-      .ce-conversion-tool,
-      .ce-settings__button,
-      .cdx-settings-button {
-        color: var(--vscode-dropdown-foreground, var(--vscode-foreground)) !important;
-        background: transparent !important;
-      }
-
-      .ce-toolbar__plus:hover,
-      .ce-toolbar__settings-btn:hover,
-      .ce-inline-toolbar__button:hover,
-      .ce-inline-toolbar__button--active,
-      .ce-popover__item:hover,
-      .ce-popover-item:hover,
-      .ce-popover-item--focused,
-      .ce-popover-item--active,
-      .ce-inline-tool:hover,
-      .ce-inline-tool--active,
-      .ce-conversion-tool:hover,
-      .ce-conversion-tool--focused,
-      .ce-settings__button:hover,
-      .cdx-settings-button:hover,
-      .cdx-settings-button--active {
-        color: var(--vscode-list-hoverForeground, var(--vscode-foreground)) !important;
-        background: var(--vscode-list-hoverBackground) !important;
-      }
-
-      .ce-popover,
-      .ce-popover__container,
-      .ce-popover__items,
-      .ce-inline-toolbar,
-      .ce-inline-toolbar__dropdown,
-      .ce-inline-toolbar__toggler-and-button-wrapper,
-      .ce-conversion-toolbar,
-      .ce-conversion-toolbar__tools,
-      .ce-settings,
-      .cdx-settings {
-        color: var(--vscode-dropdown-foreground, var(--vscode-foreground)) !important;
-        border-color: var(--vscode-dropdown-border, var(--vscode-panel-border, var(--border))) !important;
-        background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background, var(--vscode-editor-background))) !important;
-        box-shadow: 0 4px 12px color-mix(in srgb, var(--vscode-editor-background) 45%, transparent);
-      }
-
-      .ce-popover__search,
-      .ce-popover__nothing-found-message,
-      .ce-conversion-toolbar__label {
-        color: var(--vscode-descriptionForeground) !important;
-        background: var(--vscode-input-background) !important;
-      }
-
-      .ce-popover__search input,
-      .ce-popover__search input::placeholder {
-        color: var(--vscode-input-foreground) !important;
-      }
-
-      .ce-block--selected .ce-block__content,
-      .ce-block--focused .ce-block__content {
-        background: var(--vscode-editor-selectionBackground);
-      }
-
-      .tc-table,
-      .tc-row,
-      .tc-cell {
-        border-color: var(--vscode-panel-border, var(--border));
-      }
-
-      .tc-wrap {
-        --color-background: var(--vscode-list-hoverBackground);
-        --color-text-secondary: var(--vscode-descriptionForeground);
-        --color-border: var(--vscode-panel-border, var(--border));
-        color: var(--vscode-editor-foreground);
-      }
-
-      .tc-table--heading .tc-row:first-child,
-      .tc-add-column svg {
-        background: var(--vscode-editor-background);
-      }
-
-      .tc-add-column,
-      .tc-add-row,
-      .tc-toolbox__toggler {
-        color: var(--vscode-descriptionForeground);
-      }
-
-      .tc-add-column:hover,
-      .tc-add-column:hover svg,
-      .tc-add-column:focus-within,
-      .tc-add-column:focus-within svg,
-      .tc-add-row:hover,
-      .tc-add-row:hover svg,
-      .tc-add-row:focus-within,
-      .tc-add-row:focus-within svg,
-      .tc-add-row:hover::before,
-      .tc-row--selected,
-      .tc-row--selected::after {
-        color: var(--vscode-list-hoverForeground, var(--vscode-foreground)) !important;
-        background: var(--vscode-list-hoverBackground, var(--vscode-toolbar-hoverBackground, var(--vscode-editorWidget-background))) !important;
-        background-color: var(--vscode-list-hoverBackground, var(--vscode-toolbar-hoverBackground, var(--vscode-editorWidget-background))) !important;
-      }
-
-      .tc-add-column:hover,
-      .tc-add-column:hover svg,
-      .tc-add-column:focus-within,
-      .tc-add-column:focus-within svg {
-        color: var(--vscode-list-hoverForeground, var(--vscode-foreground)) !important;
-        background-color: var(--vscode-list-hoverBackground, var(--vscode-toolbar-hoverBackground, var(--vscode-editorWidget-background))) !important;
-      }
-
-      .tc-cell--selected,
-      .tc-cell--selected::after {
-        background: var(--vscode-editor-selectionBackground);
-      }
-
-      .tc-popover {
-        --color-background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background, var(--vscode-editor-background)));
-        --color-background-hover: var(--vscode-list-hoverBackground);
-        --color-border: var(--vscode-dropdown-border, var(--vscode-panel-border, var(--border)));
-        color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
-        border-color: var(--vscode-dropdown-border, var(--vscode-panel-border, var(--border))) !important;
-        background: var(--vscode-dropdown-background, var(--vscode-editorWidget-background, var(--vscode-editor-background))) !important;
-        box-shadow: 0 4px 12px color-mix(in srgb, var(--vscode-editor-background) 45%, transparent);
-      }
-
-      .tc-popover__item {
-        color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
-      }
-
-      .tc-popover__item:hover {
-        color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
-        background: var(--vscode-list-hoverBackground) !important;
-      }
-
-      .tc-popover__item-icon {
-        color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
-        border-color: var(--vscode-dropdown-border, var(--vscode-panel-border, var(--border)));
-        background: var(--vscode-input-background);
-      }
-
-      .image-tool__image,
-      .image-tool__caption,
-      .cdx-input {
-        color: var(--vscode-input-foreground);
-        border-color: var(--vscode-input-border, var(--border));
-        background: var(--vscode-input-background);
-        box-shadow: none;
-      }
-
-      .slash-mermaid-tool {
-        display: grid;
-        gap: 8px;
-        color: var(--vscode-editor-foreground);
-      }
-
-      .slash-mermaid-code,
-      .slash-mermaid-caption {
-        box-sizing: border-box;
-        width: 100%;
-        color: var(--vscode-input-foreground);
-        border: 1px solid var(--vscode-input-border, var(--border));
-        border-radius: 2px;
-        background: var(--vscode-input-background);
-        font: inherit;
-      }
-
-      .slash-mermaid-code {
-        min-height: 140px;
-        padding: 8px;
-        resize: vertical;
-        font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
-      }
-
-      .slash-mermaid-caption {
-        height: 24px;
-        padding: 2px 6px;
-      }
-
-      .slash-mermaid-code:focus,
-      .slash-mermaid-caption:focus {
-        outline: 1px solid var(--focus-ring);
-        outline-offset: -1px;
-      }
-
-      .slash-mermaid-preview {
-        min-height: 40px;
-        overflow: auto;
-        padding: 8px;
-        color: var(--vscode-editor-foreground);
-        border: 1px solid var(--vscode-panel-border, var(--border));
-        border-radius: 2px;
-        background: var(--vscode-editor-background);
-      }
-
-      .slash-mermaid-preview svg {
-        max-width: 100%;
-        height: auto;
-      }
-
-      .ce-block:has(.slash-flow-designer-tool) .ce-block__content,
-      .ce-block:has(.slash-network-canvas-tool) .ce-block__content {
-        max-width: min(1100px, calc(100vw - 64px));
-      }
-
-      .slash-flow-designer-tool,
-      .slash-network-canvas-tool {
-        margin: 12px 0;
-      }
-
-      .cdx-marker {
-        color: var(--vscode-editor-foreground);
-        background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #ffcc00) 28%, transparent);
-      }
-    </style>
-  </head>
-  <body>
-    <main class="shell">
-      <header class="toolbar">
-        <h1 class="title">
-          <span class="title-icon" aria-hidden="true"></span>
-          <span>Slash Doc</span>
-        </h1>
-        <div class="export-actions">
-          <button class="export-button" type="button" id="export-html">HTML</button>
-          <button class="export-button" type="button" id="export-md">MD</button>
-        </div>
-      </header>
-      <section id="editor" aria-label="Document editor"></section>
-    </main>
-    <script nonce="${nonce}">
-      window.__SLASH_DOC_INITIAL_DATA__ = ${initialDataJson};
-      window.__SLASH_DOC_SETTINGS__ = ${settingsJson};
-      window.__SLASH_DOC_CUSTOM_ADDONS__ = ${customAddonsJson};
-    </script>
-    <script nonce="${nonce}" src="${scriptUri}"></script>
-  </body>
-</html>`;
-}
-
-function getNonce(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let nonce = '';
-  for (let index = 0; index < 32; index += 1) {
-    nonce += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return nonce;
-}
-
 class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
   private webviewView?: vscode.WebviewView;
 
@@ -783,6 +361,11 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
         await vscode.commands.executeCommand('slashDoc.openEditor', message.pageId);
       }
 
+      if (message.type === 'renamePage' && message.pageId) {
+        await this.renamePage(message.pageId);
+        webviewView.webview.html = await this.getSidebarHtml(webviewView.webview);
+      }
+
       if (message.type === 'deletePage' && message.pageId) {
         await this.deletePage(message.pageId);
         webviewView.webview.html = await this.getSidebarHtml(webviewView.webview);
@@ -793,8 +376,18 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       }
 
       if (message.type === 'createApiService') {
-        await this.createApiService(message.scope ?? 'global');
+        await this.createApiService();
         webviewView.webview.html = await this.getSidebarHtml(webviewView.webview, 'settings');
+      }
+
+      if (message.type === 'reloadApiServices') {
+        try {
+          await apiServerManager?.reload();
+          void vscode.window.showInformationMessage('Slash Doc API service reloaded.');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          void vscode.window.showErrorMessage(`Failed to reload Slash Doc API service: ${message}`);
+        }
       }
 
       if (message.type === 'openApiService' && message.serviceId) {
@@ -802,7 +395,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       }
 
       if (message.type === 'createCustomAddon') {
-        await this.createCustomAddon(message.scope === 'global' ? 'global' : 'local');
+        await this.createCustomAddon();
         webviewView.webview.html = await this.getSidebarHtml(webviewView.webview, 'settings');
       }
 
@@ -825,461 +418,8 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
   }
 
   private async getSidebarHtml(webview: vscode.Webview, view: SidebarView = 'menu'): Promise<string> {
-    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'sidebar.js'));
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'sidebar.css'));
-    const nonce = getNonce();
-    const workspaceRoot = getWorkspaceRoot();
-    const isInitialized = workspaceRoot ? await pathExists(vscode.Uri.joinPath(workspaceRoot, '.slash-doc')) : false;
-    const menu = workspaceRoot && isInitialized ? await readMenu(workspaceRoot) : undefined;
-    const settings = workspaceRoot && isInitialized ? await readSettings(workspaceRoot) : getDefaultSettings();
-
-    const content = workspaceRoot
-      ? isInitialized
-        ? view === 'settings'
-          ? renderSettingsPanel(settings)
-          : `<div class="panel panel-ready">
-            <div class="menu-panel">
-              <div class="actions-row">
-                <sl-button id="create-page" size="small" variant="primary">Создать страницу</sl-button>
-                <sl-button id="import-page" size="small" variant="default">Импорт</sl-button>
-              </div>
-              <nav class="tree" aria-label="Страницы">
-                ${renderMenuTree(menu?.items ?? [])}
-              </nav>
-            </div>
-            <div class="settings-button-row">
-              <sl-button id="open-settings" size="small" variant="default">Настройки</sl-button>
-            </div>
-          </div>`
-        : `<div class="panel panel-empty">
-            <sl-button id="initialize" size="small" variant="primary">Инициализировать документацию</sl-button>
-          </div>`
-      : `<div class="panel panel-empty">
-          <p class="empty-text">Откройте папку проекта</p>
-        </div>`;
-
-    return /* html */ `<!DOCTYPE html>
-<html lang="ru">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${webview.cspSource};">
-    <link rel="stylesheet" href="${styleUri}">
-    <title>Slash Doc</title>
-    <style>
-      :root {
-        --focus-ring: var(--vscode-focusBorder, var(--vscode-button-background));
-
-        --sl-font-sans: var(--vscode-font-family);
-        --sl-font-size-small: var(--vscode-font-size);
-        --sl-font-size-medium: var(--vscode-font-size);
-        --sl-input-height-small: 24px;
-        --sl-line-height-small: 1;
-        --sl-line-height-normal: 1;
-        --sl-spacing-2x-small: 4px;
-        --sl-spacing-x-small: 6px;
-        --sl-spacing-small: 8px;
-        --sl-border-radius-small: 2px;
-        --sl-border-radius-medium: 2px;
-        --sl-focus-ring-color: var(--focus-ring);
-        --sl-focus-ring-width: 1px;
-        --sl-focus-ring-offset: 1px;
-
-        --sl-color-primary-600: var(--vscode-button-background);
-        --sl-color-primary-700: var(--vscode-button-hoverBackground, var(--vscode-button-background));
-        --sl-color-primary-500: var(--vscode-button-background);
-        --sl-color-neutral-0: var(--vscode-button-foreground);
-        --sl-color-neutral-600: var(--vscode-foreground);
-        --sl-color-neutral-700: var(--vscode-foreground);
-        --sl-color-neutral-800: var(--vscode-foreground);
-        --sl-color-neutral-900: var(--vscode-foreground);
-      }
-
-      body {
-        min-height: 100vh;
-        margin: 0;
-        color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
-        background: var(--vscode-sideBar-background, var(--vscode-editor-background));
-        font-family: var(--vscode-font-family);
-        font-size: var(--vscode-font-size);
-      }
-
-      .panel {
-        box-sizing: border-box;
-        min-height: 100vh;
-        padding: 0;
-      }
-
-      .panel-empty {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .panel-ready {
-        display: grid;
-        grid-template-rows: minmax(120px, 1fr) auto;
-        gap: 12px;
-      }
-
-      .panel-settings {
-        display: grid;
-        grid-template-rows: auto 1fr;
-        gap: 12px;
-      }
-
-      .menu-panel {
-        display: grid;
-        grid-template-rows: auto 1fr;
-        min-height: 0;
-        gap: 10px;
-      }
-
-      .actions-row {
-        display: flex;
-        min-width: 0;
-      }
-
-      .settings-button-row {
-        display: flex;
-        min-width: 0;
-        padding-top: 12px;
-        border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
-      }
-
-      .empty-text {
-        margin: 0;
-        color: var(--vscode-descriptionForeground);
-        text-align: center;
-      }
-
-      sl-button {
-        flex: 1;
-        max-width: 100%;
-      }
-
-      sl-button::part(base) {
-        min-width: 0;
-        min-height: 24px;
-        padding: 4px 10px;
-        border-radius: 2px;
-        font-family: var(--vscode-font-family);
-        font-size: var(--vscode-font-size);
-        font-weight: 400;
-        line-height: normal;
-        box-shadow: none;
-        transition: none;
-      }
-
-      sl-button::part(label) {
-        overflow: hidden;
-        padding: 0;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      sl-button[variant="primary"]::part(base) {
-        color: var(--vscode-button-foreground);
-        border-color: var(--vscode-button-border, transparent);
-        background: var(--vscode-button-background);
-      }
-
-      sl-button[variant="primary"]::part(base):hover {
-        color: var(--vscode-button-foreground);
-        border-color: var(--vscode-button-border, transparent);
-        background: var(--vscode-button-hoverBackground);
-      }
-
-      sl-button[variant="default"]::part(base) {
-        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-        border-color: var(--vscode-button-border, var(--vscode-input-border, transparent));
-        background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
-      }
-
-      sl-button[variant="default"]::part(base):hover {
-        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-        border-color: var(--vscode-button-border, var(--vscode-input-border, transparent));
-        background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
-      }
-
-      sl-button::part(base):focus-visible {
-        outline: 1px solid var(--focus-ring);
-        outline-offset: 2px;
-      }
-
-      .tree {
-        min-width: 0;
-        overflow: auto;
-      }
-
-      .tree-list {
-        display: grid;
-        gap: 1px;
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
-
-      .tree-list .tree-list {
-        margin-left: 12px;
-      }
-
-      .tree-node {
-        min-width: 0;
-      }
-
-      .tree-row {
-        display: flex;
-        align-items: center;
-        gap: 2px;
-        min-width: 0;
-      }
-
-      .tree-item {
-        display: flex;
-        align-items: center;
-        flex: 1 1 auto;
-        width: 100%;
-        min-width: 0;
-        min-height: 22px;
-        padding: 2px 6px;
-        color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
-        border: 0;
-        border-radius: 2px;
-        background: transparent;
-        font: inherit;
-        text-align: left;
-        cursor: pointer;
-      }
-
-      .tree-item:hover {
-        background: var(--vscode-list-hoverBackground);
-      }
-
-      .tree-item:focus-visible {
-        outline: 1px solid var(--focus-ring);
-        outline-offset: -1px;
-      }
-
-      .tree-item[aria-selected="true"] {
-        color: var(--vscode-list-activeSelectionForeground, var(--vscode-sideBar-foreground));
-        background: var(--vscode-list-activeSelectionBackground);
-      }
-
-      .tree-delete {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex: 0 0 22px;
-        width: 22px;
-        height: 22px;
-        padding: 0;
-        color: var(--vscode-descriptionForeground);
-        border: 0;
-        border-radius: 2px;
-        background: transparent;
-        cursor: pointer;
-        opacity: 0;
-      }
-
-      .tree-row:hover .tree-delete,
-      .tree-delete:focus-visible {
-        opacity: 1;
-      }
-
-      .tree-delete:hover {
-        color: var(--vscode-errorForeground, var(--vscode-foreground));
-        background: var(--vscode-list-hoverBackground);
-      }
-
-      .tree-delete:focus-visible {
-        outline: 1px solid var(--focus-ring);
-        outline-offset: -1px;
-      }
-
-      .tree-label {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .tree-empty {
-        margin: 4px 0 0;
-        color: var(--vscode-descriptionForeground);
-      }
-
-      .settings-panel {
-        display: grid;
-        align-items: start;
-        gap: 12px;
-        min-width: 0;
-        overflow: auto;
-      }
-
-      .settings-panel sl-button {
-        justify-self: start;
-      }
-
-      .settings-header {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-width: 0;
-      }
-
-      .settings-header sl-button {
-        flex: 0 0 auto;
-      }
-
-      .settings-title {
-        margin: 0;
-        color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-sideBar-foreground));
-        font-size: var(--vscode-font-size);
-        font-weight: 600;
-      }
-
-      .settings-group {
-        display: grid;
-        align-items: start;
-        gap: 6px;
-        min-width: 0;
-      }
-
-      .settings-list {
-        display: grid;
-        align-items: start;
-        gap: 6px;
-      }
-
-      .settings-group-title {
-        color: var(--vscode-descriptionForeground);
-        font-size: 11px;
-        text-transform: uppercase;
-      }
-
-      .addon-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        min-height: 24px;
-      }
-
-      .addon-info {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        min-width: 0;
-      }
-
-      .addon-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 16px;
-        height: 16px;
-        color: var(--vscode-icon-foreground, currentColor);
-        flex: 0 0 auto;
-      }
-
-      .addon-icon svg {
-        width: 16px;
-        height: 16px;
-      }
-
-      .addon-label {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .settings-row {
-        display: grid;
-        align-items: start;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: 6px;
-      }
-
-      .service-row {
-        grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1.2fr) auto;
-      }
-
-      .custom-addon-row {
-        grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) auto auto;
-      }
-
-      .api-settings-row {
-        grid-template-columns: minmax(0, 1fr) 72px;
-      }
-
-      .settings-input {
-        box-sizing: border-box;
-        width: 100%;
-        min-width: 0;
-        height: 24px;
-        padding: 2px 6px;
-        color: var(--vscode-input-foreground);
-        border: 1px solid var(--vscode-input-border, transparent);
-        border-radius: 2px;
-        background: var(--vscode-input-background);
-        font: inherit;
-      }
-
-      .settings-input:focus {
-        outline: 1px solid var(--focus-ring);
-        outline-offset: -1px;
-      }
-
-      .settings-open-button {
-        box-sizing: border-box;
-        height: 24px;
-        padding: 0 8px;
-        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-        border: 1px solid var(--vscode-button-border, var(--vscode-input-border, transparent));
-        border-radius: 2px;
-        background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
-        font: inherit;
-        cursor: pointer;
-      }
-
-      .settings-open-button:hover {
-        background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
-      }
-
-      .service-actions {
-        display: flex;
-        align-items: flex-start;
-        gap: 6px;
-        min-width: 0;
-      }
-
-      .service-actions sl-button {
-        flex: 0 1 auto;
-      }
-
-      sl-switch::part(base) {
-        font-family: var(--vscode-font-family);
-        font-size: var(--vscode-font-size);
-      }
-
-      sl-switch::part(control) {
-        border-color: var(--vscode-input-border, transparent);
-        background: var(--vscode-input-background);
-      }
-
-      sl-switch[checked]::part(control) {
-        border-color: var(--vscode-button-background);
-        background: var(--vscode-button-background);
-      }
-    </style>
-  </head>
-  <body>
-    ${content}
-    <script nonce="${nonce}" src="${scriptUri}"></script>
-  </body>
-</html>`;
+    return getSidebarHtml(webview, this.extensionUri, editorAddonDefinitions, view);
   }
-
   private async initializeDocumentation(silent = false): Promise<void> {
     const workspaceRoot = getWorkspaceRoot();
 
@@ -1291,12 +431,10 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     const slashDocRoot = vscode.Uri.joinPath(workspaceRoot, '.slash-doc');
     const docsRoot = vscode.Uri.joinPath(slashDocRoot, 'docs');
     const pagesRoot = vscode.Uri.joinPath(docsRoot, 'pages');
-    const localApiRoot = getLocalApiRootUri(workspaceRoot);
-    const localAddonRoot = getLocalAddonRootUri(workspaceRoot);
 
     await vscode.workspace.fs.createDirectory(pagesRoot);
-    await vscode.workspace.fs.createDirectory(localApiRoot);
-    await vscode.workspace.fs.createDirectory(localAddonRoot);
+    await vscode.workspace.fs.createDirectory(getGlobalApiRootUri(this.extensionUri));
+    await vscode.workspace.fs.createDirectory(getGlobalAddonRootUri(this.extensionUri));
     await writeJsonIfMissing(vscode.Uri.joinPath(slashDocRoot, 'sdsettings.json'), getDefaultSettings());
     await writeJsonIfMissing(vscode.Uri.joinPath(docsRoot, 'menu.json'), {
       items: []
@@ -1318,7 +456,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     await apiServerManager?.reload();
   }
 
-  private async createApiService(scope: ApiServiceScope): Promise<void> {
+  private async createApiService(): Promise<void> {
     const workspaceRoot = getWorkspaceRoot();
 
     if (!workspaceRoot) {
@@ -1342,14 +480,13 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     const file = `${slugify(name)}.mjs`;
     const service: ApiService = {
       id,
-      scope,
       name,
       file
     };
 
     settings.apiServices.push(service);
     await writeSettings(workspaceRoot, settings);
-    await vscode.workspace.fs.createDirectory(getApiRootUri(this.extensionUri, workspaceRoot, scope));
+    await vscode.workspace.fs.createDirectory(getGlobalApiRootUri(this.extensionUri));
     await writeTextIfMissing(getApiServiceUri(this.extensionUri, workspaceRoot, service), getApiRouteTemplate(name));
     await this.openApiService(id);
     await apiServerManager?.reload();
@@ -1373,7 +510,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
   }
 
-  private async createCustomAddon(scope: AddonScope): Promise<void> {
+  private async createCustomAddon(): Promise<void> {
     const workspaceRoot = getWorkspaceRoot();
 
     if (!workspaceRoot) {
@@ -1397,7 +534,6 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     const file = `${slugify(name)}.mjs`;
     const addon: CustomEditorAddon = {
       id,
-      scope,
       name,
       toolName: normalizeToolName(name),
       file,
@@ -1406,7 +542,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
 
     settings.customEditorAddons.push(addon);
     await writeSettings(workspaceRoot, settings);
-    await vscode.workspace.fs.createDirectory(getAddonRootUri(this.extensionUri, workspaceRoot, scope));
+    await vscode.workspace.fs.createDirectory(getGlobalAddonRootUri(this.extensionUri));
     await writeTextIfMissing(getCustomAddonUri(this.extensionUri, workspaceRoot, addon), getCustomAddonTemplate(name));
     await this.openCustomAddon(id);
   }
@@ -1547,6 +683,47 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async renamePage(pageId: string): Promise<void> {
+    const workspaceRoot = getWorkspaceRoot();
+
+    if (!workspaceRoot) {
+      return;
+    }
+
+    const menu = await readMenu(workspaceRoot);
+    const item = findMenuItem(menu.items, pageId);
+
+    if (!item) {
+      return;
+    }
+
+    const title = await vscode.window.showInputBox({
+      prompt: 'Новый заголовок страницы',
+      value: item.title,
+      valueSelection: [0, item.title.length],
+      validateInput: (value) => value.trim() ? undefined : 'Заголовок не может быть пустым'
+    });
+
+    if (!title?.trim()) {
+      return;
+    }
+
+    const normalizedTitle = title.trim();
+    item.title = normalizedTitle;
+    await writeMenu(workspaceRoot, menu);
+    const content = await readPageContent(workspaceRoot, pageId, normalizedTitle);
+    const updatedContent = updatePageContentTitle(content, normalizedTitle);
+    await writeJson(getPageContentUri(workspaceRoot, pageId), updatedContent);
+
+    for (const panel of openPagePanels.get(pageId) ?? []) {
+      panel.title = normalizedTitle;
+      void panel.webview.postMessage({
+        type: 'replaceData',
+        data: updatedContent
+      });
+    }
+  }
+
   private async createPageWithContent(title: string, content: unknown, parentId?: string): Promise<string> {
     const workspaceRoot = getWorkspaceRoot();
 
@@ -1576,1651 +753,4 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
 
     return id;
   }
-}
-
-class ApiServerManager {
-  private server?: Server;
-
-  constructor(private readonly extensionUri: vscode.Uri) {}
-
-  async reload(): Promise<void> {
-    await this.dispose();
-
-    const workspaceRoot = getWorkspaceRoot();
-
-    if (!workspaceRoot || !(await pathExists(vscode.Uri.joinPath(workspaceRoot, '.slash-doc')))) {
-      return;
-    }
-
-    const settings = await readSettings(workspaceRoot);
-    const app = express();
-    app.use(express.json());
-
-    const context = {
-      extensionUri: this.extensionUri.fsPath,
-      workspaceRoot: workspaceRoot.fsPath,
-      globalApiRoot: getGlobalApiRootUri(this.extensionUri).fsPath,
-      localApiRoot: getLocalApiRootUri(workspaceRoot).fsPath,
-      puppeteer: createBundledPuppeteer(this.extensionUri.fsPath),
-      variables: Object.fromEntries(settings.variables.map((item) => [item.key, item.value])),
-      settings
-    };
-
-    app.get('/__slash-doc/health', (_request, response) => {
-      response.json({
-        ok: true,
-        prefix: settings.apiPrefix
-      });
-    });
-
-    for (const service of settings.apiServices) {
-      try {
-        await mountApiService(app, this.extensionUri, workspaceRoot, settings.apiPrefix, service, context);
-      } catch (error) {
-        console.error(`Failed to mount Slash Doc API service ${service.file}`, error);
-      }
-    }
-
-    this.server = app.listen(settings.apiPort);
-  }
-
-  async dispose(): Promise<void> {
-    const server = this.server;
-    this.server = undefined;
-
-    if (!server) {
-      return;
-    }
-
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
-  }
-}
-
-function createBundledPuppeteer(projectRoot: string): PuppeteerNode {
-  const productName = process.env.PUPPETEER_PRODUCT === 'firefox'
-    || process.env.npm_config_puppeteer_product === 'firefox'
-    || process.env.npm_package_config_puppeteer_product === 'firefox'
-    ? 'firefox'
-    : undefined;
-
-  return new PuppeteerNode({
-    projectRoot,
-    preferredRevision: productName === 'firefox' ? PUPPETEER_REVISIONS.firefox : PUPPETEER_REVISIONS.chromium,
-    isPuppeteerCore: false,
-    productName
-  });
-}
-
-async function exportPageContent(
-  data: unknown,
-  format: ExportFormat,
-  settings: SlashDocSettings,
-  extensionUri: vscode.Uri,
-  workspaceRoot: vscode.Uri | undefined
-): Promise<string> {
-  const blocks = getEditorBlocks(data);
-  const rendered = await Promise.all(blocks.map((block) => exportBlock(block, format, settings, extensionUri, workspaceRoot)));
-
-  if (format === 'html') {
-    return `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${escapeHtml(getExportTitle(blocks))}</title>
-  </head>
-  <body>
-${rendered.filter(Boolean).join('\n')}
-  </body>
-</html>
-`;
-  }
-
-  return `${rendered.filter(Boolean).join('\n\n')}\n`;
-}
-
-async function exportBlock(
-  block: Record<string, unknown>,
-  format: ExportFormat,
-  settings: SlashDocSettings,
-  extensionUri: vscode.Uri,
-  workspaceRoot: vscode.Uri | undefined
-): Promise<string> {
-  const custom = workspaceRoot
-    ? await exportCustomBlock(block, format, settings, extensionUri, workspaceRoot)
-    : undefined;
-
-  if (custom !== undefined) {
-    return custom;
-  }
-
-  const type = typeof block.type === 'string' ? block.type : '';
-  const data = isRecord(block.data) ? block.data : {};
-
-  if (format === 'html') {
-    return exportBuiltInBlockToHtml(type, data);
-  }
-
-  return exportBuiltInBlockToMarkdown(type, data);
-}
-
-async function exportCustomBlock(
-  block: Record<string, unknown>,
-  format: ExportFormat,
-  settings: SlashDocSettings,
-  extensionUri: vscode.Uri,
-  workspaceRoot: vscode.Uri
-): Promise<string | undefined> {
-  const type = typeof block.type === 'string' ? block.type : '';
-  const addon = settings.customEditorAddons.find((item) => item.enabled && item.toolName === type);
-
-  if (!addon) {
-    return undefined;
-  }
-
-  const moduleUrl = `${pathToFileURL(getCustomAddonUri(extensionUri, workspaceRoot, addon).fsPath).href}?v=${Date.now()}`;
-  const adapterModule = await import(moduleUrl) as Record<string, unknown>;
-  const adapters = isRecord(adapterModule.adapters) ? adapterModule.adapters : {};
-  const adapter = format === 'html'
-    ? adapterModule.toHtml ?? adapters.html
-    : adapterModule.toMarkdown ?? adapters.md ?? adapters.markdown;
-
-  if (typeof adapter !== 'function') {
-    return undefined;
-  }
-
-  return String(await adapter(block.data, { block, settings, format }));
-}
-
-function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>): string {
-  if (type === 'header') {
-    const level = clampHeadingLevel(data.level);
-    return `<h${level}>${data.text ?? ''}</h${level}>`;
-  }
-
-  if (type === 'paragraph') {
-    return `<p>${data.text ?? ''}</p>`;
-  }
-
-  if (type === 'list') {
-    const tag = data.style === 'ordered' ? 'ol' : 'ul';
-    const items = getListItems(data);
-    return `<${tag}>${items.map((item) => `<li>${item}</li>`).join('')}</${tag}>`;
-  }
-
-  if (type === 'table') {
-    const rows = Array.isArray(data.content) ? data.content : [];
-    return `<table>${rows.map((row) => {
-      const cells = Array.isArray(row) ? row : [];
-      return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join('')}</tr>`;
-    }).join('')}</table>`;
-  }
-
-  if (type === 'image') {
-    const file = isRecord(data.file) ? data.file : {};
-    const url = typeof file.url === 'string' ? file.url : '';
-    const caption = typeof data.caption === 'string' ? data.caption : '';
-    return `<figure><img src="${escapeAttribute(url)}" alt="${escapeAttribute(stripHtml(caption))}">${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>`;
-  }
-
-  if (type === 'mermaid') {
-    const code = typeof data.code === 'string' ? data.code : '';
-    const caption = typeof data.caption === 'string' ? data.caption : '';
-    return `<figure class="mermaid-figure"><pre class="mermaid">${escapeHtml(code)}</pre>${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ''}</figure>`;
-  }
-
-  if (type === 'flowDesigner') {
-    const source = createFlowDesignerDataUri(data);
-    return `<figure class="flow-designer-figure"><img src="${escapeAttribute(source)}" alt="Flow Designer diagram"></figure>`;
-  }
-
-  if (type === 'networkCanvas') {
-    const source = createNetworkCanvasDataUri(data);
-    return `<figure class="network-canvas-figure"><img src="${escapeAttribute(source)}" alt="Network Canvas diagram"></figure>`;
-  }
-
-  return `<pre><code>${escapeHtml(JSON.stringify(data, null, 2))}</code></pre>`;
-}
-
-function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown>): string {
-  if (type === 'header') {
-    const level = clampHeadingLevel(data.level);
-    return `${'#'.repeat(level)} ${htmlToMarkdownInline(String(data.text ?? ''))}`;
-  }
-
-  if (type === 'paragraph') {
-    return htmlToMarkdownInline(String(data.text ?? ''));
-  }
-
-  if (type === 'list') {
-    return getListItems(data)
-      .map((item, index) => data.style === 'ordered' ? `${index + 1}. ${htmlToMarkdownInline(item)}` : `- ${htmlToMarkdownInline(item)}`)
-      .join('\n');
-  }
-
-  if (type === 'table') {
-    const rows = Array.isArray(data.content) ? data.content.filter(Array.isArray) as unknown[][] : [];
-
-    if (rows.length === 0) {
-      return '';
-    }
-
-    const normalizedRows = rows.map((row) => row.map((cell) => htmlToMarkdownInline(String(cell ?? ''))));
-    const header = normalizedRows[0];
-    const separator = header.map(() => '---');
-    return [header, separator, ...normalizedRows.slice(1)]
-      .map((row) => `| ${row.join(' | ')} |`)
-      .join('\n');
-  }
-
-  if (type === 'image') {
-    const file = isRecord(data.file) ? data.file : {};
-    const url = typeof file.url === 'string' ? file.url : '';
-    const caption = typeof data.caption === 'string' ? htmlToMarkdownInline(data.caption) : '';
-    return `![${caption}](${url})`;
-  }
-
-  if (type === 'mermaid') {
-    const code = typeof data.code === 'string' ? data.code.trim() : '';
-    return code ? `\`\`\`mermaid\n${code}\n\`\`\`` : '';
-  }
-
-  if (type === 'flowDesigner') {
-    return `![Flow Designer diagram](${createFlowDesignerDataUri(data)})`;
-  }
-
-  if (type === 'networkCanvas') {
-    return `![Network Canvas diagram](${createNetworkCanvasDataUri(data)})`;
-  }
-
-  return `\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
-}
-
-type ExportFlowNode = {
-  id: string;
-  type: string;
-  label: string;
-  description: string;
-  x: number;
-  y: number;
-  inputs: string[];
-  outputs: string[];
-};
-
-type ExportFlowConnection = {
-  fromNodeId: string;
-  fromPort: number;
-  toNodeId: string;
-  toPort: number;
-};
-
-function createFlowDesignerDataUri(data: Record<string, unknown>): string {
-  const svg = renderFlowDesignerSvg(data);
-  return `data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}`;
-}
-
-function renderFlowDesignerSvg(data: Record<string, unknown>): string {
-  const nodes = normalizeExportFlowNodes(data.nodes);
-  const connections = normalizeExportFlowConnections(data.connections);
-  const nodeWidth = 180;
-  const nodeHeight = 76;
-  const padding = 32;
-  const minX = nodes.length > 0 ? Math.min(...nodes.map((node) => node.x)) : 0;
-  const minY = nodes.length > 0 ? Math.min(...nodes.map((node) => node.y)) : 0;
-  const maxX = nodes.length > 0 ? Math.max(...nodes.map((node) => node.x + nodeWidth)) : 360;
-  const maxY = nodes.length > 0 ? Math.max(...nodes.map((node) => node.y + nodeHeight)) : 180;
-  const width = Math.max(360, maxX - minX + padding * 2);
-  const height = Math.max(180, maxY - minY + padding * 2);
-  const offsetX = padding - minX;
-  const offsetY = padding - minY;
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const viewport = isRecord(data.viewport)
-    ? {
-      x: getFiniteNumber(data.viewport.x, 0),
-      y: getFiniteNumber(data.viewport.y, 0),
-      scale: Math.max(0.25, Math.min(2, getFiniteNumber(data.viewport.scale, 1)))
-    }
-    : { x: 0, y: 0, scale: 1 };
-  const serializedData = JSON.stringify({ version: 1, nodes, connections, viewport }).replaceAll(']]>', ']]]]><![CDATA[>');
-  const connectionSvg = connections.map((connection) => {
-    const from = nodeById.get(connection.fromNodeId);
-    const to = nodeById.get(connection.toNodeId);
-
-    if (!from || !to) {
-      return '';
-    }
-
-    const startX = from.x + offsetX + nodeWidth;
-    const startY = from.y + offsetY + nodeHeight / 2 + connection.fromPort * 12;
-    const endX = to.x + offsetX;
-    const endY = to.y + offsetY + nodeHeight / 2 + connection.toPort * 12;
-    const bend = Math.max(42, Math.abs(endX - startX) / 2);
-    return `<path d="M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}"/>`;
-  }).join('');
-  const nodeSvg = nodes.map((node) => {
-    const x = node.x + offsetX;
-    const y = node.y + offsetY;
-    const color = getFlowNodeColor(node.type);
-    const label = escapeHtml(node.label || getFlowNodeLabel(node.type));
-    const description = node.description
-      ? `<text class="description" x="${x + 14}" y="${y + 49}">${escapeHtml(node.description)}</text>`
-      : '';
-    const inputPorts = node.inputs.map((_, index) => `<circle cx="${x}" cy="${y + nodeHeight / 2 + index * 12}" r="5" fill="#ffffff" stroke="${color}"/>`).join('');
-    const outputPorts = node.outputs.map((_, index) => `<circle cx="${x + nodeWidth}" cy="${y + nodeHeight / 2 + index * 12}" r="5" fill="#ffffff" stroke="${color}"/>`).join('');
-
-    return `<g class="node node-${escapeAttribute(node.type)}"><rect x="${x}" y="${y}" width="${nodeWidth}" height="${nodeHeight}" rx="8" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="2"/><text class="label" x="${x + 14}" y="${y + 29}">${label}</text>${description}${inputPorts}${outputPorts}</g>`;
-  }).join('');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Flow Designer diagram">
-  <metadata id="slash-doc-flow-data"><![CDATA[${serializedData}]]></metadata>
-  <style><![CDATA[
-    .background { fill: #ffffff; }
-    .connections path { fill: none; stroke: #4f83cc; stroke-width: 2; }
-    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #202124; }
-    .label { font-size: 14px; font-weight: 600; }
-    .description { font-size: 11px; fill: #5f6368; }
-  ]]></style>
-  <rect class="background" width="100%" height="100%" rx="8"/>
-  <g class="connections">${connectionSvg}</g>
-  <g class="nodes">${nodeSvg}</g>
-</svg>`;
-}
-
-function normalizeExportFlowNodes(value: unknown): ExportFlowNode[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.filter(isRecord).map((node, index) => ({
-    id: typeof node.id === 'string' ? node.id : `node-${index + 1}`,
-    type: typeof node.type === 'string' ? node.type : 'action',
-    label: typeof node.label === 'string' ? node.label : '',
-    description: typeof node.description === 'string' ? node.description : '',
-    x: getFiniteNumber(node.x, index * 210),
-    y: getFiniteNumber(node.y, 0),
-    inputs: Array.isArray(node.inputs) ? node.inputs.filter((item): item is string => typeof item === 'string') : [],
-    outputs: Array.isArray(node.outputs) ? node.outputs.filter((item): item is string => typeof item === 'string') : []
-  }));
-}
-
-function normalizeExportFlowConnections(value: unknown): ExportFlowConnection[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.filter(isRecord).flatMap((connection) => {
-    if (typeof connection.fromNodeId !== 'string' || typeof connection.toNodeId !== 'string') {
-      return [];
-    }
-
-    return [{
-      fromNodeId: connection.fromNodeId,
-      fromPort: Math.max(0, Math.trunc(getFiniteNumber(connection.fromPort, 0))),
-      toNodeId: connection.toNodeId,
-      toPort: Math.max(0, Math.trunc(getFiniteNumber(connection.toPort, 0)))
-    }];
-  });
-}
-
-function getFiniteNumber(value: unknown, fallback: number): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
-
-function getFlowNodeColor(type: string): string {
-  return ({
-    trigger: '#2e9b57',
-    action: '#3979c6',
-    condition: '#b77900',
-    transform: '#8655b6',
-    output: '#c56824'
-  } as Record<string, string>)[type] ?? '#697386';
-}
-
-function getFlowNodeLabel(type: string): string {
-  return type ? `${type[0].toUpperCase()}${type.slice(1)}` : 'Node';
-}
-
-type ExportNetworkNode = { id: string; type: string; label: string; x: number; y: number; vlanId?: string };
-type ExportNetworkVlan = { id: string; name: string; color: string; x: number; y: number; width: number; height: number };
-type ExportNetworkConnection = { id: string; from: string; to: string; label: string; lineType: string };
-
-function createNetworkCanvasDataUri(data: Record<string, unknown>): string {
-  return `data:image/svg+xml;base64,${Buffer.from(renderNetworkCanvasSvg(data), 'utf8').toString('base64')}`;
-}
-
-function renderNetworkCanvasSvg(data: Record<string, unknown>): string {
-  const nodes = normalizeExportNetworkNodes(data.nodes);
-  const vlans = normalizeExportNetworkVlans(data.vlans);
-  const connections = normalizeExportNetworkConnections(data.connections);
-  const items = [
-    ...nodes.map((node) => ({ left: node.x - 50, top: node.y - 40, right: node.x + 50, bottom: node.y + 40 })),
-    ...vlans.map((vlan) => ({ left: vlan.x, top: vlan.y, right: vlan.x + vlan.width, bottom: vlan.y + vlan.height }))
-  ];
-  const padding = 36;
-  const minX = items.length ? Math.min(...items.map((item) => item.left)) : 0;
-  const minY = items.length ? Math.min(...items.map((item) => item.top)) : 0;
-  const maxX = items.length ? Math.max(...items.map((item) => item.right)) : 500;
-  const maxY = items.length ? Math.max(...items.map((item) => item.bottom)) : 280;
-  const width = Math.max(500, maxX - minX + padding * 2);
-  const height = Math.max(280, maxY - minY + padding * 2);
-  const offsetX = padding - minX;
-  const offsetY = padding - minY;
-  const endpoints = new Map<string, { x: number; y: number }>([
-    ...nodes.map((node) => [node.id, { x: node.x + offsetX, y: node.y + offsetY }] as const),
-    ...vlans.map((vlan) => [vlan.id, { x: vlan.x + vlan.width / 2 + offsetX, y: vlan.y + vlan.height / 2 + offsetY }] as const)
-  ]);
-  const viewport = isRecord(data.viewport)
-    ? { x: getFiniteNumber(data.viewport.x, 0), y: getFiniteNumber(data.viewport.y, 0), scale: Math.max(0.2, Math.min(3, getFiniteNumber(data.viewport.scale, 1))) }
-    : { x: 0, y: 0, scale: 1 };
-  const metadata = JSON.stringify({ version: 1, nodes, vlans, connections, viewport }).replaceAll(']]>', ']]]]><![CDATA[>');
-  const vlanSvg = vlans.map((vlan) => `<g class="vlan"><rect x="${vlan.x + offsetX}" y="${vlan.y + offsetY}" width="${vlan.width}" height="${vlan.height}" rx="9" fill="${escapeAttribute(vlan.color)}" fill-opacity="0.07" stroke="${escapeAttribute(vlan.color)}" stroke-width="2" stroke-dasharray="7 5"/><rect x="${vlan.x + offsetX}" y="${vlan.y + offsetY}" width="${Math.max(70, vlan.name.length * 8 + 18)}" height="25" rx="5" fill="${escapeAttribute(vlan.color)}" fill-opacity="0.18"/><text class="vlan-label" x="${vlan.x + offsetX + 9}" y="${vlan.y + offsetY + 17}" fill="${escapeAttribute(vlan.color)}">${escapeHtml(vlan.name)}</text></g>`).join('');
-  const connectionSvg = connections.map((connection) => {
-    const from = endpoints.get(connection.from);
-    const to = endpoints.get(connection.to);
-    if (!from || !to) return '';
-    const dash = connection.lineType === 'dashed' ? ' stroke-dasharray="8 5"' : connection.lineType === 'dotted' ? ' stroke-dasharray="2 6" stroke-linecap="round"' : '';
-    const dx = to.x - from.x; const dy = to.y - from.y; const length = Math.hypot(dx, dy) || 1;
-    const px = (-dy / length) * 3; const py = (dx / length) * 3;
-    const visible = connection.lineType === 'double'
-      ? `<line x1="${from.x + px}" y1="${from.y + py}" x2="${to.x + px}" y2="${to.y + py}"/><line x1="${from.x - px}" y1="${from.y - py}" x2="${to.x - px}" y2="${to.y - py}"/>`
-      : `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"${dash}/>`;
-    const label = connection.label ? `<g class="connection-label"><rect x="${(from.x + to.x) / 2 - Math.max(34, connection.label.length * 3.5 + 8)}" y="${(from.y + to.y) / 2 - 12}" width="${Math.max(68, connection.label.length * 7 + 16)}" height="20" rx="4"/><text x="${(from.x + to.x) / 2}" y="${(from.y + to.y) / 2 + 2}">${escapeHtml(connection.label)}</text></g>` : '';
-    return `<g class="connection">${visible}${label}</g>`;
-  }).join('');
-  const nodeSvg = nodes.map((node) => renderNetworkNodeSvg(node, offsetX, offsetY)).join('');
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Network Canvas diagram">
-  <metadata id="slash-doc-network-data"><![CDATA[${metadata}]]></metadata>
-  <style><![CDATA[
-    .background { fill:#f6f8fa; }
-    .grid { stroke:#d8dee4; stroke-width:1; }
-    text { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-    .vlan-label { font-size:11px; font-weight:600; letter-spacing:.06em; }
-    .connection line { stroke:#378b9c; stroke-width:2; }
-    .connection-label rect { fill:#fff; stroke:#8dbbc4; }
-    .connection-label text { fill:#57606a; font-size:10px; text-anchor:middle; }
-    .node-label { fill:#424a53; font-size:11px; text-anchor:middle; }
-  ]]></style>
-  <defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path class="grid" d="M20 0H0V20" fill="none"/></pattern></defs>
-  <rect class="background" width="100%" height="100%" rx="8"/><rect width="100%" height="100%" fill="url(#grid)" opacity=".55"/>
-  <g class="vlans">${vlanSvg}</g><g class="connections">${connectionSvg}</g><g class="nodes">${nodeSvg}</g>
-</svg>`;
-}
-
-function renderNetworkNodeSvg(node: ExportNetworkNode, offsetX: number, offsetY: number): string {
-  const x = node.x + offsetX;
-  const y = node.y + offsetY;
-  const color = ({ server: '#0891b2', database: '#7c3aed', workstation: '#159447', balancer: '#d97706' } as Record<string, string>)[node.type] ?? '#697386';
-  const iconName: NetworkIconName = node.type === 'database' || node.type === 'workstation' || node.type === 'balancer' ? node.type : 'server';
-  return `<g class="node node-${escapeAttribute(node.type)}"><rect x="${x - 29}" y="${y - 29}" width="58" height="54" rx="8" fill="#fff" stroke="${color}"/><g transform="translate(${x - 22} ${y - 22}) scale(1.84)" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${networkIconContent(iconName)}</g><text class="node-label" x="${x}" y="${y + 42}">${escapeHtml(node.label)}</text></g>`;
-}
-
-function normalizeExportNetworkNodes(value: unknown): ExportNetworkNode[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isRecord).flatMap((node, index) => typeof node.id === 'string' ? [{ id: node.id, type: typeof node.type === 'string' ? node.type : 'server', label: typeof node.label === 'string' ? node.label : `Node ${index + 1}`, x: getFiniteNumber(node.x, index * 130), y: getFiniteNumber(node.y, 0), ...(typeof node.vlanId === 'string' ? { vlanId: node.vlanId } : {}) }] : []);
-}
-
-function normalizeExportNetworkVlans(value: unknown): ExportNetworkVlan[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isRecord).flatMap((vlan, index) => typeof vlan.id === 'string' ? [{ id: vlan.id, name: typeof vlan.name === 'string' ? vlan.name : `VLAN ${index + 1}`, color: typeof vlan.color === 'string' && /^#[0-9a-f]{6}$/i.test(vlan.color) ? vlan.color : '#06b6d4', x: getFiniteNumber(vlan.x, 0), y: getFiniteNumber(vlan.y, 0), width: Math.max(100, getFiniteNumber(vlan.width, 280)), height: Math.max(70, getFiniteNumber(vlan.height, 180)) }] : []);
-}
-
-function normalizeExportNetworkConnections(value: unknown): ExportNetworkConnection[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isRecord).flatMap((connection, index) => typeof connection.from === 'string' && typeof connection.to === 'string' ? [{ id: typeof connection.id === 'string' ? connection.id : `connection-${index + 1}`, from: connection.from, to: connection.to, label: typeof connection.label === 'string' ? connection.label : '', lineType: typeof connection.lineType === 'string' ? connection.lineType : 'dashed' }] : []);
-}
-
-function getEditorBlocks(data: unknown): Record<string, unknown>[] {
-  if (!isRecord(data) || !Array.isArray(data.blocks)) {
-    return [];
-  }
-
-  return data.blocks.filter((block): block is Record<string, unknown> => isRecord(block));
-}
-
-function getExportTitle(blocks: Record<string, unknown>[]): string {
-  const firstHeader = blocks.find((block) => block.type === 'header' && isRecord(block.data));
-  const text = firstHeader && isRecord(firstHeader.data) && typeof firstHeader.data.text === 'string'
-    ? stripHtml(firstHeader.data.text).trim()
-    : '';
-
-  return text || 'Slash Doc';
-}
-
-function getListItems(data: Record<string, unknown>): string[] {
-  if (!Array.isArray(data.items)) {
-    return [];
-  }
-
-  return data.items.map((item) => {
-    if (typeof item === 'string') {
-      return item;
-    }
-
-    if (isRecord(item) && typeof item.content === 'string') {
-      return item.content;
-    }
-
-    return String(item ?? '');
-  });
-}
-
-function clampHeadingLevel(value: unknown): number {
-  const level = typeof value === 'number' ? value : Number(value);
-  return Number.isInteger(level) && level >= 1 && level <= 6 ? level : 2;
-}
-
-function htmlToMarkdownInline(value: string): string {
-  return stripHtml(
-    value
-      .replaceAll(/<b>(.*?)<\/b>/g, '**$1**')
-      .replaceAll(/<strong>(.*?)<\/strong>/g, '**$1**')
-      .replaceAll(/<i>(.*?)<\/i>/g, '_$1_')
-      .replaceAll(/<em>(.*?)<\/em>/g, '_$1_')
-      .replaceAll(/<code>(.*?)<\/code>/g, '`$1`')
-      .replaceAll(/<mark[^>]*>(.*?)<\/mark>/g, '==$1==')
-  );
-}
-
-function importDocumentContent(text: string, source: vscode.Uri): ImportedDocument {
-  const extension = source.fsPath.split('.').pop()?.toLowerCase() ?? '';
-  const blocks = extension === 'html' || extension === 'htm'
-    ? importHtmlBlocks(text)
-    : importMarkdownBlocks(text);
-  const fallbackTitle = getFileTitle(source);
-  const title = getImportTitle(blocks) || fallbackTitle;
-  const normalizedBlocks = blocks.length > 0 ? blocks : [
-    createEditorBlock('header', {
-      text: escapeHtml(title),
-      level: 2
-    })
-  ];
-
-  if (!getImportTitle(normalizedBlocks)) {
-    normalizedBlocks.unshift(createEditorBlock('header', {
-      text: escapeHtml(title),
-      level: 2
-    }));
-  }
-
-  return {
-    title,
-    content: {
-      time: Date.now(),
-      blocks: normalizedBlocks,
-      version: '2.30.8'
-    }
-  };
-}
-
-function importMarkdownBlocks(markdown: string): Record<string, unknown>[] {
-  const lines = markdown.replaceAll('\r\n', '\n').split('\n');
-  const blocks: Record<string, unknown>[] = [];
-  let paragraph: string[] = [];
-
-  const flushParagraph = () => {
-    const text = paragraph.join(' ').trim();
-    paragraph = [];
-
-    if (text) {
-      blocks.push(createEditorBlock('paragraph', {
-        text: markdownInlineToHtml(text)
-      }));
-    }
-  };
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      flushParagraph();
-      continue;
-    }
-
-    if (/^```mermaid\s*$/i.test(trimmed)) {
-      flushParagraph();
-      const code: string[] = [];
-      index += 1;
-
-      while (index < lines.length && !/^```\s*$/.test(lines[index].trim())) {
-        code.push(lines[index]);
-        index += 1;
-      }
-
-      blocks.push(createEditorBlock('mermaid', {
-        code: code.join('\n'),
-        caption: ''
-      }));
-      continue;
-    }
-
-    const heading = /^(#{1,6})\s+(.+)$/.exec(trimmed);
-
-    if (heading) {
-      flushParagraph();
-      blocks.push(createEditorBlock('header', {
-        text: markdownInlineToHtml(heading[2].trim()),
-        level: heading[1].length
-      }));
-      continue;
-    }
-
-    const image = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(trimmed);
-
-    if (image) {
-      flushParagraph();
-      const embeddedDiagram = readEmbeddedDiagramDataUri(image[2].trim());
-
-      if (embeddedDiagram) {
-        blocks.push(createEditorBlock(embeddedDiagram.type, embeddedDiagram.data));
-        continue;
-      }
-
-      blocks.push(createEditorBlock('image', {
-        file: {
-          url: image[2].trim()
-        },
-        caption: markdownInlineToHtml(image[1].trim()),
-        withBorder: false,
-        withBackground: false,
-        stretched: false
-      }));
-      continue;
-    }
-
-    if (isMarkdownTableStart(lines, index)) {
-      flushParagraph();
-      const tableLines: string[] = [];
-
-      while (index < lines.length && isMarkdownTableLine(lines[index])) {
-        tableLines.push(lines[index]);
-        index += 1;
-      }
-
-      index -= 1;
-      blocks.push(createEditorBlock('table', {
-        withHeadings: true,
-        content: markdownTableToRows(tableLines)
-      }));
-      continue;
-    }
-
-    const list = /^(\s*)([-*+]|\d+[.)])\s+(.+)$/.exec(line);
-
-    if (list) {
-      flushParagraph();
-      const ordered = /\d+[.)]/.test(list[2]);
-      const items: string[] = [];
-
-      while (index < lines.length) {
-        const item = /^(\s*)([-*+]|\d+[.)])\s+(.+)$/.exec(lines[index]);
-
-        if (!item || /\d+[.)]/.test(item[2]) !== ordered) {
-          break;
-        }
-
-        items.push(markdownInlineToHtml(item[3].trim()));
-        index += 1;
-      }
-
-      index -= 1;
-      blocks.push(createEditorBlock('list', {
-        style: ordered ? 'ordered' : 'unordered',
-        items
-      }));
-      continue;
-    }
-
-    paragraph.push(trimmed);
-  }
-
-  flushParagraph();
-  return blocks;
-}
-
-function importHtmlBlocks(html: string): Record<string, unknown>[] {
-  const blocks: Record<string, unknown>[] = [];
-  const body = extractHtmlBody(html)
-    .replaceAll(/<script[\s\S]*?<\/script>/gi, '')
-    .replaceAll(/<style[\s\S]*?<\/style>/gi, '');
-  const blockPattern = /<(h[1-6]|p|ul|ol|table|figure|pre|img)\b[^>]*>([\s\S]*?)(?:<\/\1>)?|<img\b([^>]*)>/gi;
-  let match: RegExpExecArray | null;
-
-  while ((match = blockPattern.exec(body)) !== null) {
-    const tag = (match[1] ?? 'img').toLowerCase();
-    const outer = match[0];
-    const inner = match[2] ?? '';
-
-    if (/^h[1-6]$/.test(tag)) {
-      blocks.push(createEditorBlock('header', {
-        text: cleanEditorHtml(inner),
-        level: Number(tag.slice(1))
-      }));
-      continue;
-    }
-
-    if (tag === 'p') {
-      const text = cleanEditorHtml(inner);
-
-      if (stripHtml(text).trim()) {
-        blocks.push(createEditorBlock('paragraph', { text }));
-      }
-
-      continue;
-    }
-
-    if (tag === 'ul' || tag === 'ol') {
-      blocks.push(createEditorBlock('list', {
-        style: tag === 'ol' ? 'ordered' : 'unordered',
-        items: extractHtmlListItems(inner)
-      }));
-      continue;
-    }
-
-    if (tag === 'table') {
-      blocks.push(createEditorBlock('table', {
-        withHeadings: /<th\b/i.test(inner),
-        content: extractHtmlTableRows(inner)
-      }));
-      continue;
-    }
-
-    if (tag === 'pre' && /\bclass\s*=\s*["'][^"']*\bmermaid\b/i.test(outer)) {
-      blocks.push(createEditorBlock('mermaid', {
-        code: stripHtml(decodeHtmlEntities(inner)).trim(),
-        caption: ''
-      }));
-      continue;
-    }
-
-    if (tag === 'figure' || tag === 'img') {
-      const imageHtml = tag === 'img' ? outer : outer.match(/<img\b[^>]*>/i)?.[0] ?? '';
-      const url = getHtmlAttribute(imageHtml, 'src');
-
-      if (url) {
-        const embeddedDiagram = readEmbeddedDiagramDataUri(url);
-
-        if (embeddedDiagram) {
-          blocks.push(createEditorBlock(embeddedDiagram.type, embeddedDiagram.data));
-          continue;
-        }
-
-        blocks.push(createEditorBlock('image', {
-          file: { url },
-          caption: tag === 'figure' ? cleanEditorHtml(outer.match(/<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/i)?.[1] ?? '') : getHtmlAttribute(imageHtml, 'alt'),
-          withBorder: false,
-          withBackground: false,
-          stretched: false
-        }));
-      }
-    }
-  }
-
-  if (blocks.length === 0) {
-    const text = cleanEditorHtml(body);
-
-    if (stripHtml(text).trim()) {
-      blocks.push(createEditorBlock('paragraph', { text }));
-    }
-  }
-
-  return blocks;
-}
-
-type EmbeddedDiagram = {
-  type: 'flowDesigner' | 'networkCanvas';
-  data: Record<string, unknown>;
-};
-
-function readEmbeddedDiagramDataUri(uri: string): EmbeddedDiagram | undefined {
-  if (!/^data:image\/svg\+xml(?:;[^,]*)?,/i.test(uri)) {
-    return undefined;
-  }
-
-  const separator = uri.indexOf(',');
-
-  if (separator < 0) {
-    return undefined;
-  }
-
-  try {
-    const header = uri.slice(0, separator);
-    const payload = uri.slice(separator + 1);
-    const svg = /;base64(?:;|$)/i.test(header)
-      ? Buffer.from(payload, 'base64').toString('utf8')
-      : decodeURIComponent(payload);
-    const metadata = /<metadata\b[^>]*\bid=["']slash-doc-(flow|network)-data["'][^>]*>([\s\S]*?)<\/metadata>/i.exec(svg);
-
-    if (!metadata) {
-      return undefined;
-    }
-
-    const json = metadata[2]
-      .replace(/^\s*<!\[CDATA\[/, '')
-      .replace(/\]\]>\s*$/, '')
-      .replaceAll(/\]\]>\s*<!\[CDATA\[/g, '');
-    const parsed = JSON.parse(json);
-
-    if (!isRecord(parsed)) {
-      return undefined;
-    }
-
-    return {
-      type: metadata[1].toLowerCase() === 'network' ? 'networkCanvas' : 'flowDesigner',
-      data: parsed
-    };
-  } catch {
-    return undefined;
-  }
-}
-
-function createEditorBlock(type: string, data: Record<string, unknown>): Record<string, unknown> {
-  return {
-    id: createPageId(),
-    type,
-    data
-  };
-}
-
-function markdownInlineToHtml(value: string): string {
-  return escapeHtml(value)
-    .replaceAll(/`([^`]+)`/g, '<code>$1</code>')
-    .replaceAll(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
-    .replaceAll(/__([^_]+)__/g, '<b>$1</b>')
-    .replaceAll(/\*([^*]+)\*/g, '<i>$1</i>')
-    .replaceAll(/_([^_]+)_/g, '<i>$1</i>')
-    .replaceAll(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-}
-
-function isMarkdownTableStart(lines: string[], index: number): boolean {
-  return isMarkdownTableLine(lines[index]) && index + 1 < lines.length && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1]);
-}
-
-function isMarkdownTableLine(line: string): boolean {
-  return line.includes('|') && line.trim().length > 0;
-}
-
-function markdownTableToRows(lines: string[]): string[][] {
-  return lines
-    .filter((line, index) => index !== 1)
-    .map((line) => line.trim().replaceAll(/^\||\|$/g, '').split('|').map((cell) => markdownInlineToHtml(cell.trim())))
-    .filter((row) => row.some((cell) => stripHtml(cell).trim().length > 0));
-}
-
-function extractHtmlBody(html: string): string {
-  return /<body\b[^>]*>([\s\S]*?)<\/body>/i.exec(html)?.[1] ?? html;
-}
-
-function extractHtmlListItems(html: string): string[] {
-  const items: string[] = [];
-  const itemPattern = /<li\b[^>]*>([\s\S]*?)<\/li>/gi;
-  let match: RegExpExecArray | null;
-
-  while ((match = itemPattern.exec(html)) !== null) {
-    items.push(cleanEditorHtml(match[1]));
-  }
-
-  return items;
-}
-
-function extractHtmlTableRows(html: string): string[][] {
-  const rows: string[][] = [];
-  const rowPattern = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
-  let rowMatch: RegExpExecArray | null;
-
-  while ((rowMatch = rowPattern.exec(html)) !== null) {
-    const row: string[] = [];
-    const cellPattern = /<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi;
-    let cellMatch: RegExpExecArray | null;
-
-    while ((cellMatch = cellPattern.exec(rowMatch[1])) !== null) {
-      row.push(cleanEditorHtml(cellMatch[1]));
-    }
-
-    if (row.length > 0) {
-      rows.push(row);
-    }
-  }
-
-  return rows;
-}
-
-function getHtmlAttribute(html: string, attribute: string): string {
-  const pattern = new RegExp(`${attribute}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i');
-  const match = pattern.exec(html);
-  return decodeHtmlEntities(match?.[2] ?? match?.[3] ?? match?.[4] ?? '');
-}
-
-function cleanEditorHtml(value: string): string {
-  return decodeHtmlEntities(
-    value
-      .replaceAll(/<\/?(span|div|section|article|main|header|footer)[^>]*>/gi, '')
-      .replaceAll(/\s+/g, ' ')
-      .trim()
-  );
-}
-
-function decodeHtmlEntities(value: string): string {
-  const named: Record<string, string> = {
-    amp: '&',
-    lt: '<',
-    gt: '>',
-    quot: '"',
-    apos: "'",
-    nbsp: ' '
-  };
-
-  return value.replaceAll(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, code: string) => {
-    const normalized = code.toLowerCase();
-
-    if (normalized.startsWith('#x')) {
-      return String.fromCodePoint(Number.parseInt(normalized.slice(2), 16));
-    }
-
-    if (normalized.startsWith('#')) {
-      return String.fromCodePoint(Number.parseInt(normalized.slice(1), 10));
-    }
-
-    return named[normalized] ?? entity;
-  });
-}
-
-function getImportTitle(blocks: Record<string, unknown>[]): string {
-  const firstHeader = blocks.find((block) => block.type === 'header' && isRecord(block.data));
-
-  if (!firstHeader || !isRecord(firstHeader.data) || typeof firstHeader.data.text !== 'string') {
-    return '';
-  }
-
-  return stripHtml(firstHeader.data.text).trim();
-}
-
-function getFileTitle(uri: vscode.Uri): string {
-  const fileName = uri.fsPath.split(/[\\/]/).at(-1) ?? 'Imported page';
-  return fileName.replaceAll(/\.(md|markdown|html|htm)$/gi, '') || 'Imported page';
-}
-
-function getWorkspaceRoot(): vscode.Uri | undefined {
-  return vscode.workspace.workspaceFolders?.[0]?.uri;
-}
-
-async function pathExists(uri: vscode.Uri): Promise<boolean> {
-  try {
-    await vscode.workspace.fs.stat(uri);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function writeJsonIfMissing(uri: vscode.Uri, value: unknown): Promise<void> {
-  if (await pathExists(uri)) {
-    return;
-  }
-
-  await writeJson(uri, value);
-}
-
-async function writeJson(uri: vscode.Uri, value: unknown): Promise<void> {
-  const content = new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
-  await vscode.workspace.fs.writeFile(uri, content);
-}
-
-async function writeTextIfMissing(uri: vscode.Uri, value: string): Promise<void> {
-  if (await pathExists(uri)) {
-    return;
-  }
-
-  await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(value));
-}
-
-async function readMenu(workspaceRoot: vscode.Uri): Promise<SlashDocMenu> {
-  const menuUri = getMenuUri(workspaceRoot);
-
-  if (!(await pathExists(menuUri))) {
-    return { items: [] };
-  }
-
-  const data = await vscode.workspace.fs.readFile(menuUri);
-  const parsed = JSON.parse(new TextDecoder().decode(data)) as Partial<SlashDocMenu>;
-
-  return {
-    items: normalizeMenuItems(parsed.items)
-  };
-}
-
-async function writeMenu(workspaceRoot: vscode.Uri, menu: SlashDocMenu): Promise<void> {
-  await writeJson(getMenuUri(workspaceRoot), menu);
-}
-
-async function readSettings(workspaceRoot: vscode.Uri): Promise<SlashDocSettings> {
-  const settingsUri = getSettingsUri(workspaceRoot);
-
-  if (!(await pathExists(settingsUri))) {
-    return getDefaultSettings();
-  }
-
-  const data = await vscode.workspace.fs.readFile(settingsUri);
-  return normalizeSettings(JSON.parse(new TextDecoder().decode(data)));
-}
-
-async function writeSettings(workspaceRoot: vscode.Uri, settings: SlashDocSettings): Promise<void> {
-  await writeJson(getSettingsUri(workspaceRoot), settings);
-}
-
-async function mountApiService(
-  app: express.Express,
-  extensionUri: vscode.Uri,
-  workspaceRoot: vscode.Uri,
-  apiPrefix: string,
-  service: ApiService,
-  context: unknown
-): Promise<void> {
-  const serviceUri = getApiServiceUri(extensionUri, workspaceRoot, service);
-  const serviceContext = {
-    ...(isRecord(context) ? context : {}),
-    scope: service.scope,
-    apiRoot: getApiRootUri(extensionUri, workspaceRoot, service.scope).fsPath
-  };
-
-  if (!(await pathExists(serviceUri))) {
-    return;
-  }
-
-  const moduleUrl = `${pathToFileURL(serviceUri.fsPath).href}?v=${Date.now()}`;
-  const routeModule = await import(moduleUrl) as Record<string, unknown>;
-  const router = express.Router();
-  const register = routeModule.register ?? routeModule.default;
-
-  if (typeof register === 'function') {
-    await register(router, serviceContext);
-    app.use(apiPrefix, router);
-    return;
-  }
-
-  const exportedRouter = routeModule.router ?? routeModule.default;
-
-  if (isExpressRouter(exportedRouter)) {
-    app.use(apiPrefix, exportedRouter);
-  }
-}
-
-function getMenuUri(workspaceRoot: vscode.Uri): vscode.Uri {
-  return vscode.Uri.joinPath(workspaceRoot, '.slash-doc', 'docs', 'menu.json');
-}
-
-function getSettingsUri(workspaceRoot: vscode.Uri): vscode.Uri {
-  return vscode.Uri.joinPath(workspaceRoot, '.slash-doc', 'sdsettings.json');
-}
-
-function getGlobalApiRootUri(extensionUri: vscode.Uri): vscode.Uri {
-  return vscode.Uri.joinPath(extensionUri, 'api');
-}
-
-function getLocalApiRootUri(workspaceRoot: vscode.Uri): vscode.Uri {
-  return vscode.Uri.joinPath(workspaceRoot, '.slash-doc', 'api');
-}
-
-function getApiRootUri(extensionUri: vscode.Uri, workspaceRoot: vscode.Uri, scope: ApiServiceScope): vscode.Uri {
-  return scope === 'local' ? getLocalApiRootUri(workspaceRoot) : getGlobalApiRootUri(extensionUri);
-}
-
-function getApiServiceUri(extensionUri: vscode.Uri, workspaceRoot: vscode.Uri, service: ApiService): vscode.Uri {
-  return vscode.Uri.joinPath(getApiRootUri(extensionUri, workspaceRoot, service.scope), service.file);
-}
-
-function getGlobalAddonRootUri(extensionUri: vscode.Uri): vscode.Uri {
-  return vscode.Uri.joinPath(extensionUri, 'addons');
-}
-
-function getLocalAddonRootUri(workspaceRoot: vscode.Uri): vscode.Uri {
-  return vscode.Uri.joinPath(workspaceRoot, '.slash-doc', 'addons');
-}
-
-function getAddonRootUri(extensionUri: vscode.Uri, workspaceRoot: vscode.Uri, scope: AddonScope): vscode.Uri {
-  return scope === 'local' ? getLocalAddonRootUri(workspaceRoot) : getGlobalAddonRootUri(extensionUri);
-}
-
-function getCustomAddonUri(
-  extensionUri: vscode.Uri,
-  workspaceRoot: vscode.Uri,
-  addon: CustomEditorAddon
-): vscode.Uri {
-  return vscode.Uri.joinPath(getAddonRootUri(extensionUri, workspaceRoot, addon.scope), addon.file);
-}
-
-function getCustomAddonWebviewModules(
-  webview: vscode.Webview,
-  extensionUri: vscode.Uri,
-  workspaceRoot: vscode.Uri | undefined,
-  settings: SlashDocSettings
-): CustomAddonWebviewModule[] {
-  if (!workspaceRoot) {
-    return [];
-  }
-
-  return settings.customEditorAddons
-    .filter((addon) => addon.enabled)
-    .map((addon) => ({
-      id: addon.id,
-      toolName: addon.toolName,
-      uri: webview.asWebviewUri(getCustomAddonUri(extensionUri, workspaceRoot, addon)).toString()
-    }));
-}
-
-function getPagesRootUri(workspaceRoot: vscode.Uri): vscode.Uri {
-  return vscode.Uri.joinPath(workspaceRoot, '.slash-doc', 'docs', 'pages');
-}
-
-function getPageContentUri(workspaceRoot: vscode.Uri, pageId: string): vscode.Uri {
-  return vscode.Uri.joinPath(getPagesRootUri(workspaceRoot), pageId, 'content.json');
-}
-
-function normalizeMenuItems(items: unknown): SlashDocMenuItem[] {
-  if (!Array.isArray(items)) {
-    return [];
-  }
-
-  return items
-    .filter((item): item is Partial<SlashDocMenuItem> => typeof item === 'object' && item !== null)
-    .map((item) => {
-      const id = typeof item.id === 'string' ? item.id : createPageId();
-
-      return {
-        id,
-        title: typeof item.title === 'string' ? item.title : 'Untitled',
-        file: `${id}/content.json`,
-        children: normalizeMenuItems(item.children)
-      };
-    });
-}
-
-function getDefaultSettings(): SlashDocSettings {
-  return {
-    version: 1,
-    editorAddons: {
-      header: true,
-      list: true,
-      table: true,
-      image: true,
-      marker: true,
-      inlineCode: true,
-      underline: true,
-      mermaid: true,
-      flowDesigner: true,
-      networkCanvas: true
-    },
-    customEditorAddons: [],
-    apiPrefix: '/api',
-    apiPort: 4317,
-    apiServices: [],
-    variables: []
-  };
-}
-
-function normalizeSettings(value: unknown): SlashDocSettings {
-  const defaults = getDefaultSettings();
-
-  if (!isRecord(value)) {
-    return defaults;
-  }
-
-  return {
-    version: 1,
-    editorAddons: {
-      header: getBooleanSetting(value.editorAddons, 'header', defaults.editorAddons.header),
-      list: getBooleanSetting(value.editorAddons, 'list', defaults.editorAddons.list),
-      table: getBooleanSetting(value.editorAddons, 'table', defaults.editorAddons.table),
-      image: getBooleanSetting(value.editorAddons, 'image', defaults.editorAddons.image),
-      marker: getBooleanSetting(value.editorAddons, 'marker', defaults.editorAddons.marker),
-      inlineCode: getBooleanSetting(value.editorAddons, 'inlineCode', defaults.editorAddons.inlineCode),
-      underline: getBooleanSetting(value.editorAddons, 'underline', defaults.editorAddons.underline),
-      mermaid: getBooleanSetting(value.editorAddons, 'mermaid', defaults.editorAddons.mermaid),
-      flowDesigner: getBooleanSetting(value.editorAddons, 'flowDesigner', defaults.editorAddons.flowDesigner),
-      networkCanvas: getBooleanSetting(value.editorAddons, 'networkCanvas', defaults.editorAddons.networkCanvas)
-    },
-    customEditorAddons: normalizeCustomEditorAddons(value.customEditorAddons),
-    apiPrefix: typeof value.apiPrefix === 'string' ? normalizeApiPrefix(value.apiPrefix) : defaults.apiPrefix,
-    apiPort: typeof value.apiPort === 'number' ? value.apiPort : defaults.apiPort,
-    apiServices: normalizeApiServices(value.apiServices),
-    variables: normalizeVariables(value.variables)
-  };
-}
-
-function getBooleanSetting(value: unknown, key: string, fallback: boolean): boolean {
-  if (!isRecord(value) || typeof value[key] !== 'boolean') {
-    return fallback;
-  }
-
-  return value[key];
-}
-
-function normalizeApiServices(value: unknown): ApiService[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter((item): item is Partial<ApiService> => isRecord(item))
-    .map((item) => ({
-      id: typeof item.id === 'string' ? item.id : createSettingsId('service'),
-      scope: normalizeApiServiceScope(item.scope),
-      name: typeof item.name === 'string' ? item.name : '',
-      file: typeof item.file === 'string' ? ensureMjsFileName(item.file) : `${createSettingsId('route')}.mjs`
-    }));
-}
-
-function normalizeCustomEditorAddons(value: unknown): CustomEditorAddon[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter((item): item is Partial<CustomEditorAddon> => isRecord(item))
-    .map((item) => {
-      const name = typeof item.name === 'string' ? item.name : 'Custom Tool';
-
-      return {
-        id: typeof item.id === 'string' ? item.id : createSettingsId('addon'),
-        scope: normalizeAddonScope(item.scope),
-        name,
-        toolName: typeof item.toolName === 'string' ? normalizeToolName(item.toolName) : normalizeToolName(name),
-        file: typeof item.file === 'string' ? ensureJavaScriptModuleFileName(item.file) : `${slugify(name)}.mjs`,
-        enabled: typeof item.enabled === 'boolean' ? item.enabled : true
-      };
-    });
-}
-
-function normalizeAddonScope(value: unknown): AddonScope {
-  return value === 'local' || value === 'global' ? value : 'local';
-}
-
-function normalizeApiServiceScope(value: unknown): ApiServiceScope {
-  return value === 'local' || value === 'global' ? value : 'global';
-}
-
-function normalizeApiPrefix(value: string): string {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return '/api';
-  }
-
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-}
-
-function ensureMjsFileName(value: string): string {
-  const trimmed = value.trim();
-  const safe = trimmed.length > 0 ? trimmed : createSettingsId('route');
-  const fileName = safe.split(/[\\/]/).at(-1) ?? safe;
-  const normalized = fileName.replaceAll(/[^a-zA-Z0-9._-]/g, '-');
-  return normalized.endsWith('.mjs') ? normalized : `${normalized}.mjs`;
-}
-
-function ensureJavaScriptModuleFileName(value: string): string {
-  const trimmed = value.trim();
-  const safe = trimmed.length > 0 ? trimmed : createSettingsId('addon');
-  const fileName = safe.split(/[\\/]/).at(-1) ?? safe;
-  const normalized = fileName.replaceAll(/[^a-zA-Z0-9._-]/g, '-');
-  return normalized.endsWith('.mjs') || normalized.endsWith('.js') ? normalized : `${normalized}.mjs`;
-}
-
-function normalizeToolName(value: string): string {
-  const normalized = value
-    .trim()
-    .replaceAll(/[^a-zA-Z0-9_$]+/g, ' ')
-    .split(' ')
-    .filter(Boolean)
-    .map((part, index) => index === 0 ? part.charAt(0).toLowerCase() + part.slice(1) : part.charAt(0).toUpperCase() + part.slice(1))
-    .join('');
-
-  return normalized || `custom${Date.now().toString(36)}`;
-}
-
-function slugify(value: string): string {
-  const slug = value
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[^a-z0-9]+/g, '-')
-    .replaceAll(/^-|-$/g, '');
-
-  return slug.length > 0 ? slug : createSettingsId('route');
-}
-
-function getApiRouteTemplate(name: string): string {
-  const routePath = `/${slugify(name)}`;
-
-  return `export default function register(router, context) {
-  router.get('${routePath}', (_request, response) => {
-    response.json({
-      ok: true,
-      service: '${escapeJavaScriptString(name)}',
-      puppeteer: typeof context.puppeteer?.launch === 'function',
-      variables: context.variables
-    });
-  });
-}
-`;
-}
-
-function getCustomAddonTemplate(name: string): string {
-  const className = `${normalizeToolName(name).replace(/^[a-z]/, (letter) => letter.toUpperCase())}Tool`;
-
-  return `export default class ${className} {
-  static get toolbox() {
-    return {
-      title: '${escapeJavaScriptString(name)}',
-      icon: '<svg width="17" height="15" viewBox="0 0 17 15" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 0L10.4 5.7H16.4L11.5 9.2L13.4 14.9L8.5 11.4L3.6 14.9L5.5 9.2L0.6 5.7H6.6L8.5 0Z"/></svg>'
-    };
-  }
-
-  constructor({ data }) {
-    this.data = data || {};
-  }
-
-  render() {
-    const wrapper = document.createElement('div');
-    wrapper.contentEditable = 'true';
-    wrapper.textContent = this.data.text || '${escapeJavaScriptString(name)}';
-    return wrapper;
-  }
-
-  save(blockContent) {
-    return {
-      text: blockContent.textContent || ''
-    };
-  }
-}
-
-export function toHtml(data) {
-  return '<div>' + escapeHtml(data.text || '') + '</div>';
-}
-
-export function toMarkdown(data) {
-  return data.text || '';
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-`;
-}
-
-function isExpressRouter(value: unknown): value is Router {
-  return typeof value === 'function' && typeof (value as { use?: unknown }).use === 'function';
-}
-
-function normalizeVariables(value: unknown): SettingsVariable[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter((item): item is Partial<SettingsVariable> => isRecord(item))
-    .map((item) => ({
-      key: typeof item.key === 'string' ? item.key : '',
-      value: typeof item.value === 'string' ? item.value : ''
-    }));
-}
-
-async function readPageContent(workspaceRoot: vscode.Uri, pageId: string, fallbackTitle: string): Promise<unknown> {
-  const contentUri = getPageContentUri(workspaceRoot, pageId);
-
-  if (!(await pathExists(contentUri))) {
-    return createDefaultPageContent(fallbackTitle);
-  }
-
-  const data = await vscode.workspace.fs.readFile(contentUri);
-  return JSON.parse(new TextDecoder().decode(data));
-}
-
-function createDefaultPageContent(title: string): unknown {
-  return {
-    time: Date.now(),
-    blocks: [
-      {
-        type: 'header',
-        data: {
-          text: title,
-          level: 2
-        }
-      }
-    ],
-    version: '2.30.8'
-  };
-}
-
-function addChildToMenu(items: SlashDocMenuItem[], parentId: string, child: SlashDocMenuItem): boolean {
-  for (const item of items) {
-    if (item.id === parentId) {
-      item.children.push(child);
-      return true;
-    }
-
-    if (addChildToMenu(item.children, parentId, child)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function removeMenuItem(items: SlashDocMenuItem[], pageId: string): boolean {
-  const index = items.findIndex((item) => item.id === pageId);
-
-  if (index >= 0) {
-    items.splice(index, 1);
-    return true;
-  }
-
-  return items.some((item) => removeMenuItem(item.children, pageId));
-}
-
-function collectMenuItemIds(item: SlashDocMenuItem): string[] {
-  return [item.id, ...item.children.flatMap(collectMenuItemIds)];
-}
-
-function renderMenuTree(items: SlashDocMenuItem[]): string {
-  if (items.length === 0) {
-    return '<p class="tree-empty">Страниц пока нет</p>';
-  }
-
-  return `<ul class="tree-list">${items.map(renderMenuItem).join('')}</ul>`;
-}
-
-function renderMenuItem(item: SlashDocMenuItem): string {
-  const children = item.children.length > 0 ? renderMenuTree(item.children) : '';
-
-  return `<li class="tree-node">
-    <div class="tree-row">
-      <button class="tree-item" type="button" data-page-id="${escapeAttribute(item.id)}" aria-selected="false">
-        <span class="tree-label">${escapeHtml(item.title)}</span>
-      </button>
-      <button class="tree-delete" type="button" data-delete-page-id="${escapeAttribute(item.id)}" aria-label="Удалить ${escapeAttribute(item.title)}" title="Удалить">
-        <span aria-hidden="true">×</span>
-      </button>
-    </div>
-    ${children}
-  </li>`;
-}
-
-function renderSettingsPanel(settings: SlashDocSettings): string {
-  return `<div class="panel panel-settings">
-    <header class="settings-header">
-      <sl-button id="back-to-menu" size="small" variant="default">Назад</sl-button>
-      <h2 class="settings-title">Настройки</h2>
-    </header>
-    <section class="settings-panel" aria-label="Настройки">
-      <div class="settings-group">
-        <div class="settings-group-title">Editor.js аддоны</div>
-        ${editorAddonDefinitions.map((definition) => renderAddonToggle(definition, settings.editorAddons[definition.id])).join('')}
-      </div>
-      <div class="settings-group">
-        <div class="settings-group-title">Свои Editor.js аддоны</div>
-        <div id="custom-addons-list" class="settings-list">
-          ${settings.customEditorAddons.map(renderCustomAddonRow).join('')}
-        </div>
-        <div class="service-actions">
-          <sl-button id="add-local-addon" size="small" variant="default">Локальный модуль</sl-button>
-          <sl-button id="add-global-addon" size="small" variant="default">Глобальный модуль</sl-button>
-        </div>
-      </div>
-      <div class="settings-group">
-        <div class="settings-group-title">HTTP API сервисы</div>
-        <div class="settings-row api-settings-row">
-          <input class="settings-input" id="api-prefix" value="${escapeAttribute(settings.apiPrefix)}" placeholder="/api">
-          <input class="settings-input" id="api-port" value="${escapeAttribute(String(settings.apiPort))}" inputmode="numeric" placeholder="4317">
-        </div>
-        <div id="services-list" class="settings-list">
-          ${settings.apiServices.map(renderServiceRow).join('')}
-        </div>
-        <div class="service-actions">
-          <sl-button id="add-local-service" size="small" variant="default">Локальный route</sl-button>
-          <sl-button id="add-global-service" size="small" variant="default">Глобальный route</sl-button>
-        </div>
-      </div>
-      <div class="settings-group">
-        <div class="settings-group-title">Переменные сервисов</div>
-        <div id="variables-list" class="settings-list">
-          ${settings.variables.map(renderVariableRow).join('')}
-        </div>
-        <sl-button id="add-variable" size="small" variant="default">Добавить переменную</sl-button>
-      </div>
-    </section>
-  </div>`;
-}
-
-function renderAddonToggle(definition: EditorAddonDefinition, checked: boolean): string {
-  return `<label class="addon-row">
-    <span class="addon-info">
-      <span class="addon-icon" aria-hidden="true">${definition.icon}</span>
-      <span class="addon-label">${escapeHtml(definition.label)}</span>
-    </span>
-    <sl-switch data-addon="${definition.id}" ${checked ? 'checked' : ''}></sl-switch>
-  </label>`;
-}
-
-function renderServiceRow(service: ApiService): string {
-  return `<div class="settings-row service-row" data-service-id="${escapeAttribute(service.id)}">
-    <select class="settings-input" data-service-field="scope">
-      <option value="local" ${service.scope === 'local' ? 'selected' : ''}>local</option>
-      <option value="global" ${service.scope === 'global' ? 'selected' : ''}>global</option>
-    </select>
-    <input class="settings-input" data-service-field="name" value="${escapeAttribute(service.name)}" placeholder="name">
-    <input class="settings-input" data-service-field="file" value="${escapeAttribute(service.file)}" placeholder="route.mjs">
-    <button class="settings-open-button" type="button" data-open-service="${escapeAttribute(service.id)}">Открыть</button>
-  </div>`;
-}
-
-function renderCustomAddonRow(addon: CustomEditorAddon): string {
-  return `<div class="settings-row custom-addon-row" data-custom-addon-id="${escapeAttribute(addon.id)}">
-    <select class="settings-input" data-custom-addon-field="scope">
-      <option value="local" ${addon.scope === 'local' ? 'selected' : ''}>local</option>
-      <option value="global" ${addon.scope === 'global' ? 'selected' : ''}>global</option>
-    </select>
-    <input class="settings-input" data-custom-addon-field="name" value="${escapeAttribute(addon.name)}" placeholder="name">
-    <input class="settings-input" data-custom-addon-field="toolName" value="${escapeAttribute(addon.toolName)}" placeholder="toolName">
-    <input class="settings-input" data-custom-addon-field="file" value="${escapeAttribute(addon.file)}" placeholder="tool.mjs">
-    <sl-switch data-custom-addon-enabled="${escapeAttribute(addon.id)}" ${addon.enabled ? 'checked' : ''}></sl-switch>
-    <button class="settings-open-button" type="button" data-open-addon="${escapeAttribute(addon.id)}">Открыть</button>
-  </div>`;
-}
-
-function renderVariableRow(variable: SettingsVariable): string {
-  return `<div class="settings-row variable-row">
-    <input class="settings-input" data-variable-field="key" value="${escapeAttribute(variable.key)}" placeholder="key">
-    <input class="settings-input" data-variable-field="value" value="${escapeAttribute(variable.value)}" placeholder="value">
-  </div>`;
-}
-
-function findMenuItem(items: SlashDocMenuItem[], pageId: string): SlashDocMenuItem | undefined {
-  for (const item of items) {
-    if (item.id === pageId) {
-      return item;
-    }
-
-    const child = findMenuItem(item.children, pageId);
-    if (child) {
-      return child;
-    }
-  }
-
-  return undefined;
-}
-
-function updateMenuItemTitle(items: SlashDocMenuItem[], pageId: string, title: string): boolean {
-  const item = findMenuItem(items, pageId);
-
-  if (!item || item.title === title) {
-    return false;
-  }
-
-  item.title = title;
-  return true;
-}
-
-function getFirstHeaderText(data: unknown): string | undefined {
-  if (!isRecord(data) || !Array.isArray(data.blocks)) {
-    return undefined;
-  }
-
-  const header = data.blocks[0];
-
-  if (!isRecord(header) || header.type !== 'header' || !isRecord(header.data) || typeof header.data.text !== 'string') {
-    return undefined;
-  }
-
-  const text = stripHtml(header.data.text).trim();
-  return text.length > 0 ? text : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function stripHtml(value: string): string {
-  return value.replaceAll(/<[^>]*>/g, '');
-}
-
-function createPageId(): string {
-  return `page-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function createSettingsId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-function escapeAttribute(value: string): string {
-  return escapeHtml(value);
-}
-
-function escapeScriptJson(value: unknown): string {
-  return JSON.stringify(value).replaceAll('<', '\\u003c');
-}
-
-function escapeJavaScriptString(value: string): string {
-  return value
-    .replaceAll('\\', '\\\\')
-    .replaceAll("'", "\\'")
-    .replaceAll('\n', '\\n')
-    .replaceAll('\r', '\\r');
 }
