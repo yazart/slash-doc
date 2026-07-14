@@ -58,8 +58,9 @@
     "@editorjs/underline": "^1.2.1",
     "@shoelace-style/shoelace": "^2.15.1",
     "express": "^5.2.1",
+    "lit": "^3.1.0",
     "mermaid": "^11.15.0",
-    "puppeteer": "^25.1.0"
+    "puppeteer": "13.3.2"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

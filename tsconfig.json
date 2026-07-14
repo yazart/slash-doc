@@ -8,6 +8,8 @@
       "DOM"
     ],
     "strict": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
     "sourceMap": true,
     "rootDir": "src",
     "noEmit": true,

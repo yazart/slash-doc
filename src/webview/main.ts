@@ -9,6 +9,8 @@ import Marker from '@editorjs/marker';
 import InlineCode from '@editorjs/inline-code';
 import Underline from '@editorjs/underline';
 import mermaid from 'mermaid';
+import FlowDesignerTool from './flow-designer-tool';
+import NetworkCanvasTool from './network-canvas-tool';
 
 type VSCodeApi = {
   postMessage(message: unknown): void;
@@ -33,6 +35,8 @@ type SlashDocSettings = {
     inlineCode?: boolean;
     underline?: boolean;
     mermaid?: boolean;
+    flowDesigner?: boolean;
+    networkCanvas?: boolean;
   };
 };
 
@@ -202,6 +206,14 @@ class MermaidTool {
 
 if (settings.editorAddons?.mermaid !== false) {
   tools.mermaid = MermaidTool;
+}
+
+if (settings.editorAddons?.flowDesigner !== false) {
+  tools.flowDesigner = FlowDesignerTool;
+}
+
+if (settings.editorAddons?.networkCanvas !== false) {
+  tools.networkCanvas = NetworkCanvasTool;
 }
 
 function scheduleAutosave() {
