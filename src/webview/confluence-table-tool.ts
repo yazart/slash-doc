@@ -16,6 +16,7 @@ type ToolArgs = { data?: Partial<ConfluenceTableData> & LegacyTableData };
 declare global {
   interface Window {
     __SLASH_DOC_READ_CLIPBOARD__?: () => Promise<string>;
+    __SLASH_DOC_WRITE_CLIPBOARD__?: (text: string) => void;
     __SLASH_DOC_TABLE_PASTE_TARGET__?: {
       owner: HTMLElement;
       paste(text: string, html: string): void;
@@ -58,6 +59,11 @@ export default class ConfluenceTableTool {
     this.wrapper = wrapper;
     wrapper.querySelector('.ct-menu')?.addEventListener('click', (event) => this.handleMenuAction(event));
     wrapper.addEventListener('keydown', (event) => {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.code === 'KeyC' && this.copySelectedCellsToHost()) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       if ((event.key === 'Backspace' || event.key === 'Delete') && this.clearSelectedCells()) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -65,6 +71,7 @@ export default class ConfluenceTableTool {
       }
       if (event.target instanceof HTMLElement && event.target.isContentEditable) event.stopPropagation();
     });
+    wrapper.addEventListener('copy', (event) => this.copySelectedCells(event), true);
     wrapper.addEventListener('paste', (event) => {
       const cell = (event.target as HTMLElement | null)?.closest<HTMLElement>('.ct-cell');
       if (!cell) return;
@@ -254,6 +261,44 @@ export default class ConfluenceTableTool {
 
     this.changed();
     return true;
+  }
+
+  private copySelectedCells(event: ClipboardEvent): void {
+    const values = this.getSelectedCellData();
+    if (!values || !event.clipboardData) return;
+
+    const text = serializeClipboardText(values);
+    const html = `<table><tbody>${values.map((row) =>
+      `<tr>${row.map((value) => `<td>${escapeClipboardHtml(value)}</td>`).join('')}</tr>`
+    ).join('')}</tbody></table>`;
+
+    event.clipboardData.setData('text/plain', text);
+    event.clipboardData.setData('text/html', html);
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+
+  private copySelectedCellsToHost(): boolean {
+    const values = this.getSelectedCellData();
+    if (!values || !window.__SLASH_DOC_WRITE_CLIPBOARD__) return false;
+    window.__SLASH_DOC_WRITE_CLIPBOARD__(serializeClipboardText(values));
+    return true;
+  }
+
+  private getSelectedCellData(): string[][] | undefined {
+    const selected = Array.from(this.wrapper?.querySelectorAll<HTMLElement>('.ct-cell.range-selected') ?? []);
+    if (selected.length === 0) return undefined;
+    const rows = selected.map((cell) => Number(cell.dataset.row)).filter(Number.isInteger);
+    const columns = selected.map((cell) => Number(cell.dataset.column)).filter(Number.isInteger);
+    if (rows.length === 0 || columns.length === 0) return undefined;
+
+    const minRow = Math.min(...rows);
+    const maxRow = Math.max(...rows);
+    const minColumn = Math.min(...columns);
+    const maxColumn = Math.max(...columns);
+    return this.data.rows
+      .slice(minRow, maxRow + 1)
+      .map((row) => row.slice(minColumn, maxColumn + 1));
   }
 
   private addRow(index: number): void {
@@ -491,4 +536,22 @@ function insertTextAtSelection(editor: HTMLElement, text: string): void {
   range.collapse(true);
   selection.removeAllRanges();
   selection.addRange(range);
+}
+
+function normalizeClipboardText(value: string): string {
+  return value.replaceAll('\t', ' ').replaceAll(/\r?\n/g, ' ');
+}
+
+function serializeClipboardText(values: string[][]): string {
+  return values.map((row) => row.map(normalizeClipboardText).join('\t')).join('\n');
+}
+
+function escapeClipboardHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+    .replaceAll(/\r?\n/g, '<br>');
 }

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { getMenuUri, getPageContentUri, pathExists, writeJson } from './filesystem';
-import type { SlashDocMenu, SlashDocMenuItem } from './types';
+import type { PageMovePosition, SlashDocMenu, SlashDocMenuItem } from './types';
 import { createPageId, escapeAttribute, escapeHtml, isRecord, stripHtml } from './utils';
 
 export async function readMenu(workspaceRoot: vscode.Uri): Promise<SlashDocMenu> {
@@ -97,6 +97,55 @@ export function removeMenuItem(items: SlashDocMenuItem[], pageId: string): boole
   return items.some((item) => removeMenuItem(item.children, pageId));
 }
 
+export function moveMenuItem(
+  items: SlashDocMenuItem[],
+  pageId: string,
+  targetId: string | undefined,
+  position: PageMovePosition
+): boolean {
+  const sourceLocation = findMenuItemLocation(items, pageId);
+  if (!sourceLocation) return false;
+  if (position !== 'root' && (!targetId || targetId === pageId)) return false;
+  if (targetId && findMenuItem(sourceLocation.item.children, targetId)) return false;
+  if (targetId && !findMenuItem(items, targetId)) return false;
+
+  const [source] = sourceLocation.items.splice(sourceLocation.index, 1);
+
+  if (position === 'root') {
+    items.push(source);
+    return true;
+  }
+
+  const targetLocation = targetId ? findMenuItemLocation(items, targetId) : undefined;
+  if (!targetLocation) {
+    sourceLocation.items.splice(Math.min(sourceLocation.index, sourceLocation.items.length), 0, source);
+    return false;
+  }
+
+  if (position === 'inside') {
+    targetLocation.item.children.push(source);
+  } else {
+    targetLocation.items.splice(targetLocation.index + (position === 'after' ? 1 : 0), 0, source);
+  }
+
+  return true;
+}
+
+function findMenuItemLocation(
+  items: SlashDocMenuItem[],
+  pageId: string
+): { items: SlashDocMenuItem[]; index: number; item: SlashDocMenuItem } | undefined {
+  const index = items.findIndex((item) => item.id === pageId);
+  if (index >= 0) return { items, index, item: items[index] };
+
+  for (const item of items) {
+    const child = findMenuItemLocation(item.children, pageId);
+    if (child) return child;
+  }
+
+  return undefined;
+}
+
 export function collectMenuItemIds(item: SlashDocMenuItem): string[] {
   return [item.id, ...item.children.flatMap(collectMenuItemIds)];
 }
@@ -110,9 +159,15 @@ export function renderMenuTree(items: SlashDocMenuItem[]): string {
 
 function renderMenuItem(item: SlashDocMenuItem): string {
   const children = item.children.length > 0 ? renderMenuTree(item.children) : '';
-  return `<li class="tree-node">
-    <div class="tree-row">
-      <button class="tree-item" type="button" data-page-id="${escapeAttribute(item.id)}" aria-selected="false">
+  const childToggle = item.children.length > 0
+    ? `<button class="tree-toggle" type="button" data-toggle-page-id="${escapeAttribute(item.id)}" aria-expanded="true" aria-label="Свернуть дочерние страницы" title="Свернуть/развернуть">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m3.5 2.5 4 3.5-4 3.5"/></svg>
+      </button>`
+    : '<span class="tree-toggle-spacer" aria-hidden="true"></span>';
+  return `<li class="tree-node" data-tree-node-id="${escapeAttribute(item.id)}">
+    <div class="tree-row" data-page-drop-id="${escapeAttribute(item.id)}">
+      ${childToggle}
+      <button class="tree-item" type="button" data-page-id="${escapeAttribute(item.id)}" data-drag-page-id="${escapeAttribute(item.id)}" aria-selected="false">
         <span class="tree-label">${escapeHtml(item.title)}</span>
       </button>
       <button class="tree-rename" type="button" data-rename-page-id="${escapeAttribute(item.id)}" aria-label="Переименовать ${escapeAttribute(item.title)}" title="Переименовать">

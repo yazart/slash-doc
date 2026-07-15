@@ -1,12 +1,14 @@
 import EditorJS from '@editorjs/editorjs';
 import type { EditorConfig } from '@editorjs/editorjs/types/configs';
 import type { OutputData } from '@editorjs/editorjs';
+import type { InlineToolConstructable } from '@editorjs/editorjs/types/tools';
 import Header from '@editorjs/header';
 import List from '@editorjs/list';
 import ImageTool from '@editorjs/image';
 import Marker from '@editorjs/marker';
 import InlineCode from '@editorjs/inline-code';
 import Underline from '@editorjs/underline';
+import TextColorTool from './text-color-tool';
 import mermaid from 'mermaid';
 import FlowDesignerTool from './flow-designer-tool';
 import NetworkCanvasTool from './network-canvas-tool';
@@ -38,6 +40,7 @@ type SlashDocSettings = {
     marker?: boolean;
     inlineCode?: boolean;
     underline?: boolean;
+    textColor?: boolean;
     mermaid?: boolean;
     flowDesigner?: boolean;
     networkCanvas?: boolean;
@@ -89,6 +92,10 @@ window.__SLASH_DOC_READ_CLIPBOARD__ = () => {
     clipboardRequests.set(requestId, { resolve, reject, timeout });
     vscode.postMessage({ type: 'readClipboard', requestId });
   });
+};
+
+window.__SLASH_DOC_WRITE_CLIPBOARD__ = (text) => {
+  vscode.postMessage({ type: 'writeClipboard', text });
 };
 
 window.__SLASH_DOC_FILE_PROCESSOR__ = {
@@ -191,6 +198,10 @@ if (settings.editorAddons?.inlineCode !== false) {
 
 if (settings.editorAddons?.underline !== false) {
   tools.underline = Underline;
+}
+
+if (settings.editorAddons?.textColor !== false) {
+  tools.textColor = TextColorTool as unknown as InlineToolConstructable;
 }
 
 class MermaidTool {

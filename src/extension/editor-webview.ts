@@ -472,6 +472,52 @@ export function getWebviewHtml(
         color: var(--vscode-editor-foreground);
         background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #ffcc00) 28%, transparent);
       }
+
+      .slash-text-color-icon {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .slash-text-color-icon .color-line {
+        stroke: #3b82f6;
+        stroke-width: 2.5;
+      }
+
+      .slash-text-color-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 5px;
+      }
+
+      .slash-text-color-swatch {
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 35%, transparent);
+        border-radius: 50%;
+        cursor: pointer;
+      }
+
+      .slash-text-color-swatch:hover,
+      .slash-text-color-swatch:focus-visible {
+        outline: 2px solid var(--vscode-focusBorder);
+        outline-offset: 1px;
+      }
+
+      .slash-text-color-picker {
+        width: 24px;
+        height: 22px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>

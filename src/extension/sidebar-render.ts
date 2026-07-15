@@ -1,26 +1,18 @@
 import type {
   ApiService,
   CustomEditorAddon,
-  EditorAddonDefinition,
   SettingsVariable,
   SlashDocSettings
 } from './types';
-import { escapeAttribute, escapeHtml } from './utils';
+import { escapeAttribute } from './utils';
 
-export function renderSettingsPanel(
-  settings: SlashDocSettings,
-  addonDefinitions: EditorAddonDefinition[]
-): string {
+export function renderSettingsPanel(settings: SlashDocSettings): string {
   return `<div class="panel panel-settings">
     <header class="settings-header">
       <sl-button id="back-to-menu" size="small" variant="default">Назад</sl-button>
       <h2 class="settings-title">Настройки</h2>
     </header>
     <section class="settings-panel" aria-label="Настройки">
-      <div class="settings-group">
-        <div class="settings-group-title">Editor.js аддоны</div>
-        ${addonDefinitions.map((definition) => renderAddonToggle(definition, settings.editorAddons[definition.id])).join('')}
-      </div>
       <div class="settings-group">
         <div class="settings-group-title">Свои Editor.js аддоны</div>
         <div id="custom-addons-list" class="settings-list">${settings.customEditorAddons.map(renderCustomAddonRow).join('')}</div>
@@ -45,13 +37,6 @@ export function renderSettingsPanel(
       </div>
     </section>
   </div>`;
-}
-
-function renderAddonToggle(definition: EditorAddonDefinition, checked: boolean): string {
-  return `<label class="addon-row">
-    <span class="addon-info"><span class="addon-icon" aria-hidden="true">${definition.icon}</span><span class="addon-label">${escapeHtml(definition.label)}</span></span>
-    <sl-switch data-addon="${definition.id}" ${checked ? 'checked' : ''}></sl-switch>
-  </label>`;
 }
 
 function renderServiceRow(service: ApiService): string {

@@ -4,7 +4,6 @@ import { readMenu, renderMenuTree } from './pages';
 import { getDefaultSettings } from './settings';
 import { readSettings } from './settings-store';
 import { renderSettingsPanel } from './sidebar-render';
-import type { EditorAddonDefinition } from './types';
 import { getNonce } from './utils';
 
 type SidebarView = 'menu' | 'settings';
@@ -12,7 +11,6 @@ type SidebarView = 'menu' | 'settings';
 export async function getSidebarHtml(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
-  addonDefinitions: EditorAddonDefinition[],
   view: SidebarView = 'menu'
 ): Promise<string> {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'sidebar.js'));
@@ -26,7 +24,7 @@ export async function getSidebarHtml(
   const content = workspaceRoot
     ? isInitialized
       ? view === 'settings'
-        ? renderSettingsPanel(settings, addonDefinitions)
+        ? renderSettingsPanel(settings)
         : `<div class="panel panel-ready">
           <div class="menu-panel">
             <div class="actions-row">
@@ -38,8 +36,17 @@ export async function getSidebarHtml(
                   </svg>
                 </sl-button>
               </sl-tooltip>
+              <sl-tooltip class="compile-tooltip" content="Собрать HTML">
+                <sl-button id="compile-site" size="small" variant="default" aria-label="Собрать HTML">
+                  <svg class="compile-icon" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M5 2.75h6.5L15 6.25v11H5zM11.5 2.75v3.5H15" />
+                    <path d="m9 9-2 2 2 2m2-4 2 2-2 2" />
+                  </svg>
+                </sl-button>
+              </sl-tooltip>
             </div>
             <nav class="tree" aria-label="Страницы">
+              <div class="tree-root-drop" data-root-drop>Переместить на верхний уровень</div>
               ${renderMenuTree(menu?.items ?? [])}
             </nav>
           </div>
@@ -141,18 +148,26 @@ export async function getSidebarHtml(
       flex: 1 1 90%;
     }
 
-    .import-tooltip #import-page {
-      flex: 0 1 10%;
-      width: 10%;
+    .import-tooltip,
+    .compile-tooltip {
+      flex: 0 0 28px;
+      width: 28px;
+    }
+
+    .import-tooltip #import-page,
+    .compile-tooltip #compile-site {
+      width: 100%;
       min-width: 28px;
     }
 
-    .import-tooltip #import-page::part(base) {
+    .import-tooltip #import-page::part(base),
+    .compile-tooltip #compile-site::part(base) {
       justify-content: center;
       padding: 4px;
     }
 
-    .import-icon {
+    .import-icon,
+    .compile-icon {
       display: block;
       width: 15px;
       height: 15px;
@@ -165,6 +180,7 @@ export async function getSidebarHtml(
 
     .settings-button-row {
       display: flex;
+      gap: 6px;
       min-width: 0;
       padding-top: 12px;
       border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
@@ -235,6 +251,32 @@ export async function getSidebarHtml(
       overflow: auto;
     }
 
+    .tree-root-drop {
+      display: none;
+      margin-bottom: 4px;
+      padding: 5px 6px;
+      color: var(--vscode-descriptionForeground);
+      border: 1px dashed var(--vscode-panel-border);
+      border-radius: 3px;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    body.page-dragging .tree-root-drop {
+      display: block;
+    }
+
+    body.page-dragging {
+      cursor: grabbing;
+      user-select: none;
+    }
+
+    .tree-root-drop.drop-target {
+      color: var(--vscode-list-activeSelectionForeground, #fff);
+      border-color: var(--vscode-focusBorder);
+      background: var(--vscode-list-activeSelectionBackground);
+    }
+
     .tree-list {
       display: grid;
       gap: 1px;
@@ -252,11 +294,104 @@ export async function getSidebarHtml(
     }
 
     .tree-row {
+      position: relative;
       display: flex;
       align-items: center;
       gap: 2px;
       min-width: 0;
     }
+
+    .tree-toggle,
+    .tree-toggle-spacer {
+      flex: 0 0 18px;
+      width: 18px;
+      height: 22px;
+    }
+
+    .tree-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      color: var(--vscode-descriptionForeground);
+      border: 0;
+      border-radius: 2px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .tree-toggle:hover {
+      color: var(--vscode-foreground);
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .tree-toggle:focus-visible {
+      outline: 1px solid var(--focus-ring);
+      outline-offset: -1px;
+    }
+
+    .tree-toggle svg {
+      width: 12px;
+      height: 12px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transform: rotate(90deg);
+      transition: transform .12s ease;
+    }
+
+    .tree-node.collapsed > .tree-row .tree-toggle svg {
+      transform: rotate(0deg);
+    }
+
+    .tree-node.collapsed > .tree-list {
+      display: none;
+    }
+
+    .tree-row.dragging {
+      opacity: .4;
+    }
+
+    .page-drag-ghost {
+      position: fixed;
+      z-index: 1000;
+      max-width: 180px;
+      padding: 4px 7px;
+      overflow: hidden;
+      color: var(--vscode-list-activeSelectionForeground, #fff);
+      border: 1px solid var(--vscode-focusBorder);
+      border-radius: 3px;
+      background: var(--vscode-list-activeSelectionBackground);
+      box-shadow: 0 3px 10px rgba(0,0,0,.25);
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .tree-row.drop-inside {
+      border-radius: 2px;
+      outline: 1px solid var(--vscode-focusBorder);
+      outline-offset: -1px;
+      background: color-mix(in srgb, var(--vscode-focusBorder) 18%, transparent);
+    }
+
+    .tree-row.drop-before::before,
+    .tree-row.drop-after::after {
+      position: absolute;
+      z-index: 2;
+      right: 0;
+      left: 0;
+      height: 2px;
+      border-radius: 1px;
+      background: var(--vscode-focusBorder);
+      content: '';
+    }
+
+    .tree-row.drop-before::before { top: -1px; }
+    .tree-row.drop-after::after { bottom: -1px; }
 
     .tree-item {
       display: flex;
@@ -272,7 +407,12 @@ export async function getSidebarHtml(
       background: transparent;
       font: inherit;
       text-align: left;
-      cursor: pointer;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    .tree-item:active {
+      cursor: grabbing;
     }
 
     .tree-item:hover {

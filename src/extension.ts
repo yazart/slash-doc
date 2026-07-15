@@ -3,6 +3,7 @@ import type {
   ApiService,
   CustomEditorAddon,
   EditorAddonDefinition,
+  PageMovePosition,
   SlashDocMenuItem,
   SlashDocSettings
 } from './extension/types';
@@ -40,6 +41,7 @@ import {
   readMenu,
   readPageContent,
   removeMenuItem,
+  moveMenuItem,
   updateMenuItemTitle,
   updatePageContentTitle,
   writeMenu
@@ -47,6 +49,7 @@ import {
 import { readSettings, writeSettings } from './extension/settings-store';
 import { exportPageContent } from './extension/document-export';
 import { importDocumentContent } from './extension/document-import';
+import { compileDocumentationSite } from './extension/site-compiler';
 import { ApiServerManager, migrateLegacyModules } from './extension/api-server';
 import { getWebviewHtml } from './extension/editor-webview';
 import { getSidebarHtml } from './extension/sidebar-webview';
@@ -67,6 +70,8 @@ type SidebarMessage = {
   settings?: SlashDocSettings;
   serviceId?: string | null;
   addonId?: string | null;
+  targetId?: string | null;
+  position?: PageMovePosition;
 };
 
 type SidebarView = 'menu' | 'settings';
@@ -81,10 +86,10 @@ type EditorMessage = {
   script?: string;
   inputFiles?: string[];
   fileName?: string;
+  text?: string;
 };
 
 type ExportFormat = 'html' | 'md';
-
 
 const editorAddonDefinitions: EditorAddonDefinition[] = [
   {
@@ -121,6 +126,11 @@ const editorAddonDefinitions: EditorAddonDefinition[] = [
     id: 'underline',
     label: 'Underline',
     icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M8 5V10C8 12.2091 9.79086 14 12 14C14.2091 14 16 12.2091 16 10V5"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M7 19H17"/></svg>'
+  },
+  {
+    id: 'textColor',
+    label: 'Text Color',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17 12 4l5 13M9 12h6"/><path stroke="#3b82f6" stroke-linecap="round" stroke-width="3" d="M6 20h12"/></svg>'
   },
   {
     id: 'mermaid',
@@ -215,6 +225,15 @@ export function activate(context: vscode.ExtensionContext) {
             console.error('Slash Doc: failed to read clipboard', error);
           }
           await panel.webview.postMessage({ type: 'clipboardResponse', requestId: message.requestId, text });
+          return;
+        }
+
+        if (message.type === 'writeClipboard' && typeof message.text === 'string') {
+          try {
+            await vscode.env.clipboard.writeText(message.text);
+          } catch (error) {
+            console.error('Slash Doc: failed to write clipboard', error);
+          }
           return;
         }
 
@@ -371,6 +390,15 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
         webviewView.webview.html = await this.getSidebarHtml(webviewView.webview);
       }
 
+      if (message.type === 'movePage' && message.pageId && message.position) {
+        await this.movePage(message.pageId, message.targetId ?? undefined, message.position);
+        webviewView.webview.html = await this.getSidebarHtml(webviewView.webview);
+      }
+
+      if (message.type === 'compileDocumentation') {
+        await this.compileDocumentation();
+      }
+
       if (message.type === 'updateSettings' && message.settings) {
         await this.updateSettings(message.settings);
       }
@@ -418,7 +446,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
   }
 
   private async getSidebarHtml(webview: vscode.Webview, view: SidebarView = 'menu'): Promise<string> {
-    return getSidebarHtml(webview, this.extensionUri, editorAddonDefinitions, view);
+    return getSidebarHtml(webview, this.extensionUri, view);
   }
   private async initializeDocumentation(silent = false): Promise<void> {
     const workspaceRoot = getWorkspaceRoot();
@@ -606,6 +634,51 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     await writeJsonIfMissing(getPageContentUri(workspaceRoot, id), createDefaultPageContent(title));
 
     return id;
+  }
+
+  private async movePage(pageId: string, targetId: string | undefined, position: PageMovePosition): Promise<void> {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) return;
+    const menu = await readMenu(workspaceRoot);
+    if (moveMenuItem(menu.items, pageId, targetId, position)) {
+      await writeMenu(workspaceRoot, menu);
+    }
+  }
+
+  private async compileDocumentation(): Promise<void> {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) {
+      void vscode.window.showWarningMessage('Open a workspace folder before compiling documentation.');
+      return;
+    }
+
+    const folders = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      defaultUri: workspaceRoot,
+      openLabel: 'Собрать документацию сюда',
+      title: 'Папка для HTML-документации'
+    });
+    const outputRoot = folders?.[0];
+    if (!outputRoot) return;
+
+    try {
+      const result = await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: 'Сборка Slash Doc в HTML…'
+      }, () => compileDocumentationSite(this.extensionUri, workspaceRoot, outputRoot));
+      const action = await vscode.window.showInformationMessage(
+        `Собрано страниц: ${result.pageCount}.`,
+        'Открыть документацию'
+      );
+      if (action === 'Открыть документацию') {
+        await vscode.env.openExternal(result.indexUri);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      void vscode.window.showErrorMessage(`Не удалось собрать документацию: ${message}`);
+    }
   }
 
   private async importPageFromFile(parentId?: string): Promise<string | undefined> {

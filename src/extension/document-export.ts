@@ -639,13 +639,25 @@ function clampHeadingLevel(value: unknown): number {
 }
 
 function htmlToMarkdownInline(value: string): string {
-  return stripHtml(
-    value
-      .replaceAll(/<b>(.*?)<\/b>/g, '**$1**')
-      .replaceAll(/<strong>(.*?)<\/strong>/g, '**$1**')
-      .replaceAll(/<i>(.*?)<\/i>/g, '_$1_')
-      .replaceAll(/<em>(.*?)<\/em>/g, '_$1_')
-      .replaceAll(/<code>(.*?)<\/code>/g, '`$1`')
-      .replaceAll(/<mark[^>]*>(.*?)<\/mark>/g, '==$1==')
-  );
+  const colorSpans: string[] = [];
+  const formatted = value
+    .replaceAll(/<b>(.*?)<\/b>/g, '**$1**')
+    .replaceAll(/<strong>(.*?)<\/strong>/g, '**$1**')
+    .replaceAll(/<i>(.*?)<\/i>/g, '_$1_')
+    .replaceAll(/<em>(.*?)<\/em>/g, '_$1_')
+    .replaceAll(/<code>(.*?)<\/code>/g, '`$1`')
+    .replaceAll(/<mark[^>]*>(.*?)<\/mark>/g, '==$1==')
+    .replaceAll(/<span\b([^>]*)>(.*?)<\/span>/gis, (_match, attributes: string, content: string) => {
+      const color = readInlineTextColor(attributes);
+      if (!color) return content;
+      const index = colorSpans.push(`<span style="color:${color}">${content}</span>`) - 1;
+      return `SLASHDOCCOLOR${index}TOKEN`;
+    });
+  return stripHtml(formatted).replaceAll(/SLASHDOCCOLOR(\d+)TOKEN/g, (_match, index: string) => colorSpans[Number(index)] ?? '');
+}
+
+function readInlineTextColor(attributes: string): string | undefined {
+  const dataColor = /\bdata-slash-text-color\s*=\s*["'](#[0-9a-f]{6})["']/i.exec(attributes)?.[1];
+  const styleColor = /\bstyle\s*=\s*["'][^"']*\bcolor\s*:\s*(#[0-9a-f]{6})\b[^"']*["']/i.exec(attributes)?.[1];
+  return (dataColor ?? styleColor)?.toLowerCase();
 }

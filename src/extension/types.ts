@@ -9,6 +9,8 @@ export type SlashDocMenuItem = {
   children: SlashDocMenuItem[];
 };
 
+export type PageMovePosition = 'before' | 'inside' | 'after' | 'root';
+
 export type ApiService = {
   id: string;
   name: string;
@@ -38,6 +40,7 @@ export type SlashDocSettings = {
     marker: boolean;
     inlineCode: boolean;
     underline: boolean;
+    textColor: boolean;
     mermaid: boolean;
     flowDesigner: boolean;
     networkCanvas: boolean;
