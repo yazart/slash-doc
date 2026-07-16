@@ -11,7 +11,7 @@ type SidebarView = 'menu' | 'settings';
 export async function getSidebarHtml(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
-  view: SidebarView = 'menu'
+  view: SidebarView = 'menu',
 ): Promise<string> {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'sidebar.js'));
   const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'sidebar.css'));

@@ -1,0 +1,6 @@
+dist
+node_modules
+addons
+api
+package-lock.json
+.slash-doc

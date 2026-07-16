@@ -10,7 +10,7 @@ const extensionConfig = {
   format: 'cjs',
   platform: 'node',
   sourcemap: true,
-  outfile: 'dist/extension.js'
+  outfile: 'dist/extension.js',
 };
 
 const webviewConfig = {
@@ -19,7 +19,7 @@ const webviewConfig = {
   format: 'iife',
   platform: 'browser',
   sourcemap: true,
-  outfile: 'dist/webview.js'
+  outfile: 'dist/webview.js',
 };
 
 const sidebarConfig = {
@@ -28,7 +28,7 @@ const sidebarConfig = {
   format: 'iife',
   platform: 'browser',
   sourcemap: true,
-  outfile: 'dist/sidebar.js'
+  outfile: 'dist/sidebar.js',
 };
 
 const fileProcessorRunnerConfig = {
@@ -37,7 +37,7 @@ const fileProcessorRunnerConfig = {
   format: 'cjs',
   platform: 'node',
   sourcemap: false,
-  outfile: 'dist/file-processor-runner.js'
+  outfile: 'dist/file-processor-runner.js',
 };
 
 if (watch) {
@@ -55,6 +55,6 @@ if (watch) {
     esbuild.build(extensionConfig),
     esbuild.build(webviewConfig),
     esbuild.build(sidebarConfig),
-    esbuild.build(fileProcessorRunnerConfig)
+    esbuild.build(fileProcessorRunnerConfig),
   ]);
 }

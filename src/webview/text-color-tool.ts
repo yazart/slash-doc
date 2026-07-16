@@ -21,8 +21,8 @@ export default class TextColorTool implements InlineTool {
       span: {
         class: true,
         style: true,
-        'data-slash-text-color': true
-      }
+        'data-slash-text-color': true,
+      },
     };
   }
 
@@ -38,16 +38,18 @@ export default class TextColorTool implements InlineTool {
       isActive: () => Boolean(this.api.selection.findParentTag('SPAN', 'slash-text-color')),
       children: {
         isFlippable: false,
-        items: [{
-          type: 'html' as PopoverItemType.Html,
-          element: this.createPalette()
-        }],
+        items: [
+          {
+            type: 'html' as PopoverItemType.Html,
+            element: this.createPalette(),
+          },
+        ],
         onOpen: () => {
           this.captureRange();
           this.api.selection.setFakeBackground?.();
         },
-        onClose: () => this.api.selection.removeFakeBackground?.()
-      }
+        onClose: () => this.api.selection.removeFakeBackground?.(),
+      },
     };
   }
 

@@ -43,7 +43,11 @@ export function getGlobalApiRootUri(extensionUri: vscode.Uri): vscode.Uri {
   return vscode.Uri.joinPath(extensionUri, 'api');
 }
 
-export function getApiServiceUri(extensionUri: vscode.Uri, _workspaceRoot: vscode.Uri, service: ApiService): vscode.Uri {
+export function getApiServiceUri(
+  extensionUri: vscode.Uri,
+  _workspaceRoot: vscode.Uri,
+  service: ApiService,
+): vscode.Uri {
   return vscode.Uri.joinPath(getGlobalApiRootUri(extensionUri), service.file);
 }
 
@@ -54,7 +58,7 @@ export function getGlobalAddonRootUri(extensionUri: vscode.Uri): vscode.Uri {
 export function getCustomAddonUri(
   extensionUri: vscode.Uri,
   _workspaceRoot: vscode.Uri,
-  addon: CustomEditorAddon
+  addon: CustomEditorAddon,
 ): vscode.Uri {
   return vscode.Uri.joinPath(getGlobalAddonRootUri(extensionUri), addon.file);
 }
@@ -63,7 +67,7 @@ export function getCustomAddonWebviewModules(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
   workspaceRoot: vscode.Uri | undefined,
-  settings: SlashDocSettings
+  settings: SlashDocSettings,
 ): CustomAddonWebviewModule[] {
   if (!workspaceRoot) {
     return [];
@@ -74,7 +78,7 @@ export function getCustomAddonWebviewModules(
     .map((addon) => ({
       id: addon.id,
       toolName: addon.toolName,
-      uri: webview.asWebviewUri(getCustomAddonUri(extensionUri, workspaceRoot, addon)).toString()
+      uri: webview.asWebviewUri(getCustomAddonUri(extensionUri, workspaceRoot, addon)).toString(),
     }));
 }
 

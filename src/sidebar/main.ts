@@ -23,27 +23,27 @@ const collapsedPageIds = new Set(sidebarState.collapsedPageIds);
 
 document.querySelector('#initialize')?.addEventListener('click', () => {
   vscode.postMessage({
-    type: 'initialize'
+    type: 'initialize',
   });
 });
 
 document.querySelector('#create-page')?.addEventListener('click', () => {
   vscode.postMessage({
     type: 'createPage',
-    parentId: selectedPageId
+    parentId: selectedPageId,
   });
 });
 
 document.querySelector('#import-page')?.addEventListener('click', () => {
   vscode.postMessage({
     type: 'importPage',
-    parentId: selectedPageId
+    parentId: selectedPageId,
   });
 });
 
 document.querySelector('#open-settings')?.addEventListener('click', () => {
   vscode.postMessage({
-    type: 'openSettings'
+    type: 'openSettings',
   });
 });
 
@@ -53,7 +53,7 @@ document.querySelector('#compile-site')?.addEventListener('click', () => {
 
 document.querySelector('#back-to-menu')?.addEventListener('click', () => {
   vscode.postMessage({
-    type: 'backToMenu'
+    type: 'backToMenu',
   });
 });
 
@@ -73,7 +73,7 @@ document.querySelectorAll<HTMLButtonElement>('.tree-item').forEach((button) => {
 
     vscode.postMessage({
       type: 'openPage',
-      pageId: selectedPageId
+      pageId: selectedPageId,
     });
   });
 });
@@ -89,7 +89,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-delete-page-id]').forEach((b
 
     vscode.postMessage({
       type: 'deletePage',
-      pageId
+      pageId,
     });
   });
 });
@@ -99,7 +99,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-rename-page-id]').forEach((b
     event.stopPropagation();
     vscode.postMessage({
       type: 'renamePage',
-      pageId: button.dataset.renamePageId ?? null
+      pageId: button.dataset.renamePageId ?? null,
     });
   });
 });
@@ -109,19 +109,19 @@ bindPageDragAndDrop();
 
 document.querySelector('#add-service')?.addEventListener('click', () => {
   vscode.postMessage({
-    type: 'createApiService'
+    type: 'createApiService',
   });
 });
 
 document.querySelector('#reload-api-services')?.addEventListener('click', () => {
   vscode.postMessage({
-    type: 'reloadApiServices'
+    type: 'reloadApiServices',
   });
 });
 
 document.querySelector('#add-addon')?.addEventListener('click', () => {
   vscode.postMessage({
-    type: 'createCustomAddon'
+    type: 'createCustomAddon',
   });
 });
 
@@ -163,7 +163,6 @@ function setTreeNodeCollapsed(pageId: string, collapsed: boolean, persist = true
 }
 
 function bindPageDragAndDrop() {
-  const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-page-drop-id]'));
   const handles = Array.from(document.querySelectorAll<HTMLElement>('[data-drag-page-id]'));
   const rootDrop = document.querySelector<HTMLElement>('[data-root-drop]');
   const tree = document.querySelector<HTMLElement>('.tree');
@@ -257,7 +256,9 @@ function bindPageDragAndDrop() {
 
 function canDropOnRow(row: HTMLElement, draggedPageId: string): boolean {
   if (row.dataset.pageDropId === draggedPageId) return false;
-  const draggedNode = document.querySelector<HTMLElement>(`[data-drag-page-id="${CSS.escape(draggedPageId)}"]`)?.closest('.tree-node');
+  const draggedNode = document
+    .querySelector<HTMLElement>(`[data-drag-page-id="${CSS.escape(draggedPageId)}"]`)
+    ?.closest('.tree-node');
   return !draggedNode?.contains(row);
 }
 
@@ -287,7 +288,11 @@ function readSidebarState(): { collapsedPageIds: string[] } {
   const value = vscode.getState();
   if (!value || typeof value !== 'object' || !('collapsedPageIds' in value)) return { collapsedPageIds: [] };
   const collapsed = (value as { collapsedPageIds?: unknown }).collapsedPageIds;
-  return { collapsedPageIds: Array.isArray(collapsed) ? collapsed.filter((item): item is string => typeof item === 'string') : [] };
+  return {
+    collapsedPageIds: Array.isArray(collapsed)
+      ? collapsed.filter((item): item is string => typeof item === 'string')
+      : [],
+  };
 }
 
 function saveSidebarState() {
@@ -317,7 +322,7 @@ function bindServiceOpenButtons() {
     button.onclick = () => {
       vscode.postMessage({
         type: 'openApiService',
-        serviceId: button.dataset.openService
+        serviceId: button.dataset.openService,
       });
     };
   });
@@ -328,7 +333,7 @@ function bindAddonOpenButtons() {
     button.onclick = () => {
       vscode.postMessage({
         type: 'openCustomAddon',
-        addonId: button.dataset.openAddon
+        addonId: button.dataset.openAddon,
       });
     };
   });
@@ -345,7 +350,7 @@ function scheduleSettingsSave() {
 function postSettings() {
   vscode.postMessage({
     type: 'updateSettings',
-    settings: collectSettings()
+    settings: collectSettings(),
   });
 }
 
@@ -367,26 +372,26 @@ function collectSettings() {
       imageAnnotation: isAddonEnabled('imageAnnotation'),
       apiEndpoint: isAddonEnabled('apiEndpoint'),
       fileProcessor: isAddonEnabled('fileProcessor'),
-      taskTable: isAddonEnabled('taskTable')
+      taskTable: isAddonEnabled('taskTable'),
     },
     customEditorAddons: Array.from(document.querySelectorAll<HTMLElement>('[data-custom-addon-id]')).map((row) => ({
       id: row.dataset.customAddonId ?? createId('addon'),
       name: getRowInput(row, 'custom-addon', 'name'),
       toolName: getRowInput(row, 'custom-addon', 'toolName'),
       file: getRowInput(row, 'custom-addon', 'file'),
-      enabled: isCustomAddonEnabled(row.dataset.customAddonId)
+      enabled: isCustomAddonEnabled(row.dataset.customAddonId),
     })),
     apiPrefix: document.querySelector<HTMLInputElement>('#api-prefix')?.value ?? '/api',
     apiPort: Number(document.querySelector<HTMLInputElement>('#api-port')?.value ?? '4317'),
     apiServices: Array.from(document.querySelectorAll<HTMLElement>('[data-service-id]')).map((row) => ({
       id: row.dataset.serviceId ?? createId('service'),
       name: getRowInput(row, 'service', 'name'),
-      file: getRowInput(row, 'service', 'file')
+      file: getRowInput(row, 'service', 'file'),
     })),
     variables: Array.from(document.querySelectorAll<HTMLElement>('.variable-row')).map((row) => ({
       key: getRowInput(row, 'variable', 'key'),
-      value: getRowInput(row, 'variable', 'value')
-    }))
+      value: getRowInput(row, 'variable', 'value'),
+    })),
   };
 }
 
@@ -410,8 +415,8 @@ function getRowInput(row: HTMLElement, scope: 'service' | 'variable' | 'custom-a
 
 function getVariableRowHtml(): string {
   return `<div class="settings-row variable-row">
-    <input class="settings-input" data-variable-field="key" placeholder="key">
-    <input class="settings-input" data-variable-field="value" placeholder="value">
+    <input class="settings-input" data-variable-field="key" placeholder="ключ">
+    <input class="settings-input" data-variable-field="value" placeholder="значение">
   </div>`;
 }
 

@@ -5,19 +5,16 @@ import type {
   EditorAddonDefinition,
   PageMovePosition,
   SlashDocMenuItem,
-  SlashDocSettings
+  SlashDocSettings,
 } from './extension/types';
-import {
-  createPageId,
-  createSettingsId,
-} from './extension/utils';
+import { createPageId, createSettingsId } from './extension/utils';
 import {
   getApiRouteTemplate,
   getCustomAddonTemplate,
   getDefaultSettings,
   normalizeSettings,
   normalizeToolName,
-  slugify
+  slugify,
 } from './extension/settings';
 import {
   getApiServiceUri,
@@ -27,10 +24,9 @@ import {
   getPageContentUri,
   getPagesRootUri,
   getWorkspaceRoot,
-  pathExists,
   writeJson,
   writeJsonIfMissing,
-  writeTextIfMissing
+  writeTextIfMissing,
 } from './extension/filesystem';
 import {
   addChildToMenu,
@@ -44,7 +40,7 @@ import {
   moveMenuItem,
   updateMenuItemTitle,
   updatePageContentTitle,
-  writeMenu
+  writeMenu,
 } from './extension/pages';
 import { readSettings, writeSettings } from './extension/settings-store';
 import { exportPageContent } from './extension/document-export';
@@ -57,7 +53,7 @@ import {
   downloadProcessorFile,
   runPageProcessor,
   uploadProcessorFiles,
-  type UploadedProcessorFile
+  type UploadedProcessorFile,
 } from './extension/file-processor';
 
 const viewType = 'slashDoc.editor';
@@ -91,82 +87,83 @@ type EditorMessage = {
 
 type ExportFormat = 'html' | 'md';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const editorAddonDefinitions: EditorAddonDefinition[] = [
   {
     id: 'header',
-    label: 'Header',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M8 9V7.2C8 7.08954 8.08954 7 8.2 7L12 7M16 9V7.2C16 7.08954 15.9105 7 15.8 7L12 7M12 7L12 17M12 17H10M12 17H14"/></svg>'
+    label: 'Заголовок',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M8 9V7.2C8 7.08954 8.08954 7 8.2 7L12 7M16 9V7.2C16 7.08954 15.9105 7 15.8 7L12 7M12 7L12 17M12 17H10M12 17H14"/></svg>',
   },
   {
     id: 'list',
-    label: 'List',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><line x1="9" x2="19" y1="7" y2="7" stroke="currentColor" stroke-linecap="round" stroke-width="2"/><line x1="9" x2="19" y1="12" y2="12" stroke="currentColor" stroke-linecap="round" stroke-width="2"/><line x1="9" x2="19" y1="17" y2="17" stroke="currentColor" stroke-linecap="round" stroke-width="2"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5.00001 17H4.99002"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5.00001 12H4.99002"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5.00001 7H4.99002"/></svg>'
+    label: 'Список',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><line x1="9" x2="19" y1="7" y2="7" stroke="currentColor" stroke-linecap="round" stroke-width="2"/><line x1="9" x2="19" y1="12" y2="12" stroke="currentColor" stroke-linecap="round" stroke-width="2"/><line x1="9" x2="19" y1="17" y2="17" stroke="currentColor" stroke-linecap="round" stroke-width="2"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5.00001 17H4.99002"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5.00001 12H4.99002"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5.00001 7H4.99002"/></svg>',
   },
   {
     id: 'confluenceTable',
-    label: 'Confluence Table',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2" d="M10 5V18.5"/><path stroke="currentColor" stroke-width="2" d="M14 5V18.5"/><path stroke="currentColor" stroke-width="2" d="M5 10H19"/><path stroke="currentColor" stroke-width="2" d="M5 14H19"/><rect width="14" height="14" x="5" y="5" stroke="currentColor" stroke-width="2" rx="4"/></svg>'
+    label: 'Таблица Confluence',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2" d="M10 5V18.5"/><path stroke="currentColor" stroke-width="2" d="M14 5V18.5"/><path stroke="currentColor" stroke-width="2" d="M5 10H19"/><path stroke="currentColor" stroke-width="2" d="M5 14H19"/><rect width="14" height="14" x="5" y="5" stroke="currentColor" stroke-width="2" rx="4"/></svg>',
   },
   {
     id: 'image',
-    label: 'Image',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" stroke="currentColor" stroke-width="2" rx="4"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.13968 15.32L8.69058 11.5661C9.02934 11.2036 9.48873 11 9.96774 11C10.4467 11 10.9061 11.2036 11.2449 11.5661L15.3871 16M13.5806 14.0664L15.0132 12.533C15.3519 12.1705 15.8113 11.9668 16.2903 11.9668C16.7693 11.9668 17.2287 12.1705 17.5675 12.533L18.841 13.9634"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.7778 9.33331H13.7867"/></svg>'
+    label: 'Изображение',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" stroke="currentColor" stroke-width="2" rx="4"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.13968 15.32L8.69058 11.5661C9.02934 11.2036 9.48873 11 9.96774 11C10.4467 11 10.9061 11.2036 11.2449 11.5661L15.3871 16M13.5806 14.0664L15.0132 12.533C15.3519 12.1705 15.8113 11.9668 16.2903 11.9668C16.7693 11.9668 17.2287 12.1705 17.5675 12.533L18.841 13.9634"/><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.7778 9.33331H13.7867"/></svg>',
   },
   {
     id: 'marker',
-    label: 'Marker',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9 17L15 7"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M7 17H17"/></svg>'
+    label: 'Маркер',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9 17L15 7"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M7 17H17"/></svg>',
   },
   {
     id: 'inlineCode',
-    label: 'Inline Code',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9.5 8L6.11524 11.8683C6.04926 11.9437 6.04926 12.0563 6.11524 12.1317L9.5 16"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M15 8L18.3848 11.8683C18.4507 11.9437 18.4507 12.0563 18.3848 12.1317L15 16"/></svg>'
+    label: 'Встроенный код',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M9.5 8L6.11524 11.8683C6.04926 11.9437 6.04926 12.0563 6.11524 12.1317L9.5 16"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M15 8L18.3848 11.8683C18.4507 11.9437 18.4507 12.0563 18.3848 12.1317L15 16"/></svg>',
   },
   {
     id: 'underline',
-    label: 'Underline',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M8 5V10C8 12.2091 9.79086 14 12 14C14.2091 14 16 12.2091 16 10V5"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M7 19H17"/></svg>'
+    label: 'Подчёркивание',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M8 5V10C8 12.2091 9.79086 14 12 14C14.2091 14 16 12.2091 16 10V5"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M7 19H17"/></svg>',
   },
   {
     id: 'textColor',
-    label: 'Text Color',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17 12 4l5 13M9 12h6"/><path stroke="#3b82f6" stroke-linecap="round" stroke-width="3" d="M6 20h12"/></svg>'
+    label: 'Цвет текста',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 17 12 4l5 13M9 12h6"/><path stroke="#3b82f6" stroke-linecap="round" stroke-width="3" d="M6 20h12"/></svg>',
   },
   {
     id: 'mermaid',
     label: 'Mermaid',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M7 7H17"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M7 12H17"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M7 17H17"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4 7H4.01"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4 12H4.01"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4 17H4.01"/></svg>'
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M7 7H17"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M7 12H17"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M7 17H17"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4 7H4.01"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4 12H4.01"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4 17H4.01"/></svg>',
   },
   {
     id: 'flowDesigner',
-    label: 'Flow Designer',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><circle cx="5" cy="5" r="2" stroke="currentColor" stroke-width="2"/><circle cx="19" cy="12" r="2" stroke="currentColor" stroke-width="2"/><circle cx="5" cy="19" r="2" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="M7 5h3a5 5 0 0 1 5 5M7 19h3a5 5 0 0 0 5-5"/></svg>'
+    label: 'Конструктор процессов',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><circle cx="5" cy="5" r="2" stroke="currentColor" stroke-width="2"/><circle cx="19" cy="12" r="2" stroke="currentColor" stroke-width="2"/><circle cx="5" cy="19" r="2" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="M7 5h3a5 5 0 0 1 5 5M7 19h3a5 5 0 0 0 5-5"/></svg>',
   },
   {
     id: 'networkCanvas',
-    label: 'Network Canvas',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="5" rx="1" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="6.5" r="2.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="16" width="7" height="5" rx="1" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="M10 6.5h5.5M18 9v3a6 6 0 0 1-6 6H7a4 4 0 0 1-4-4V9"/></svg>'
+    label: 'Сетевая схема',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="5" rx="1" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="6.5" r="2.5" stroke="currentColor" stroke-width="2"/><rect x="14" y="16" width="7" height="5" rx="1" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="M10 6.5h5.5M18 9v3a6 6 0 0 1-6 6H7a4 4 0 0 1-4-4V9"/></svg>',
   },
   {
     id: 'imageAnnotation',
-    label: 'Image Annotation',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="m4 17 5-5 4 4 3-3 4 4"/><rect x="13" y="6" width="6" height="5" rx="1" stroke="currentColor" stroke-width="2"/></svg>'
+    label: 'Аннотация изображения',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="m4 17 5-5 4 4 3-3 4 4"/><rect x="13" y="6" width="6" height="5" rx="1" stroke="currentColor" stroke-width="2"/></svg>',
   },
   {
     id: 'apiEndpoint',
-    label: 'API Endpoint',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m8 5-5 7 5 7M16 5l5 7-5 7M14 3l-4 18"/></svg>'
+    label: 'Эндпоинт API',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m8 5-5 7 5 7M16 5l5 7-5 7M14 3l-4 18"/></svg>',
   },
   {
     id: 'fileProcessor',
-    label: 'File Processor',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2" d="M6 3h8l4 4v14H6z"/><path stroke="currentColor" stroke-width="2" d="M14 3v5h5M9 12h6M9 16h4"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m4 9-2 3 2 3"/></svg>'
+    label: 'Обработчик файлов',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-width="2" d="M6 3h8l4 4v14H6z"/><path stroke="currentColor" stroke-width="2" d="M14 3v5h5M9 12h6M9 16h4"/><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="m4 9-2 3 2 3"/></svg>',
   },
   {
     id: 'taskTable',
-    label: 'Task Table',
-    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="M9 4v16M15 4v16M5 8h2M11 8h2M17 8h2"/></svg>'
-  }
+    label: 'Доска задач',
+    icon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" d="M9 4v16M15 4v16M5 8h2M11 8h2M17 8h2"/></svg>',
+  },
 ];
 
 let apiServerManager: ApiServerManager | undefined;
@@ -183,24 +180,20 @@ export function activate(context: vscode.ExtensionContext) {
     const workspaceRoot = getWorkspaceRoot();
     const menu = workspaceRoot ? await readMenu(workspaceRoot) : { items: [] };
     const page = pageId ? findMenuItem(menu.items, pageId) : undefined;
-    const initialData = workspaceRoot && pageId
-      ? await readPageContent(workspaceRoot, pageId, page?.title ?? 'Slash Doc')
-      : createDefaultPageContent('Slash Doc');
+    const initialData =
+      workspaceRoot && pageId
+        ? await readPageContent(workspaceRoot, pageId, page?.title ?? 'Slash Doc')
+        : createDefaultPageContent('Slash Doc');
     const settings = workspaceRoot ? await readSettings(workspaceRoot) : getDefaultSettings();
 
-    const panel = vscode.window.createWebviewPanel(
-      viewType,
-      page?.title ?? 'Slash Doc',
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        localResourceRoots: [
-          vscode.Uri.joinPath(context.extensionUri, 'dist'),
-          vscode.Uri.joinPath(context.extensionUri, 'assets'),
-          getGlobalAddonRootUri(context.extensionUri)
-        ]
-      }
-    );
+    const panel = vscode.window.createWebviewPanel(viewType, page?.title ?? 'Slash Doc', vscode.ViewColumn.One, {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(context.extensionUri, 'dist'),
+        vscode.Uri.joinPath(context.extensionUri, 'assets'),
+        getGlobalAddonRootUri(context.extensionUri),
+      ],
+    });
 
     if (pageId) {
       const panels = openPagePanels.get(pageId) ?? new Set<vscode.WebviewPanel>();
@@ -238,13 +231,14 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         if (message.type?.startsWith('fileProcessor')) {
-          const respond = (ok: boolean, data?: unknown, error?: string) => panel.webview.postMessage({
-            type: 'fileProcessorResponse',
-            requestId: message.requestId,
-            ok,
-            data,
-            error
-          });
+          const respond = (ok: boolean, data?: unknown, error?: string) =>
+            panel.webview.postMessage({
+              type: 'fileProcessorResponse',
+              requestId: message.requestId,
+              ok,
+              data,
+              error,
+            });
 
           if (!workspaceRoot || !pageId) {
             await respond(false, undefined, 'Сначала сохраните виджет на странице документа.');
@@ -260,7 +254,7 @@ export function activate(context: vscode.ExtensionContext) {
                 workspaceRoot,
                 pageId,
                 message.script ?? '',
-                message.inputFiles ?? []
+                message.inputFiles ?? [],
               );
               await respond(true, result);
             } else if (message.type === 'fileProcessorDownload' && message.fileName) {
@@ -280,11 +274,11 @@ export function activate(context: vscode.ExtensionContext) {
               message.format,
               settings,
               context.extensionUri,
-              workspaceRoot
+              workspaceRoot,
             );
             const document = await vscode.workspace.openTextDocument({
               content,
-              language: message.format === 'html' ? 'html' : 'markdown'
+              language: message.format === 'html' ? 'html' : 'markdown',
             });
             await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
           }
@@ -310,7 +304,7 @@ export function activate(context: vscode.ExtensionContext) {
         }
       },
       undefined,
-      context.subscriptions
+      context.subscriptions,
     );
 
     panel.webview.html = getWebviewHtml(panel.webview, context.extensionUri, workspaceRoot, initialData, settings);
@@ -321,7 +315,7 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(disposable, sidebarRegistration, {
     dispose: () => {
       void apiServerManager?.dispose();
-    }
+    },
   });
 }
 
@@ -338,9 +332,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     this.webviewView = webviewView;
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(this.extensionUri, 'dist')
-      ]
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'dist')],
     };
 
     webviewView.webview.onDidReceiveMessage(async (message: SidebarMessage) => {
@@ -411,10 +403,10 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       if (message.type === 'reloadApiServices') {
         try {
           await apiServerManager?.reload();
-          void vscode.window.showInformationMessage('Slash Doc API service reloaded.');
+          void vscode.window.showInformationMessage('API-сервис Slash Doc перезагружен.');
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          void vscode.window.showErrorMessage(`Failed to reload Slash Doc API service: ${message}`);
+          void vscode.window.showErrorMessage(`Не удалось перезагрузить API-сервис Slash Doc: ${message}`);
         }
       }
 
@@ -452,7 +444,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     const workspaceRoot = getWorkspaceRoot();
 
     if (!workspaceRoot) {
-      void vscode.window.showWarningMessage('Open a workspace folder before initializing Slash Doc.');
+      void vscode.window.showWarningMessage('Откройте папку рабочей области перед инициализацией Slash Doc.');
       return;
     }
 
@@ -465,11 +457,11 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     await vscode.workspace.fs.createDirectory(getGlobalAddonRootUri(this.extensionUri));
     await writeJsonIfMissing(vscode.Uri.joinPath(slashDocRoot, 'sdsettings.json'), getDefaultSettings());
     await writeJsonIfMissing(vscode.Uri.joinPath(docsRoot, 'menu.json'), {
-      items: []
+      items: [],
     });
 
     if (!silent) {
-      void vscode.window.showInformationMessage('Slash Doc documentation initialized.');
+      void vscode.window.showInformationMessage('Документация Slash Doc инициализирована.');
     }
   }
 
@@ -496,7 +488,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     const name = await vscode.window.showInputBox({
       prompt: 'Название API сервиса',
       value: 'service',
-      valueSelection: [0, 'service'.length]
+      valueSelection: [0, 'service'.length],
     });
 
     if (!name) {
@@ -509,7 +501,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     const service: ApiService = {
       id,
       name,
-      file
+      file,
     };
 
     settings.apiServices.push(service);
@@ -534,7 +526,9 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const document = await vscode.workspace.openTextDocument(getApiServiceUri(this.extensionUri, workspaceRoot, service));
+    const document = await vscode.workspace.openTextDocument(
+      getApiServiceUri(this.extensionUri, workspaceRoot, service),
+    );
     await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
   }
 
@@ -550,7 +544,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     const name = await vscode.window.showInputBox({
       prompt: 'Название Editor.js аддона',
       value: 'customTool',
-      valueSelection: [0, 'customTool'.length]
+      valueSelection: [0, 'customTool'.length],
     });
 
     if (!name) {
@@ -565,7 +559,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       name,
       toolName: normalizeToolName(name),
       file,
-      enabled: true
+      enabled: true,
     };
 
     settings.customEditorAddons.push(addon);
@@ -589,7 +583,9 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const document = await vscode.workspace.openTextDocument(getCustomAddonUri(this.extensionUri, workspaceRoot, addon));
+    const document = await vscode.workspace.openTextDocument(
+      getCustomAddonUri(this.extensionUri, workspaceRoot, addon),
+    );
     await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
   }
 
@@ -597,7 +593,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     const workspaceRoot = getWorkspaceRoot();
 
     if (!workspaceRoot) {
-      void vscode.window.showWarningMessage('Open a workspace folder before creating a Slash Doc page.');
+      void vscode.window.showWarningMessage('Откройте папку рабочей области перед созданием страницы Slash Doc.');
       return undefined;
     }
 
@@ -606,7 +602,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     const title = await vscode.window.showInputBox({
       prompt: 'Название страницы',
       value: 'Новая страница',
-      valueSelection: [0, 'Новая страница'.length]
+      valueSelection: [0, 'Новая страница'.length],
     });
 
     if (!title) {
@@ -620,7 +616,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       id,
       title,
       file,
-      children: []
+      children: [],
     };
 
     if (parentId && addChildToMenu(menu.items, parentId, item)) {
@@ -648,7 +644,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
   private async compileDocumentation(): Promise<void> {
     const workspaceRoot = getWorkspaceRoot();
     if (!workspaceRoot) {
-      void vscode.window.showWarningMessage('Open a workspace folder before compiling documentation.');
+      void vscode.window.showWarningMessage('Откройте папку рабочей области перед сборкой документации.');
       return;
     }
 
@@ -658,19 +654,22 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       canSelectMany: false,
       defaultUri: workspaceRoot,
       openLabel: 'Собрать документацию сюда',
-      title: 'Папка для HTML-документации'
+      title: 'Папка для HTML-документации',
     });
     const outputRoot = folders?.[0];
     if (!outputRoot) return;
 
     try {
-      const result = await vscode.window.withProgress({
-        location: vscode.ProgressLocation.Notification,
-        title: 'Сборка Slash Doc в HTML…'
-      }, () => compileDocumentationSite(this.extensionUri, workspaceRoot, outputRoot));
+      const result = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'Сборка Slash Doc в HTML…',
+        },
+        () => compileDocumentationSite(this.extensionUri, workspaceRoot, outputRoot),
+      );
       const action = await vscode.window.showInformationMessage(
         `Собрано страниц: ${result.pageCount}.`,
-        'Открыть документацию'
+        'Открыть документацию',
       );
       if (action === 'Открыть документацию') {
         await vscode.env.openExternal(result.indexUri);
@@ -685,7 +684,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     const workspaceRoot = getWorkspaceRoot();
 
     if (!workspaceRoot) {
-      void vscode.window.showWarningMessage('Open a workspace folder before importing a Slash Doc page.');
+      void vscode.window.showWarningMessage('Откройте папку рабочей области перед импортом страницы Slash Doc.');
       return undefined;
     }
 
@@ -696,9 +695,9 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       canSelectFolders: false,
       canSelectMany: false,
       filters: {
-        'Markdown / HTML': ['md', 'markdown', 'html', 'htm']
+        'Markdown / HTML': ['md', 'markdown', 'html', 'htm'],
       },
-      openLabel: 'Импортировать'
+      openLabel: 'Импортировать',
     });
 
     const file = files?.[0];
@@ -731,9 +730,9 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       `Удалить страницу "${item.title}"?`,
       {
         modal: true,
-        detail: 'Страница и все дочерние страницы будут удалены из .slash-doc.'
+        detail: 'Страница и все дочерние страницы будут удалены из .slash-doc.',
       },
-      'Удалить'
+      'Удалить',
     );
 
     if (answer !== 'Удалить') {
@@ -749,10 +748,12 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     await writeMenu(workspaceRoot, menu);
 
     for (const id of pageIds) {
-      await vscode.workspace.fs.delete(vscode.Uri.joinPath(getPagesRootUri(workspaceRoot), id), {
-        recursive: true,
-        useTrash: false
-      }).then(undefined, () => undefined);
+      await vscode.workspace.fs
+        .delete(vscode.Uri.joinPath(getPagesRootUri(workspaceRoot), id), {
+          recursive: true,
+          useTrash: false,
+        })
+        .then(undefined, () => undefined);
     }
   }
 
@@ -774,7 +775,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       prompt: 'Новый заголовок страницы',
       value: item.title,
       valueSelection: [0, item.title.length],
-      validateInput: (value) => value.trim() ? undefined : 'Заголовок не может быть пустым'
+      validateInput: (value) => (value.trim() ? undefined : 'Заголовок не может быть пустым'),
     });
 
     if (!title?.trim()) {
@@ -792,7 +793,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       panel.title = normalizedTitle;
       void panel.webview.postMessage({
         type: 'replaceData',
-        data: updatedContent
+        data: updatedContent,
       });
     }
   }
@@ -801,7 +802,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     const workspaceRoot = getWorkspaceRoot();
 
     if (!workspaceRoot) {
-      throw new Error('Workspace folder is required to create a Slash Doc page.');
+      throw new Error('Для создания страницы Slash Doc требуется папка рабочей области.');
     }
 
     const menu = await readMenu(workspaceRoot);
@@ -811,7 +812,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       id,
       title,
       file,
-      children: []
+      children: [],
     };
 
     if (parentId && addChildToMenu(menu.items, parentId, item)) {

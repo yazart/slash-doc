@@ -25,8 +25,8 @@ export default class TaskTableTool {
 
   static get toolbox() {
     return {
-      title: 'Task Table',
-      icon: '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><rect x="1" y="2" width="15" height="13" rx="2" stroke="currentColor"/><path d="M6 2v13M11 2v13M2 5h3M7 5h3M12 5h3" stroke="currentColor"/></svg>'
+      title: 'Доска задач',
+      icon: '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><rect x="1" y="2" width="15" height="13" rx="2" stroke="currentColor"/><path d="M6 2v13M11 2v13M2 5h3M7 5h3M12 5h3" stroke="currentColor"/></svg>',
     };
   }
 
@@ -48,7 +48,10 @@ export default class TaskTableTool {
     const title = wrapper.querySelector<HTMLInputElement>('.tt-board-title');
     if (title) {
       title.value = this.data.title;
-      title.addEventListener('input', () => { this.data.title = title.value; this.changed(); });
+      title.addEventListener('input', () => {
+        this.data.title = title.value;
+        this.changed();
+      });
     }
     wrapper.querySelector('.tt-add-column')?.addEventListener('click', () => this.addColumn());
     wrapper.addEventListener('keydown', (event) => {
@@ -95,7 +98,10 @@ export default class TaskTableTool {
     title.className = 'tt-column-title';
     title.value = column.title;
     title.setAttribute('aria-label', 'Название колонки');
-    title.addEventListener('input', () => { column.title = title.value; this.changed(); });
+    title.addEventListener('input', () => {
+      column.title = title.value;
+      this.changed();
+    });
     const remove = this.deleteButton('Удалить колонку', () => {
       if (column.cards.length > 0 && !window.confirm('Удалить колонку вместе с карточками?')) return;
       this.data.columns = this.data.columns.filter((item) => item.id !== column.id);
@@ -118,7 +124,10 @@ export default class TaskTableTool {
     add.className = 'tt-add-card';
     add.textContent = '＋ Добавить карточку';
     add.addEventListener('click', () => this.addCard(column.id));
-    element.addEventListener('dragover', (event) => { event.preventDefault(); element.classList.add('drag-over'); });
+    element.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      element.classList.add('drag-over');
+    });
     element.addEventListener('dragleave', (event) => {
       if (!element.contains(event.relatedTarget as Node | null)) element.classList.remove('drag-over');
     });
@@ -146,7 +155,10 @@ export default class TaskTableTool {
     title.className = 'tt-card-title';
     title.value = card.title;
     title.setAttribute('aria-label', 'Заголовок карточки');
-    title.addEventListener('input', () => { card.title = title.value; this.changed(); });
+    title.addEventListener('input', () => {
+      card.title = title.value;
+      this.changed();
+    });
     const remove = this.deleteButton('Удалить карточку', () => {
       column.cards = column.cards.filter((item) => item.id !== card.id);
       this.changed();
@@ -156,7 +168,10 @@ export default class TaskTableTool {
     description.className = 'tt-card-description';
     description.placeholder = 'Описание задачи';
     description.value = card.description;
-    description.addEventListener('input', () => { card.description = description.value; this.changed(); });
+    description.addEventListener('input', () => {
+      card.description = description.value;
+      this.changed();
+    });
     dragHandle.addEventListener('dragstart', (event) => {
       this.dragged = { cardId: card.id, columnId: column.id };
       element.classList.add('dragging');
@@ -240,25 +255,40 @@ export default class TaskTableTool {
 }
 
 function normalizeTaskTable(value: Partial<TaskTableData> | undefined): TaskTableData {
-  const columns = Array.isArray(value?.columns) ? value.columns.flatMap((column) => {
-    if (!column || typeof column !== 'object') return [];
-    return [{
-      id: typeof column.id === 'string' ? column.id : createId('column'),
-      title: typeof column.title === 'string' ? column.title : 'Колонка',
-      cards: Array.isArray(column.cards) ? column.cards.flatMap((card) => card && typeof card === 'object' ? [{
-        id: typeof card.id === 'string' ? card.id : createId('card'),
-        title: typeof card.title === 'string' ? card.title : 'Задача',
-        description: typeof card.description === 'string' ? card.description : ''
-      }] : []) : []
-    }];
-  }) : [];
+  const columns = Array.isArray(value?.columns)
+    ? value.columns.flatMap((column) => {
+        if (!column || typeof column !== 'object') return [];
+        return [
+          {
+            id: typeof column.id === 'string' ? column.id : createId('column'),
+            title: typeof column.title === 'string' ? column.title : 'Колонка',
+            cards: Array.isArray(column.cards)
+              ? column.cards.flatMap((card) =>
+                  card && typeof card === 'object'
+                    ? [
+                        {
+                          id: typeof card.id === 'string' ? card.id : createId('card'),
+                          title: typeof card.title === 'string' ? card.title : 'Задача',
+                          description: typeof card.description === 'string' ? card.description : '',
+                        },
+                      ]
+                    : [],
+                )
+              : [],
+          },
+        ];
+      })
+    : [];
   return {
     title: typeof value?.title === 'string' ? value.title : 'Задачи',
-    columns: columns.length > 0 ? columns : [
-      { id: createId('column'), title: 'К выполнению', cards: [] },
-      { id: createId('column'), title: 'В работе', cards: [] },
-      { id: createId('column'), title: 'Готово', cards: [] }
-    ]
+    columns:
+      columns.length > 0
+        ? columns
+        : [
+            { id: createId('column'), title: 'К выполнению', cards: [] },
+            { id: createId('column'), title: 'В работе', cards: [] },
+            { id: createId('column'), title: 'Готово', cards: [] },
+          ],
   };
 }
 

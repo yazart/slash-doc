@@ -32,11 +32,7 @@ export function escapeScriptJson(value: unknown): string {
 }
 
 export function escapeJavaScriptString(value: string): string {
-  return value
-    .replaceAll('\\', '\\\\')
-    .replaceAll("'", "\\'")
-    .replaceAll('\n', '\\n')
-    .replaceAll('\r', '\\r');
+  return value.replaceAll('\\', '\\\\').replaceAll("'", "\\'").replaceAll('\n', '\\n').replaceAll('\r', '\\r');
 }
 
 export function getNonce(): string {

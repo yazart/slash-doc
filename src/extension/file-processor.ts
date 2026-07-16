@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { spawn } from 'node:child_process';
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
-import { basename, dirname, relative, resolve, sep } from 'node:path';
+import { basename, relative, resolve, sep } from 'node:path';
 import { getPagesRootUri } from './filesystem';
 
 export type ProcessorFileInfo = {
@@ -18,7 +18,7 @@ export type UploadedProcessorFile = {
 export async function uploadProcessorFiles(
   workspaceRoot: vscode.Uri,
   pageId: string,
-  files: UploadedProcessorFile[]
+  files: UploadedProcessorFile[],
 ): Promise<{ files: ProcessorFileInfo[]; uploaded: ProcessorFileInfo[] }> {
   const directory = getProcessorDirectory(workspaceRoot, pageId);
   await mkdir(directory, { recursive: true });
@@ -31,16 +31,14 @@ export async function uploadProcessorFiles(
     if (!match) {
       throw new Error(`Некорректные данные файла: ${name}`);
     }
-    const content = match[2]
-      ? Buffer.from(match[3], 'base64')
-      : Buffer.from(decodeURIComponent(match[3]), 'utf8');
+    const content = match[2] ? Buffer.from(match[3], 'base64') : Buffer.from(decodeURIComponent(match[3]), 'utf8');
     await writeFile(resolve(directory, name), content);
   }
 
   const allFiles = await listProcessorFiles(directory);
   return {
     files: allFiles,
-    uploaded: allFiles.filter((file) => uploadedNames.includes(file.name))
+    uploaded: allFiles.filter((file) => uploadedNames.includes(file.name)),
   };
 }
 
@@ -49,7 +47,7 @@ export async function runPageProcessor(
   workspaceRoot: vscode.Uri,
   pageId: string,
   script: string,
-  inputFiles: string[]
+  inputFiles: string[],
 ): Promise<{ files: ProcessorFileInfo[]; results: ProcessorFileInfo[]; stdout: string; stderr: string }> {
   const directory = getProcessorDirectory(workspaceRoot, pageId);
   await mkdir(directory, { recursive: true });
@@ -70,13 +68,13 @@ export async function runPageProcessor(
 export async function downloadProcessorFile(
   workspaceRoot: vscode.Uri,
   pageId: string,
-  fileName: string
+  fileName: string,
 ): Promise<void> {
   const directory = getProcessorDirectory(workspaceRoot, pageId);
   const sourcePath = resolveSafeFile(directory, fileName);
   const target = await vscode.window.showSaveDialog({
     defaultUri: vscode.Uri.file(resolve(workspaceRoot.fsPath, basename(fileName))),
-    saveLabel: 'Скачать результат'
+    saveLabel: 'Скачать результат',
   });
   if (target) {
     await vscode.workspace.fs.copy(vscode.Uri.file(sourcePath), target, { overwrite: true });
@@ -88,7 +86,9 @@ function getProcessorDirectory(workspaceRoot: vscode.Uri, pageId: string): strin
 }
 
 function sanitizeUploadName(value: string): string {
-  const name = basename(value).replaceAll(/[^\p{L}\p{N}._ -]/gu, '_').trim();
+  const name = basename(value)
+    .replaceAll(/[^\p{L}\p{N}._ -]/gu, '_')
+    .trim();
   if (!/\.(csv|json)$/i.test(name)) {
     throw new Error('Разрешены только CSV и JSON файлы.');
   }
@@ -128,19 +128,23 @@ async function walk(root: string, directory: string, result: ProcessorFileInfo[]
 function executeRunner(
   runnerPath: string,
   scriptPath: string,
-  cwd: string
+  cwd: string,
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(process.execPath, [runnerPath, scriptPath], {
       cwd,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
     let stderr = '';
     const append = (current: string, chunk: Buffer): string => `${current}${chunk.toString('utf8')}`.slice(-100_000);
-    child.stdout.on('data', (chunk: Buffer) => { stdout = append(stdout, chunk); });
-    child.stderr.on('data', (chunk: Buffer) => { stderr = append(stderr, chunk); });
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout = append(stdout, chunk);
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr = append(stderr, chunk);
+    });
     const timeout = setTimeout(() => {
       child.kill('SIGKILL');
       reject(new Error('Сценарий остановлен: превышен лимит выполнения 30 секунд.'));

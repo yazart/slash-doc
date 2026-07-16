@@ -18,12 +18,14 @@ async function main(): Promise<void> {
     return nativeRequire(request);
   };
   const module = { exports: {} as unknown };
-  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (...args: string[]) => (...values: unknown[]) => Promise<unknown>;
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
+    ...args: string[]
+  ) => (...values: unknown[]) => Promise<unknown>;
   const execute = new AsyncFunction('require', 'module', 'exports', '__dirname', '__filename', 'csv', source);
   await execute(localRequire, module, module.exports, dirname(scriptPath), scriptPath, csv);
 }
 
 void main().catch((error) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exitCode = 1;
 });

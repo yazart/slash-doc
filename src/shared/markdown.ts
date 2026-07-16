@@ -72,7 +72,9 @@ export function renderSafeMarkdown(markdown: string): string {
 
 function isBlockStart(line: string): boolean {
   const trimmed = line.trim();
-  return /^```/.test(trimmed) || /^#{1,6}\s/.test(trimmed) || /^>\s?/.test(trimmed) || /^(\s*)([-*+] |\d+[.)] )/.test(line);
+  return (
+    /^```/.test(trimmed) || /^#{1,6}\s/.test(trimmed) || /^>\s?/.test(trimmed) || /^(\s*)([-*+] |\d+[.)] )/.test(line)
+  );
 }
 
 function renderInline(value: string): string {
@@ -95,7 +97,12 @@ function renderInline(value: string): string {
 }
 
 function escapeHtml(value: string): string {
-  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function escapeAttribute(value: string): string {

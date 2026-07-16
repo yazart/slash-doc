@@ -22,7 +22,7 @@ export async function writeMenu(workspaceRoot: vscode.Uri, menu: SlashDocMenu): 
 export async function readPageContent(
   workspaceRoot: vscode.Uri,
   pageId: string,
-  fallbackTitle: string
+  fallbackTitle: string,
 ): Promise<unknown> {
   const contentUri = getPageContentUri(workspaceRoot, pageId);
 
@@ -38,7 +38,7 @@ export function createDefaultPageContent(title: string): unknown {
   return {
     time: Date.now(),
     blocks: [{ type: 'header', data: { text: title, level: 2 } }],
-    version: '2.30.8'
+    version: '2.30.8',
   };
 }
 
@@ -68,9 +68,9 @@ export function normalizeMenuItems(items: unknown): SlashDocMenuItem[] {
     const id = typeof item.id === 'string' ? item.id : createPageId();
     return {
       id,
-      title: typeof item.title === 'string' ? item.title : 'Untitled',
+      title: typeof item.title === 'string' ? item.title : 'Без названия',
       file: `${id}/content.json`,
-      children: normalizeMenuItems(item.children)
+      children: normalizeMenuItems(item.children),
     };
   });
 }
@@ -101,7 +101,7 @@ export function moveMenuItem(
   items: SlashDocMenuItem[],
   pageId: string,
   targetId: string | undefined,
-  position: PageMovePosition
+  position: PageMovePosition,
 ): boolean {
   const sourceLocation = findMenuItemLocation(items, pageId);
   if (!sourceLocation) return false;
@@ -133,7 +133,7 @@ export function moveMenuItem(
 
 function findMenuItemLocation(
   items: SlashDocMenuItem[],
-  pageId: string
+  pageId: string,
 ): { items: SlashDocMenuItem[]; index: number; item: SlashDocMenuItem } | undefined {
   const index = items.findIndex((item) => item.id === pageId);
   if (index >= 0) return { items, index, item: items[index] };
@@ -159,11 +159,12 @@ export function renderMenuTree(items: SlashDocMenuItem[]): string {
 
 function renderMenuItem(item: SlashDocMenuItem): string {
   const children = item.children.length > 0 ? renderMenuTree(item.children) : '';
-  const childToggle = item.children.length > 0
-    ? `<button class="tree-toggle" type="button" data-toggle-page-id="${escapeAttribute(item.id)}" aria-expanded="true" aria-label="Свернуть дочерние страницы" title="Свернуть/развернуть">
+  const childToggle =
+    item.children.length > 0
+      ? `<button class="tree-toggle" type="button" data-toggle-page-id="${escapeAttribute(item.id)}" aria-expanded="true" aria-label="Свернуть дочерние страницы" title="Свернуть/развернуть">
         <svg viewBox="0 0 12 12" aria-hidden="true"><path d="m3.5 2.5 4 3.5-4 3.5"/></svg>
       </button>`
-    : '<span class="tree-toggle-spacer" aria-hidden="true"></span>';
+      : '<span class="tree-toggle-spacer" aria-hidden="true"></span>';
   return `<li class="tree-node" data-tree-node-id="${escapeAttribute(item.id)}">
     <div class="tree-row" data-page-drop-id="${escapeAttribute(item.id)}">
       ${childToggle}

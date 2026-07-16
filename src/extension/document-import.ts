@@ -4,23 +4,26 @@ import { createPageId, escapeHtml, isRecord, stripHtml } from './utils';
 
 export function importDocumentContent(text: string, source: vscode.Uri): ImportedDocument {
   const extension = source.fsPath.split('.').pop()?.toLowerCase() ?? '';
-  const blocks = extension === 'html' || extension === 'htm'
-    ? importHtmlBlocks(text)
-    : importMarkdownBlocks(text);
+  const blocks = extension === 'html' || extension === 'htm' ? importHtmlBlocks(text) : importMarkdownBlocks(text);
   const fallbackTitle = getFileTitle(source);
   const title = getImportTitle(blocks) || fallbackTitle;
-  const normalizedBlocks = blocks.length > 0 ? blocks : [
-    createEditorBlock('header', {
-      text: escapeHtml(title),
-      level: 2
-    })
-  ];
+  const normalizedBlocks =
+    blocks.length > 0
+      ? blocks
+      : [
+          createEditorBlock('header', {
+            text: escapeHtml(title),
+            level: 2,
+          }),
+        ];
 
   if (!getImportTitle(normalizedBlocks)) {
-    normalizedBlocks.unshift(createEditorBlock('header', {
-      text: escapeHtml(title),
-      level: 2
-    }));
+    normalizedBlocks.unshift(
+      createEditorBlock('header', {
+        text: escapeHtml(title),
+        level: 2,
+      }),
+    );
   }
 
   return {
@@ -28,8 +31,8 @@ export function importDocumentContent(text: string, source: vscode.Uri): Importe
     content: {
       time: Date.now(),
       blocks: normalizedBlocks,
-      version: '2.30.8'
-    }
+      version: '2.30.8',
+    },
   };
 }
 
@@ -43,9 +46,11 @@ function importMarkdownBlocks(markdown: string): Record<string, unknown>[] {
     paragraph = [];
 
     if (text) {
-      blocks.push(createEditorBlock('paragraph', {
-        text: markdownInlineToHtml(text)
-      }));
+      blocks.push(
+        createEditorBlock('paragraph', {
+          text: markdownInlineToHtml(text),
+        }),
+      );
     }
   };
 
@@ -97,10 +102,12 @@ function importMarkdownBlocks(markdown: string): Record<string, unknown>[] {
         index += 1;
       }
 
-      blocks.push(createEditorBlock('mermaid', {
-        code: code.join('\n'),
-        caption: ''
-      }));
+      blocks.push(
+        createEditorBlock('mermaid', {
+          code: code.join('\n'),
+          caption: '',
+        }),
+      );
       continue;
     }
 
@@ -108,10 +115,12 @@ function importMarkdownBlocks(markdown: string): Record<string, unknown>[] {
 
     if (heading) {
       flushParagraph();
-      blocks.push(createEditorBlock('header', {
-        text: markdownInlineToHtml(heading[2].trim()),
-        level: heading[1].length
-      }));
+      blocks.push(
+        createEditorBlock('header', {
+          text: markdownInlineToHtml(heading[2].trim()),
+          level: heading[1].length,
+        }),
+      );
       continue;
     }
 
@@ -135,15 +144,17 @@ function importMarkdownBlocks(markdown: string): Record<string, unknown>[] {
         continue;
       }
 
-      blocks.push(createEditorBlock('image', {
-        file: {
-          url: image[2].trim()
-        },
-        caption: markdownInlineToHtml(image[1].trim()),
-        withBorder: false,
-        withBackground: false,
-        stretched: false
-      }));
+      blocks.push(
+        createEditorBlock('image', {
+          file: {
+            url: image[2].trim(),
+          },
+          caption: markdownInlineToHtml(image[1].trim()),
+          withBorder: false,
+          withBackground: false,
+          stretched: false,
+        }),
+      );
       continue;
     }
 
@@ -157,11 +168,13 @@ function importMarkdownBlocks(markdown: string): Record<string, unknown>[] {
       }
 
       index -= 1;
-      blocks.push(createEditorBlock('confluenceTable', {
-        headerRow: true,
-        headerColumn: false,
-        rows: markdownTableToRows(tableLines)
-      }));
+      blocks.push(
+        createEditorBlock('confluenceTable', {
+          headerRow: true,
+          headerColumn: false,
+          rows: markdownTableToRows(tableLines),
+        }),
+      );
       continue;
     }
 
@@ -184,10 +197,12 @@ function importMarkdownBlocks(markdown: string): Record<string, unknown>[] {
       }
 
       index -= 1;
-      blocks.push(createEditorBlock('list', {
-        style: ordered ? 'ordered' : 'unordered',
-        items
-      }));
+      blocks.push(
+        createEditorBlock('list', {
+          style: ordered ? 'ordered' : 'unordered',
+          items,
+        }),
+      );
       continue;
     }
 
@@ -203,7 +218,8 @@ function importHtmlBlocks(html: string): Record<string, unknown>[] {
   const body = extractHtmlBody(html)
     .replaceAll(/<script[\s\S]*?<\/script>/gi, '')
     .replaceAll(/<style[\s\S]*?<\/style>/gi, '');
-  const blockPattern = /<(h[1-6]|p|ul|ol|table|figure|section|div|article|main|blockquote|pre)\b[^>]*>([\s\S]*?)<\/\1\s*>|<img\b([^>]*)>/gi;
+  const blockPattern =
+    /<(h[1-6]|p|ul|ol|table|figure|section|div|article|main|blockquote|pre)\b[^>]*>([\s\S]*?)<\/\1\s*>|<img\b([^>]*)>/gi;
   let match: RegExpExecArray | null;
   let consumedUntil = 0;
 
@@ -244,10 +260,12 @@ function importHtmlBlocks(html: string): Record<string, unknown>[] {
     }
 
     if (/^h[1-6]$/.test(tag)) {
-      blocks.push(createEditorBlock('header', {
-        text: cleanEditorHtml(inner),
-        level: Number(tag.slice(1))
-      }));
+      blocks.push(
+        createEditorBlock('header', {
+          text: cleanEditorHtml(inner),
+          level: Number(tag.slice(1)),
+        }),
+      );
       continue;
     }
 
@@ -262,28 +280,34 @@ function importHtmlBlocks(html: string): Record<string, unknown>[] {
     }
 
     if (tag === 'ul' || tag === 'ol') {
-      blocks.push(createEditorBlock('list', {
-        style: tag === 'ol' ? 'ordered' : 'unordered',
-        items: extractHtmlListItems(inner)
-      }));
+      blocks.push(
+        createEditorBlock('list', {
+          style: tag === 'ol' ? 'ordered' : 'unordered',
+          items: extractHtmlListItems(inner),
+        }),
+      );
       continue;
     }
 
     if (tag === 'table') {
       const htmlRows = inner.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi) ?? [];
-      blocks.push(createEditorBlock('confluenceTable', {
-        headerRow: Boolean(htmlRows[0] && /<th\b/i.test(htmlRows[0])),
-        headerColumn: htmlRows.length > 0 && htmlRows.every((row) => /^\s*<tr\b[^>]*>\s*<th\b/i.test(row)),
-        rows: extractHtmlTableRows(inner)
-      }));
+      blocks.push(
+        createEditorBlock('confluenceTable', {
+          headerRow: Boolean(htmlRows[0] && /<th\b/i.test(htmlRows[0])),
+          headerColumn: htmlRows.length > 0 && htmlRows.every((row) => /^\s*<tr\b[^>]*>\s*<th\b/i.test(row)),
+          rows: extractHtmlTableRows(inner),
+        }),
+      );
       continue;
     }
 
     if (tag === 'pre' && /\bclass\s*=\s*["'][^"']*\bmermaid\b/i.test(outer)) {
-      blocks.push(createEditorBlock('mermaid', {
-        code: stripHtml(decodeHtmlEntities(inner)).trim(),
-        caption: ''
-      }));
+      blocks.push(
+        createEditorBlock('mermaid', {
+          code: stripHtml(decodeHtmlEntities(inner)).trim(),
+          caption: '',
+        }),
+      );
       continue;
     }
 
@@ -298,7 +322,7 @@ function importHtmlBlocks(html: string): Record<string, unknown>[] {
     }
 
     if (tag === 'figure' || tag === 'img') {
-      const imageHtml = tag === 'img' ? outer : outer.match(/<img\b[^>]*>/i)?.[0] ?? '';
+      const imageHtml = tag === 'img' ? outer : (outer.match(/<img\b[^>]*>/i)?.[0] ?? '');
       const url = getHtmlAttribute(imageHtml, 'src');
 
       if (url) {
@@ -320,13 +344,18 @@ function importHtmlBlocks(html: string): Record<string, unknown>[] {
           continue;
         }
 
-        blocks.push(createEditorBlock('image', {
-          file: { url },
-          caption: tag === 'figure' ? cleanEditorHtml(outer.match(/<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/i)?.[1] ?? '') : getHtmlAttribute(imageHtml, 'alt'),
-          withBorder: false,
-          withBackground: false,
-          stretched: false
-        }));
+        blocks.push(
+          createEditorBlock('image', {
+            file: { url },
+            caption:
+              tag === 'figure'
+                ? cleanEditorHtml(outer.match(/<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/i)?.[1] ?? '')
+                : getHtmlAttribute(imageHtml, 'alt'),
+            withBorder: false,
+            withBackground: false,
+            stretched: false,
+          }),
+        );
       }
     }
   }
@@ -348,7 +377,13 @@ function skipContainingHtmlFigure(body: string, imageIndex: number, pattern: Reg
   skipContainingHtmlElement(body, imageIndex, pattern, 'figure');
 }
 
-function skipUnclosedHtmlElement(body: string, outer: string, contentIndex: number, pattern: RegExp, tag: string): void {
+function skipUnclosedHtmlElement(
+  body: string,
+  outer: string,
+  contentIndex: number,
+  pattern: RegExp,
+  tag: string,
+): void {
   const openings = outer.match(new RegExp(`<${tag}\\b`, 'gi'))?.length ?? 0;
   const closings = outer.match(new RegExp(`</${tag}\\s*>`, 'gi'))?.length ?? 0;
 
@@ -395,7 +430,10 @@ function readEmbeddedDiagramDataUri(uri: string): EmbeddedDiagram | undefined {
     const svg = /;base64(?:;|$)/i.test(header)
       ? Buffer.from(payload, 'base64').toString('utf8')
       : decodeURIComponent(payload);
-    const metadata = /<metadata\b[^>]*\bid=["']slash-doc-(flow|network|image-annotation)-data["'][^>]*>([\s\S]*?)<\/metadata>/i.exec(svg);
+    const metadata =
+      /<metadata\b[^>]*\bid=["']slash-doc-(flow|network|image-annotation)-data["'][^>]*>([\s\S]*?)<\/metadata>/i.exec(
+        svg,
+      );
 
     if (!metadata) {
       return undefined;
@@ -412,12 +450,13 @@ function readEmbeddedDiagramDataUri(uri: string): EmbeddedDiagram | undefined {
     }
 
     return {
-      type: metadata[1].toLowerCase() === 'network'
-        ? 'networkCanvas'
-        : metadata[1].toLowerCase() === 'image-annotation'
-          ? 'imageAnnotation'
-          : 'flowDesigner',
-      data: parsed
+      type:
+        metadata[1].toLowerCase() === 'network'
+          ? 'networkCanvas'
+          : metadata[1].toLowerCase() === 'image-annotation'
+            ? 'imageAnnotation'
+            : 'flowDesigner',
+      data: parsed,
     };
   } catch {
     return undefined;
@@ -484,7 +523,7 @@ function createEditorBlock(type: string, data: Record<string, unknown>): Record<
   return {
     id: createPageId(),
     type,
-    data
+    data,
   };
 }
 
@@ -499,7 +538,11 @@ function markdownInlineToHtml(value: string): string {
 }
 
 function isMarkdownTableStart(lines: string[], index: number): boolean {
-  return isMarkdownTableLine(lines[index]) && index + 1 < lines.length && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1]);
+  return (
+    isMarkdownTableLine(lines[index]) &&
+    index + 1 < lines.length &&
+    /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1])
+  );
 }
 
 function isMarkdownTableLine(line: string): boolean {
@@ -509,7 +552,13 @@ function isMarkdownTableLine(line: string): boolean {
 function markdownTableToRows(lines: string[]): string[][] {
   return lines
     .filter((line, index) => index !== 1)
-    .map((line) => line.trim().replaceAll(/^\||\|$/g, '').split('|').map((cell) => markdownInlineToHtml(cell.trim())))
+    .map((line) =>
+      line
+        .trim()
+        .replaceAll(/^\||\|$/g, '')
+        .split('|')
+        .map((cell) => markdownInlineToHtml(cell.trim())),
+    )
     .filter((row) => row.some((cell) => stripHtml(cell).trim().length > 0));
 }
 
@@ -562,7 +611,7 @@ function cleanEditorHtml(value: string): string {
     value
       .replaceAll(/<\/?(span|div|section|article|main|header|footer)[^>]*>/gi, '')
       .replaceAll(/\s+/g, ' ')
-      .trim()
+      .trim(),
   );
 }
 
@@ -573,7 +622,7 @@ function decodeHtmlEntities(value: string): string {
     gt: '>',
     quot: '"',
     apos: "'",
-    nbsp: ' '
+    nbsp: ' ',
   };
 
   return value.replaceAll(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, code: string) => {
@@ -602,6 +651,6 @@ function getImportTitle(blocks: Record<string, unknown>[]): string {
 }
 
 function getFileTitle(uri: vscode.Uri): string {
-  const fileName = uri.fsPath.split(/[\\/]/).at(-1) ?? 'Imported page';
-  return fileName.replaceAll(/\.(md|markdown|html|htm)$/gi, '') || 'Imported page';
+  const fileName = uri.fsPath.split(/[\\/]/).at(-1) ?? 'Импортированная страница';
+  return fileName.replaceAll(/\.(md|markdown|html|htm)$/gi, '') || 'Импортированная страница';
 }

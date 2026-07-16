@@ -1,7 +1,7 @@
 {
   "name": "slash-doc",
   "displayName": "Slash Doc",
-  "description": "A VS Code extension with a Shoelace UI and Editor.js document editor.",
+  "description": "Расширение VS Code с интерфейсом Shoelace и редактором документов Editor.js.",
   "version": "0.0.1",
   "publisher": "local",
   "engines": {
@@ -37,7 +37,7 @@
     "commands": [
       {
         "command": "slashDoc.openEditor",
-        "title": "Slash Doc: Open Editor"
+        "title": "Slash Doc: Открыть редактор"
       }
     ]
   },
@@ -45,7 +45,12 @@
     "compile": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "vscode:prepublish": "npm run compile",
-    "lint": "tsc --noEmit"
+    "check:types": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "npm run lint && npm run check:types && npm run format:check"
   },
   "dependencies": {
     "@editorjs/editorjs": "^2.30.8",
@@ -63,10 +68,16 @@
     "puppeteer": "13.3.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/express": "^5.0.6",
     "@types/node": "^20.14.8",
     "@types/vscode": "^1.90.0",
     "esbuild": "^0.21.5",
-    "typescript": "^5.5.2"
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.5.0",
+    "prettier": "^3.9.5",
+    "typescript": "^5.5.2",
+    "typescript-eslint": "^8.64.0"
   }
 }

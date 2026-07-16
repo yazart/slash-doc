@@ -10,7 +10,7 @@ import {
   getGlobalApiRootUri,
   getSettingsUri,
   getWorkspaceRoot,
-  pathExists
+  pathExists,
 } from './filesystem';
 import { readSettings, writeSettings } from './settings-store';
 import type { ApiService } from './types';
@@ -40,13 +40,13 @@ export class ApiServerManager {
       apiRoot: getGlobalApiRootUri(this.extensionUri).fsPath,
       puppeteer: createBundledPuppeteer(this.extensionUri.fsPath),
       variables: Object.fromEntries(settings.variables.map((item) => [item.key, item.value])),
-      settings
+      settings,
     };
 
     app.get('/__slash-doc/health', (_request, response) => {
       response.json({
         ok: true,
-        prefix: settings.apiPrefix
+        prefix: settings.apiPrefix,
       });
     });
 
@@ -79,17 +79,18 @@ export class ApiServerManager {
 }
 
 function createBundledPuppeteer(projectRoot: string): PuppeteerNode {
-  const productName = process.env.PUPPETEER_PRODUCT === 'firefox'
-    || process.env.npm_config_puppeteer_product === 'firefox'
-    || process.env.npm_package_config_puppeteer_product === 'firefox'
-    ? 'firefox'
-    : undefined;
+  const productName =
+    process.env.PUPPETEER_PRODUCT === 'firefox' ||
+    process.env.npm_config_puppeteer_product === 'firefox' ||
+    process.env.npm_package_config_puppeteer_product === 'firefox'
+      ? 'firefox'
+      : undefined;
 
   return new PuppeteerNode({
     projectRoot,
     preferredRevision: productName === 'firefox' ? PUPPETEER_REVISIONS.firefox : PUPPETEER_REVISIONS.chromium,
     isPuppeteerCore: false,
-    productName
+    productName,
   });
 }
 
@@ -109,14 +110,14 @@ export async function migrateLegacyModules(extensionUri: vscode.Uri): Promise<vo
   for (const service of settings.apiServices) {
     await copyLegacyModuleIfMissing(
       vscode.Uri.joinPath(workspaceRoot, '.slash-doc', 'api', service.file),
-      vscode.Uri.joinPath(globalApiRoot, service.file)
+      vscode.Uri.joinPath(globalApiRoot, service.file),
     );
   }
 
   for (const addon of settings.customEditorAddons) {
     await copyLegacyModuleIfMissing(
       vscode.Uri.joinPath(workspaceRoot, '.slash-doc', 'addons', addon.file),
-      vscode.Uri.joinPath(globalAddonRoot, addon.file)
+      vscode.Uri.joinPath(globalAddonRoot, addon.file),
     );
   }
 
@@ -124,7 +125,7 @@ export async function migrateLegacyModules(extensionUri: vscode.Uri): Promise<vo
 }
 
 async function copyLegacyModuleIfMissing(source: vscode.Uri, target: vscode.Uri): Promise<void> {
-  if (await pathExists(target) || !(await pathExists(source))) {
+  if ((await pathExists(target)) || !(await pathExists(source))) {
     return;
   }
 
@@ -137,12 +138,12 @@ async function mountApiService(
   workspaceRoot: vscode.Uri,
   apiPrefix: string,
   service: ApiService,
-  context: unknown
+  context: unknown,
 ): Promise<void> {
   const serviceUri = getApiServiceUri(extensionUri, workspaceRoot, service);
   const serviceContext = {
     ...(isRecord(context) ? context : {}),
-    apiRoot: getGlobalApiRootUri(extensionUri).fsPath
+    apiRoot: getGlobalApiRootUri(extensionUri).fsPath,
   };
 
   if (!(await pathExists(serviceUri))) {
@@ -150,7 +151,7 @@ async function mountApiService(
   }
 
   const moduleUrl = `${pathToFileURL(serviceUri.fsPath).href}?v=${Date.now()}`;
-  const routeModule = await import(moduleUrl) as Record<string, unknown>;
+  const routeModule = (await import(moduleUrl)) as Record<string, unknown>;
   const router = express.Router();
   const register = routeModule.register ?? routeModule.default;
 
@@ -166,4 +167,3 @@ async function mountApiService(
     app.use(apiPrefix, exportedRouter);
   }
 }
-

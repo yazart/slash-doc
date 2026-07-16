@@ -8,14 +8,16 @@ export function getWebviewHtml(
   extensionUri: vscode.Uri,
   workspaceRoot: vscode.Uri | undefined,
   initialData: unknown,
-  settings: SlashDocSettings
+  settings: SlashDocSettings,
 ): string {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'webview.js'));
   const iconUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'assets', 'slash-doc.svg'));
   const nonce = getNonce();
   const initialDataJson = escapeScriptJson(initialData);
   const settingsJson = escapeScriptJson(settings);
-  const customAddonsJson = escapeScriptJson(getCustomAddonWebviewModules(webview, extensionUri, workspaceRoot, settings));
+  const customAddonsJson = escapeScriptJson(
+    getCustomAddonWebviewModules(webview, extensionUri, workspaceRoot, settings),
+  );
 
   return /* html */ `<!DOCTYPE html>
 <html lang="en">
@@ -532,7 +534,7 @@ export function getWebviewHtml(
           <button class="export-button" type="button" id="export-md">MD</button>
         </div>
       </header>
-      <section id="editor" aria-label="Document editor"></section>
+      <section id="editor" aria-label="Редактор документа"></section>
     </main>
     <script nonce="${nonce}">
       window.__SLASH_DOC_INITIAL_DATA__ = ${initialDataJson};

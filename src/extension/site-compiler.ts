@@ -13,7 +13,7 @@ export type CompiledDocumentation = {
 export async function compileDocumentationSite(
   extensionUri: vscode.Uri,
   workspaceRoot: vscode.Uri,
-  outputRoot: vscode.Uri
+  outputRoot: vscode.Uri,
 ): Promise<CompiledDocumentation> {
   const menu = await readMenu(workspaceRoot);
   const settings = await readSettings(workspaceRoot);
@@ -30,7 +30,7 @@ export async function compileDocumentationSite(
     await writeText(vscode.Uri.joinPath(pagesRoot, `${page.id}.html`), html);
   }
 
-  const projectName = workspaceRoot.path.split('/').filter(Boolean).at(-1) ?? 'Documentation';
+  const projectName = workspaceRoot.path.split('/').filter(Boolean).at(-1) ?? 'Документация';
   const indexUri = vscode.Uri.joinPath(outputRoot, 'index.html');
   await writeText(indexUri, renderHostHtml(projectName, menu.items, pages[0]?.id));
   return { indexUri, pageCount: pages.length };
@@ -78,11 +78,12 @@ function resolvePageId(href: string, pageIds: Set<string>): string | undefined {
   } catch {
     // Keep the original value when it contains malformed URI escapes.
   }
-  const slashDoc = /^slash-doc:\/\/(?:page\/)?([^?#/]+)/i.exec(decoded)?.[1]
-    ?? /^slash-doc:page\/([^?#/]+)/i.exec(decoded)?.[1];
+  const slashDoc =
+    /^slash-doc:\/\/(?:page\/)?([^?#/]+)/i.exec(decoded)?.[1] ?? /^slash-doc:page\/([^?#/]+)/i.exec(decoded)?.[1];
   if (slashDoc && pageIds.has(slashDoc)) return slashDoc;
 
-  const path = decoded.split(/[?#]/, 1)[0]
+  const path = decoded
+    .split(/[?#]/, 1)[0]
     .replace(/^\.\//, '')
     .replace(/^\//, '')
     .replace(/^pages\//, '')

@@ -1,7 +1,7 @@
 import EditorJS from '@editorjs/editorjs';
 import type { EditorConfig } from '@editorjs/editorjs/types/configs';
 import type { OutputData } from '@editorjs/editorjs';
-import type { InlineToolConstructable } from '@editorjs/editorjs/types/tools';
+import type { InlineToolConstructable, ToolConstructable } from '@editorjs/editorjs/types/tools';
 import Header from '@editorjs/header';
 import List from '@editorjs/list';
 import ImageTool from '@editorjs/image';
@@ -71,16 +71,22 @@ let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
 let editor: EditorJS;
 const settings = window.__SLASH_DOC_SETTINGS__ ?? {};
 const tools: NonNullable<EditorConfig['tools']> = {};
-const fileProcessorRequests = new Map<string, {
-  resolve(value: unknown): void;
-  reject(error: Error): void;
-  timeout: ReturnType<typeof setTimeout>;
-}>();
-const clipboardRequests = new Map<string, {
-  resolve(value: string): void;
-  reject(error: Error): void;
-  timeout: ReturnType<typeof setTimeout>;
-}>();
+const fileProcessorRequests = new Map<
+  string,
+  {
+    resolve(value: unknown): void;
+    reject(error: Error): void;
+    timeout: ReturnType<typeof setTimeout>;
+  }
+>();
+const clipboardRequests = new Map<
+  string,
+  {
+    resolve(value: string): void;
+    reject(error: Error): void;
+    timeout: ReturnType<typeof setTimeout>;
+  }
+>();
 
 window.__SLASH_DOC_READ_CLIPBOARD__ = () => {
   const requestId = `clipboard-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -101,48 +107,66 @@ window.__SLASH_DOC_WRITE_CLIPBOARD__ = (text) => {
 window.__SLASH_DOC_FILE_PROCESSOR__ = {
   upload: (files) => requestFileProcessor('fileProcessorUpload', { files }),
   run: (script, inputFiles) => requestFileProcessor('fileProcessorRun', { script, inputFiles }),
-  download: (fileName) => requestFileProcessor('fileProcessorDownload', { fileName })
+  download: (fileName) => requestFileProcessor('fileProcessorDownload', { fileName }),
 } satisfies FileProcessorBridge;
 
-window.addEventListener('paste', (event) => {
-  const target = event.composedPath().find((item) => item instanceof HTMLElement && item.matches('.slash-confluence-table-tool .ct-cell')) as (HTMLElement & {
-    __slashDocPasteTable?: (text: string, html: string) => void;
-  }) | undefined;
-  const paste = target?.__slashDocPasteTable ?? window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
-  if (!paste) return;
-  const text = event.clipboardData?.getData('text/plain') ?? '';
-  const html = event.clipboardData?.getData('text/html') ?? '';
-  // Some VS Code/Electron versions expose an empty DataTransfer to webviews.
-  // In that case do not suppress the native paste; beforeinput/keydown below
-  // will request the clipboard through the extension host instead.
-  if (!text && !html) return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  paste(text, html);
-}, true);
+window.addEventListener(
+  'paste',
+  (event) => {
+    const target = event
+      .composedPath()
+      .find((item) => item instanceof HTMLElement && item.matches('.slash-confluence-table-tool .ct-cell')) as
+      | (HTMLElement & {
+          __slashDocPasteTable?: (text: string, html: string) => void;
+        })
+      | undefined;
+    const paste = target?.__slashDocPasteTable ?? window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
+    if (!paste) return;
+    const text = event.clipboardData?.getData('text/plain') ?? '';
+    const html = event.clipboardData?.getData('text/html') ?? '';
+    // Some VS Code/Electron versions expose an empty DataTransfer to webviews.
+    // In that case do not suppress the native paste; beforeinput/keydown below
+    // will request the clipboard through the extension host instead.
+    if (!text && !html) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    paste(text, html);
+  },
+  true,
+);
 
-window.addEventListener('keydown', (event) => {
-  const isPasteKey = event.code === 'KeyV' || ['v', 'м'].includes(event.key.toLowerCase());
-  if (!(event.metaKey || event.ctrlKey) || event.altKey || !isPasteKey) return;
-  const paste = window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
-  if (!paste || !window.__SLASH_DOC_READ_CLIPBOARD__) return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  void window.__SLASH_DOC_READ_CLIPBOARD__()
-    .then((text) => paste(text, ''))
-    .catch(() => undefined);
-}, true);
+window.addEventListener(
+  'keydown',
+  (event) => {
+    const isPasteKey = event.code === 'KeyV' || ['v', 'м'].includes(event.key.toLowerCase());
+    if (!(event.metaKey || event.ctrlKey) || event.altKey || !isPasteKey) return;
+    const paste = window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
+    if (!paste || !window.__SLASH_DOC_READ_CLIPBOARD__) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void window
+      .__SLASH_DOC_READ_CLIPBOARD__()
+      .then((text) => paste(text, ''))
+      .catch(() => undefined);
+  },
+  true,
+);
 
-window.addEventListener('beforeinput', (event) => {
-  if (!(event instanceof InputEvent) || event.inputType !== 'insertFromPaste') return;
-  const paste = window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
-  if (!paste || !window.__SLASH_DOC_READ_CLIPBOARD__) return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  void window.__SLASH_DOC_READ_CLIPBOARD__()
-    .then((text) => paste(text, ''))
-    .catch(() => undefined);
-}, true);
+window.addEventListener(
+  'beforeinput',
+  (event) => {
+    if (!(event instanceof InputEvent) || event.inputType !== 'insertFromPaste') return;
+    const paste = window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
+    if (!paste || !window.__SLASH_DOC_READ_CLIPBOARD__) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void window
+      .__SLASH_DOC_READ_CLIPBOARD__()
+      .then((text) => paste(text, ''))
+      .catch(() => undefined);
+  },
+  true,
+);
 
 mermaid.initialize({
   startOnLoad: false,
@@ -156,16 +180,16 @@ mermaid.initialize({
     lineColor: getCssVariable('--vscode-descriptionForeground', '#8f8f8f'),
     textColor: getCssVariable('--vscode-editor-foreground', '#cccccc'),
     secondaryColor: getCssVariable('--vscode-list-hoverBackground', '#2a2d2e'),
-    tertiaryColor: getCssVariable('--vscode-input-background', '#3c3c3c')
-  }
+    tertiaryColor: getCssVariable('--vscode-input-background', '#3c3c3c'),
+  },
 });
 
 if (settings.editorAddons?.header !== false) {
-  tools.header = Header;
+  tools.header = { class: Header, toolbox: { title: 'Заголовок' } };
 }
 
 if (settings.editorAddons?.list !== false) {
-  tools.list = List;
+  tools.list = { class: List as unknown as ToolConstructable, toolbox: { title: 'Список' } };
 }
 
 if (settings.editorAddons?.confluenceTable !== false) {
@@ -175,29 +199,30 @@ if (settings.editorAddons?.confluenceTable !== false) {
 if (settings.editorAddons?.image !== false) {
   tools.image = {
     class: ImageTool,
+    toolbox: { title: 'Изображение' },
     config: {
       uploader: {
         uploadByFile: async (file: File) => ({
           success: 1,
           file: {
-            url: await readFileAsDataUrl(file)
-          }
-        })
-      }
-    }
+            url: await readFileAsDataUrl(file),
+          },
+        }),
+      },
+    },
   };
 }
 
 if (settings.editorAddons?.marker !== false) {
-  tools.marker = Marker;
+  tools.marker = { class: Marker, toolbox: { title: 'Маркер' } };
 }
 
 if (settings.editorAddons?.inlineCode !== false) {
-  tools.inlineCode = InlineCode;
+  tools.inlineCode = { class: InlineCode, toolbox: { title: 'Встроенный код' } };
 }
 
 if (settings.editorAddons?.underline !== false) {
-  tools.underline = Underline;
+  tools.underline = { class: Underline, toolbox: { title: 'Подчёркивание' } };
 }
 
 if (settings.editorAddons?.textColor !== false) {
@@ -214,15 +239,15 @@ class MermaidTool {
 
   static get toolbox() {
     return {
-      title: 'Mermaid',
-      icon: '<svg xmlns="http://www.w3.org/2000/svg" width="17" height="15" fill="none" viewBox="0 0 17 15"><path stroke="currentColor" stroke-linecap="round" stroke-width="1.6" d="M4 3H13M4 7.5H13M4 12H13"/><path stroke="currentColor" stroke-linecap="round" stroke-width="1.6" d="M1.5 3H1.51M1.5 7.5H1.51M1.5 12H1.51"/></svg>'
+      title: 'Диаграмма Mermaid',
+      icon: '<svg xmlns="http://www.w3.org/2000/svg" width="17" height="15" fill="none" viewBox="0 0 17 15"><path stroke="currentColor" stroke-linecap="round" stroke-width="1.6" d="M4 3H13M4 7.5H13M4 12H13"/><path stroke="currentColor" stroke-linecap="round" stroke-width="1.6" d="M1.5 3H1.51M1.5 7.5H1.51M1.5 12H1.51"/></svg>',
     };
   }
 
   constructor({ data }: MermaidToolConstructorArgs) {
     this.data = {
-      code: data?.code ?? 'flowchart TD\n  A[Start] --> B[Mermaid diagram]',
-      caption: data?.caption ?? ''
+      code: data?.code ?? 'flowchart TD\n  A[Начало] --> B[Диаграмма Mermaid]',
+      caption: data?.caption ?? '',
     };
   }
 
@@ -237,7 +262,7 @@ class MermaidTool {
 
     this.caption = document.createElement('input');
     this.caption.className = 'slash-mermaid-caption';
-    this.caption.placeholder = 'Caption';
+    this.caption.placeholder = 'Подпись';
     this.caption.value = this.data.caption ?? '';
 
     this.preview = document.createElement('div');
@@ -255,7 +280,7 @@ class MermaidTool {
   save() {
     return {
       code: this.textarea?.value ?? '',
-      caption: this.caption?.value ?? ''
+      caption: this.caption?.value ?? '',
     };
   }
 
@@ -286,7 +311,7 @@ class MermaidTool {
       const result = await mermaid.render(id, code);
       this.preview.innerHTML = result.svg;
     } catch (error) {
-      this.preview.textContent = error instanceof Error ? error.message : 'Mermaid render error';
+      this.preview.textContent = error instanceof Error ? error.message : 'Ошибка отрисовки Mermaid';
     }
   }
 }
@@ -334,7 +359,7 @@ async function savePage(source: 'auto' | 'manual') {
   vscode.postMessage({
     type: 'save',
     source,
-    data
+    data,
   });
 }
 
@@ -343,7 +368,7 @@ async function exportPage(format: 'html' | 'md') {
   vscode.postMessage({
     type: 'export',
     format,
-    data
+    data,
   });
 }
 
@@ -373,10 +398,10 @@ window.addEventListener('message', (event: MessageEvent<unknown>) => {
   }
 
   if (
-    !isRecord(event.data)
-    || event.data.type !== 'replaceData'
-    || !isRecord(event.data.data)
-    || !Array.isArray(event.data.data.blocks)
+    !isRecord(event.data) ||
+    event.data.type !== 'replaceData' ||
+    !isRecord(event.data.data) ||
+    !Array.isArray(event.data.data.blocks)
   ) {
     return;
   }
@@ -394,7 +419,7 @@ function requestFileProcessor<T>(type: string, payload: Record<string, unknown>)
     fileProcessorRequests.set(requestId, {
       resolve: (value) => resolve(value as T),
       reject,
-      timeout
+      timeout,
     });
     vscode.postMessage({ type, requestId, ...payload });
   });
@@ -411,11 +436,89 @@ async function initEditor() {
   editor = new EditorJS({
     holder: 'editor',
     autofocus: true,
-    placeholder: 'Start writing with Editor.js...',
+    placeholder: 'Начните писать в Editor.js…',
     inlineToolbar: true,
+    i18n: {
+      messages: {
+        ui: {
+          blockTunes: {
+            toggler: {
+              'Click to tune': 'Нажмите для настройки',
+              'or drag to move': 'или перетащите для перемещения',
+            },
+          },
+          inlineToolbar: {
+            converter: {
+              'Convert to': 'Преобразовать в',
+            },
+          },
+          toolbar: {
+            toolbox: {
+              Add: 'Добавить',
+            },
+          },
+          popover: {
+            Filter: 'Поиск',
+            'Nothing found': 'Ничего не найдено',
+          },
+        },
+        toolNames: {
+          Text: 'Текст',
+          Heading: 'Заголовок',
+          List: 'Список',
+          Image: 'Изображение',
+          Marker: 'Маркер',
+          'Inline Code': 'Встроенный код',
+          Underline: 'Подчёркивание',
+          'Confluence Table': 'Таблица Confluence',
+          Mermaid: 'Диаграмма Mermaid',
+          'Flow Designer': 'Конструктор процессов',
+          'Network Canvas': 'Сетевая схема',
+          'Image Annotation': 'Аннотация изображения',
+          'API Endpoint': 'Эндпоинт API',
+          'File Processor': 'Обработчик файлов',
+          'Task Table': 'Доска задач',
+        },
+        tools: {
+          header: {
+            'Heading 1': 'Заголовок 1',
+            'Heading 2': 'Заголовок 2',
+            'Heading 3': 'Заголовок 3',
+            'Heading 4': 'Заголовок 4',
+            'Heading 5': 'Заголовок 5',
+            'Heading 6': 'Заголовок 6',
+          },
+          list: {
+            Ordered: 'Нумерованный',
+            Unordered: 'Маркированный',
+          },
+          image: {
+            'Select an Image': 'Выбрать изображение',
+            Caption: 'Подпись',
+            'With border': 'С рамкой',
+            'Stretch image': 'Растянуть изображение',
+            'With background': 'С фоном',
+            'With caption': 'С подписью',
+            'Couldn’t upload image. Please try another.': 'Не удалось загрузить изображение. Попробуйте другое.',
+          },
+        },
+        blockTunes: {
+          delete: {
+            Delete: 'Удалить',
+            'Click to delete': 'Нажмите для удаления',
+          },
+          moveUp: {
+            'Move up': 'Переместить вверх',
+          },
+          moveDown: {
+            'Move down': 'Переместить вниз',
+          },
+        },
+      },
+    },
     tools,
     data: normalizeEditorData(window.__SLASH_DOC_INITIAL_DATA__),
-    onChange: scheduleAutosave
+    onChange: scheduleAutosave,
   });
 
   await editor.isReady;
@@ -426,31 +529,35 @@ function normalizeEditorData(value: unknown): OutputData {
   const blocks = Array.isArray(source.blocks) ? source.blocks : [];
   return {
     ...source,
-    blocks: blocks.filter(isRecord).map((block) => block.type === 'table'
-      ? {
-          ...block,
-          type: 'confluenceTable',
-          data: isRecord(block.data)
-            ? {
-                rows: Array.isArray(block.data.content) ? block.data.content : [],
-                headerRow: block.data.withHeadings === true,
-                headerColumn: false
-              }
-            : { rows: [['']], headerRow: false, headerColumn: false }
-        }
-      : block)
+    blocks: blocks.filter(isRecord).map((block) =>
+      block.type === 'table'
+        ? {
+            ...block,
+            type: 'confluenceTable',
+            data: isRecord(block.data)
+              ? {
+                  rows: Array.isArray(block.data.content) ? block.data.content : [],
+                  headerRow: block.data.withHeadings === true,
+                  headerColumn: false,
+                }
+              : { rows: [['']], headerRow: false, headerColumn: false },
+          }
+        : block,
+    ),
   } as unknown as OutputData;
 }
 
 async function loadCustomTools() {
-  await Promise.all((window.__SLASH_DOC_CUSTOM_ADDONS__ ?? []).map(async (addon) => {
-    const module = await import(addon.uri);
-    const tool = module.default ?? module.tool;
+  await Promise.all(
+    (window.__SLASH_DOC_CUSTOM_ADDONS__ ?? []).map(async (addon) => {
+      const module = await import(addon.uri);
+      const tool = module.default ?? module.tool;
 
-    if (tool) {
-      tools[addon.toolName] = tool;
-    }
-  }));
+      if (tool) {
+        tools[addon.toolName] = tool;
+      }
+    }),
+  );
 }
 
 document.querySelector('#export-html')?.addEventListener('click', () => {

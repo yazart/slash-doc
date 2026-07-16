@@ -1,9 +1,4 @@
-import type {
-  ApiService,
-  CustomEditorAddon,
-  SettingsVariable,
-  SlashDocSettings
-} from './types';
+import type { ApiService, CustomEditorAddon, SettingsVariable, SlashDocSettings } from './types';
 import { escapeAttribute } from './utils';
 
 export function renderSettingsPanel(settings: SlashDocSettings): string {
@@ -26,7 +21,7 @@ export function renderSettingsPanel(settings: SlashDocSettings): string {
         </div>
         <div id="services-list" class="settings-list">${settings.apiServices.map(renderServiceRow).join('')}</div>
         <div class="service-actions">
-          <sl-button id="add-service" size="small" variant="default">Добавить route</sl-button>
+          <sl-button id="add-service" size="small" variant="default">Добавить маршрут</sl-button>
           <sl-button id="reload-api-services" size="small" variant="primary">Перезагрузить API</sl-button>
         </div>
       </div>
@@ -41,7 +36,7 @@ export function renderSettingsPanel(settings: SlashDocSettings): string {
 
 function renderServiceRow(service: ApiService): string {
   return `<div class="settings-row service-row" data-service-id="${escapeAttribute(service.id)}">
-    <input class="settings-input" data-service-field="name" value="${escapeAttribute(service.name)}" placeholder="name">
+    <input class="settings-input" data-service-field="name" value="${escapeAttribute(service.name)}" placeholder="название">
     <input class="settings-input" data-service-field="file" value="${escapeAttribute(service.file)}" placeholder="route.mjs">
     <button class="settings-open-button" type="button" data-open-service="${escapeAttribute(service.id)}">Открыть</button>
   </div>`;
@@ -49,8 +44,8 @@ function renderServiceRow(service: ApiService): string {
 
 function renderCustomAddonRow(addon: CustomEditorAddon): string {
   return `<div class="settings-row custom-addon-row" data-custom-addon-id="${escapeAttribute(addon.id)}">
-    <input class="settings-input" data-custom-addon-field="name" value="${escapeAttribute(addon.name)}" placeholder="name">
-    <input class="settings-input" data-custom-addon-field="toolName" value="${escapeAttribute(addon.toolName)}" placeholder="toolName">
+    <input class="settings-input" data-custom-addon-field="name" value="${escapeAttribute(addon.name)}" placeholder="название">
+    <input class="settings-input" data-custom-addon-field="toolName" value="${escapeAttribute(addon.toolName)}" placeholder="имя инструмента">
     <input class="settings-input" data-custom-addon-field="file" value="${escapeAttribute(addon.file)}" placeholder="tool.mjs">
     <sl-switch data-custom-addon-enabled="${escapeAttribute(addon.id)}" ${addon.enabled ? 'checked' : ''}></sl-switch>
     <button class="settings-open-button" type="button" data-open-addon="${escapeAttribute(addon.id)}">Открыть</button>
@@ -59,7 +54,7 @@ function renderCustomAddonRow(addon: CustomEditorAddon): string {
 
 function renderVariableRow(variable: SettingsVariable): string {
   return `<div class="settings-row variable-row">
-    <input class="settings-input" data-variable-field="key" value="${escapeAttribute(variable.key)}" placeholder="key">
-    <input class="settings-input" data-variable-field="value" value="${escapeAttribute(variable.value)}" placeholder="value">
+    <input class="settings-input" data-variable-field="key" value="${escapeAttribute(variable.key)}" placeholder="ключ">
+    <input class="settings-input" data-variable-field="value" value="${escapeAttribute(variable.value)}" placeholder="значение">
   </div>`;
 }

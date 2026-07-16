@@ -19,13 +19,13 @@ export function getDefaultSettings(): SlashDocSettings {
       imageAnnotation: true,
       apiEndpoint: true,
       fileProcessor: true,
-      taskTable: true
+      taskTable: true,
     },
     customEditorAddons: [],
     apiPrefix: '/api',
     apiPort: 4317,
     apiServices: [],
-    variables: []
+    variables: [],
   };
 }
 
@@ -44,7 +44,7 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
       confluenceTable: getBooleanSetting(
         value.editorAddons,
         'confluenceTable',
-        getBooleanSetting(value.editorAddons, 'table', defaults.editorAddons.confluenceTable)
+        getBooleanSetting(value.editorAddons, 'table', defaults.editorAddons.confluenceTable),
       ),
       image: getBooleanSetting(value.editorAddons, 'image', defaults.editorAddons.image),
       marker: getBooleanSetting(value.editorAddons, 'marker', defaults.editorAddons.marker),
@@ -57,13 +57,13 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
       imageAnnotation: getBooleanSetting(value.editorAddons, 'imageAnnotation', defaults.editorAddons.imageAnnotation),
       apiEndpoint: getBooleanSetting(value.editorAddons, 'apiEndpoint', defaults.editorAddons.apiEndpoint),
       fileProcessor: getBooleanSetting(value.editorAddons, 'fileProcessor', defaults.editorAddons.fileProcessor),
-      taskTable: getBooleanSetting(value.editorAddons, 'taskTable', defaults.editorAddons.taskTable)
+      taskTable: getBooleanSetting(value.editorAddons, 'taskTable', defaults.editorAddons.taskTable),
     },
     customEditorAddons: normalizeCustomEditorAddons(value.customEditorAddons),
     apiPrefix: typeof value.apiPrefix === 'string' ? normalizeApiPrefix(value.apiPrefix) : defaults.apiPrefix,
     apiPort: typeof value.apiPort === 'number' ? value.apiPort : defaults.apiPort,
     apiServices: normalizeApiServices(value.apiServices),
-    variables: normalizeVariables(value.variables)
+    variables: normalizeVariables(value.variables),
   };
 }
 
@@ -99,7 +99,9 @@ export function normalizeToolName(value: string): string {
     .replaceAll(/[^a-zA-Z0-9_$]+/g, ' ')
     .split(' ')
     .filter(Boolean)
-    .map((part, index) => index === 0 ? part.charAt(0).toLowerCase() + part.slice(1) : part.charAt(0).toUpperCase() + part.slice(1))
+    .map((part, index) =>
+      index === 0 ? part.charAt(0).toLowerCase() + part.slice(1) : part.charAt(0).toUpperCase() + part.slice(1),
+    )
     .join('');
 
   return normalized || `custom${Date.now().toString(36)}`;
@@ -191,7 +193,7 @@ function normalizeApiServices(value: unknown): ApiService[] {
   return value.filter(isRecord).map((item) => ({
     id: typeof item.id === 'string' ? item.id : createSettingsId('service'),
     name: typeof item.name === 'string' ? item.name : '',
-    file: typeof item.file === 'string' ? ensureMjsFileName(item.file) : `${createSettingsId('route')}.mjs`
+    file: typeof item.file === 'string' ? ensureMjsFileName(item.file) : `${createSettingsId('route')}.mjs`,
   }));
 }
 
@@ -201,13 +203,13 @@ function normalizeCustomEditorAddons(value: unknown): CustomEditorAddon[] {
   }
 
   return value.filter(isRecord).map((item) => {
-    const name = typeof item.name === 'string' ? item.name : 'Custom Tool';
+    const name = typeof item.name === 'string' ? item.name : 'Пользовательский инструмент';
     return {
       id: typeof item.id === 'string' ? item.id : createSettingsId('addon'),
       name,
       toolName: typeof item.toolName === 'string' ? normalizeToolName(item.toolName) : normalizeToolName(name),
       file: typeof item.file === 'string' ? ensureJavaScriptModuleFileName(item.file) : `${slugify(name)}.mjs`,
-      enabled: typeof item.enabled === 'boolean' ? item.enabled : true
+      enabled: typeof item.enabled === 'boolean' ? item.enabled : true,
     };
   });
 }
@@ -219,6 +221,6 @@ function normalizeVariables(value: unknown): SettingsVariable[] {
 
   return value.filter(isRecord).map((item) => ({
     key: typeof item.key === 'string' ? item.key : '',
-    value: typeof item.value === 'string' ? item.value : ''
+    value: typeof item.value === 'string' ? item.value : '',
   }));
 }

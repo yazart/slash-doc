@@ -9,8 +9,13 @@ export type FileProcessorData = {
 };
 
 export type FileProcessorBridge = {
-  upload(files: Array<{ name: string; dataUrl: string }>): Promise<{ files: ProcessorFileInfo[]; uploaded: ProcessorFileInfo[] }>;
-  run(script: string, inputFiles: string[]): Promise<{ files: ProcessorFileInfo[]; results: ProcessorFileInfo[]; stdout: string; stderr: string }>;
+  upload(
+    files: Array<{ name: string; dataUrl: string }>,
+  ): Promise<{ files: ProcessorFileInfo[]; uploaded: ProcessorFileInfo[] }>;
+  run(
+    script: string,
+    inputFiles: string[],
+  ): Promise<{ files: ProcessorFileInfo[]; results: ProcessorFileInfo[]; stdout: string; stderr: string }>;
   download(fileName: string): Promise<void>;
 };
 
@@ -46,8 +51,8 @@ export default class FileProcessorTool {
 
   static get toolbox() {
     return {
-      title: 'File Processor',
-      icon: '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><path d="M4 1.5h6l3 3v11H4zM10 1.5v3.5h3M6.5 8h4M6.5 11h3" stroke="currentColor"/></svg>'
+      title: 'Обработчик файлов',
+      icon: '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><path d="M4 1.5h6l3 3v11H4zM10 1.5v3.5h3M6.5 8h4M6.5 11h3" stroke="currentColor"/></svg>',
     };
   }
 
@@ -58,7 +63,7 @@ export default class FileProcessorTool {
       results: normalizeFiles(data?.results),
       stdout: typeof data?.stdout === 'string' ? data.stdout : '',
       stderr: typeof data?.stderr === 'string' ? data.stderr : '',
-      lastRun: typeof data?.lastRun === 'number' ? data.lastRun : undefined
+      lastRun: typeof data?.lastRun === 'number' ? data.lastRun : undefined,
     };
   }
 
@@ -79,7 +84,7 @@ export default class FileProcessorTool {
       .fp-actions{display:flex;align-items:center;gap:8px}.fp-console{max-height:170px;overflow:auto;margin:0;padding:9px;border:1px solid var(--vscode-panel-border);border-radius:3px;background:var(--vscode-textCodeBlock-background);font:11px/1.45 var(--vscode-editor-font-family,monospace);white-space:pre-wrap}.fp-empty{color:var(--vscode-descriptionForeground);font-size:11px}
     </style>
     <div class="fp-shell">
-      <div class="fp-head"><span class="fp-title">CSV / JSON Processor</span><span class="fp-status"></span></div>
+      <div class="fp-head"><span class="fp-title">Обработчик CSV / JSON</span><span class="fp-status"></span></div>
       <div class="fp-body">
         <div class="fp-drop" tabindex="0"><span>Перетащите CSV/JSON файлы или <button class="fp-button secondary fp-select" type="button">выберите</button></span><input class="fp-input" type="file" accept=".csv,.json,text/csv,application/json" multiple hidden></div>
         <section class="fp-section"><span class="fp-label">Файлы страницы</span><div class="fp-files fp-input-files"></div></section>
@@ -114,8 +119,14 @@ export default class FileProcessorTool {
     const input = wrapper.querySelector<HTMLInputElement>('.fp-input');
     const drop = wrapper.querySelector<HTMLElement>('.fp-drop');
     wrapper.querySelector('.fp-select')?.addEventListener('click', () => input?.click());
-    input?.addEventListener('change', () => { void this.upload(Array.from(input.files ?? [])); input.value = ''; });
-    drop?.addEventListener('dragover', (event) => { event.preventDefault(); drop.classList.add('drag'); });
+    input?.addEventListener('change', () => {
+      void this.upload(Array.from(input.files ?? []));
+      input.value = '';
+    });
+    drop?.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      drop.classList.add('drag');
+    });
     drop?.addEventListener('dragleave', () => drop.classList.remove('drag'));
     drop?.addEventListener('drop', (event) => {
       event.preventDefault();
@@ -144,10 +155,15 @@ export default class FileProcessorTool {
     }
     this.setStatus('Загрузка…');
     try {
-      const result = await bridge.upload(await Promise.all(supported.map(async (file) => ({ name: file.name, dataUrl: await readFileAsDataUrl(file) }))));
+      const result = await bridge.upload(
+        await Promise.all(supported.map(async (file) => ({ name: file.name, dataUrl: await readFileAsDataUrl(file) }))),
+      );
       const uploadedNames = new Set(result.uploaded.map((file) => file.name));
       this.data.files = mergeFiles(this.data.files, result.uploaded);
-      this.data.results = result.files.filter((file) => !uploadedNames.has(file.name) && this.data.results.some((resultFile) => resultFile.name === file.name));
+      this.data.results = result.files.filter(
+        (file) =>
+          !uploadedNames.has(file.name) && this.data.results.some((resultFile) => resultFile.name === file.name),
+      );
       this.setStatus(`Загружено: ${result.uploaded.length}`);
       this.changed();
       this.refresh();
@@ -165,7 +181,10 @@ export default class FileProcessorTool {
     this.data.script = this.scriptInput?.value ?? this.data.script;
     this.setStatus('Выполнение…');
     try {
-      const result = await bridge.run(this.data.script, this.data.files.map((file) => file.name));
+      const result = await bridge.run(
+        this.data.script,
+        this.data.files.map((file) => file.name),
+      );
       this.data.results = result.results;
       this.data.stdout = result.stdout;
       this.data.stderr = result.stderr;
@@ -186,7 +205,8 @@ export default class FileProcessorTool {
     this.renderFiles(this.fileList, this.data.files, false);
     this.renderFiles(this.resultList, this.data.results, true);
     if (this.consoleOutput) {
-      this.consoleOutput.textContent = [this.data.stdout, this.data.stderr].filter(Boolean).join('\n') || 'Вывод появится после выполнения.';
+      this.consoleOutput.textContent =
+        [this.data.stdout, this.data.stderr].filter(Boolean).join('\n') || 'Вывод появится после выполнения.';
     }
   }
 
@@ -248,9 +268,17 @@ export default class FileProcessorTool {
 
 function normalizeFiles(value: unknown): ProcessorFileInfo[] {
   if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => typeof item === 'object' && item !== null && typeof (item as ProcessorFileInfo).name === 'string'
-    ? [{ name: (item as ProcessorFileInfo).name, size: Number((item as ProcessorFileInfo).size) || 0, modified: Number((item as ProcessorFileInfo).modified) || 0 }]
-    : []);
+  return value.flatMap((item) =>
+    typeof item === 'object' && item !== null && typeof (item as ProcessorFileInfo).name === 'string'
+      ? [
+          {
+            name: (item as ProcessorFileInfo).name,
+            size: Number((item as ProcessorFileInfo).size) || 0,
+            modified: Number((item as ProcessorFileInfo).modified) || 0,
+          },
+        ]
+      : [],
+  );
 }
 
 function mergeFiles(current: ProcessorFileInfo[], added: ProcessorFileInfo[]): ProcessorFileInfo[] {
@@ -269,7 +297,11 @@ function readFileAsDataUrl(file: File): Promise<string> {
 }
 
 function formatSize(size: number): string {
-  return size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
+  return size < 1024
+    ? `${size} B`
+    : size < 1024 * 1024
+      ? `${(size / 1024).toFixed(1)} KB`
+      : `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function errorMessage(error: unknown): string {
@@ -278,12 +310,55 @@ function errorMessage(error: unknown): string {
 
 function highlightJavaScript(code: string): string {
   const keywords = new Set([
-    'as', 'async', 'await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default',
-    'delete', 'do', 'else', 'export', 'extends', 'false', 'finally', 'for', 'from', 'function', 'get', 'if',
-    'import', 'in', 'instanceof', 'let', 'new', 'null', 'of', 'return', 'set', 'static', 'super', 'switch',
-    'this', 'throw', 'true', 'try', 'typeof', 'undefined', 'var', 'void', 'while', 'with', 'yield'
+    'as',
+    'async',
+    'await',
+    'break',
+    'case',
+    'catch',
+    'class',
+    'const',
+    'continue',
+    'debugger',
+    'default',
+    'delete',
+    'do',
+    'else',
+    'export',
+    'extends',
+    'false',
+    'finally',
+    'for',
+    'from',
+    'function',
+    'get',
+    'if',
+    'import',
+    'in',
+    'instanceof',
+    'let',
+    'new',
+    'null',
+    'of',
+    'return',
+    'set',
+    'static',
+    'super',
+    'switch',
+    'this',
+    'throw',
+    'true',
+    'try',
+    'typeof',
+    'undefined',
+    'var',
+    'void',
+    'while',
+    'with',
+    'yield',
   ]);
-  const pattern = /\/\*[\s\S]*?\*\/|\/\/[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][A-Za-z0-9_$]*\b|[{}\[\](),.;:?<>+=\-*/%&|!]/g;
+  const pattern =
+    /\/\*[\s\S]*?\*\/|\/\/[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][A-Za-z0-9_$]*\b|[{}\[\](),.;:?<>+=\-*/%&|!]/g;
   let output = '';
   let cursor = 0;
   let match: RegExpExecArray | null;
@@ -305,5 +380,10 @@ function highlightJavaScript(code: string): string {
 }
 
 function escapeCode(value: string): string {
-  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
