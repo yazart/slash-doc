@@ -618,10 +618,6 @@ export function getWebviewHtml(
         border-color: var(--vscode-focusBorder);
       }
 
-      .slash-bpmn-tool .bjs-powered-by {
-        display: none;
-      }
-
       .slash-flow-designer-tool > *,
       .slash-network-canvas-tool > *,
       .slash-image-annotation-tool > *,

@@ -4,6 +4,11 @@
   "description": "Расширение VS Code с интерфейсом Shoelace и редактором документов Editor.js.",
   "version": "0.0.1",
   "publisher": "local",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yazart/slash-doc.git"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -50,7 +55,10 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run lint && npm run check:types && npm run format:check"
+    "check": "npm run lint && npm run check:types && npm run format:check",
+    "changelog": "conventional-changelog -p conventionalcommits -r 0 -o CHANGELOG.md",
+    "changelog:update": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s",
+    "version": "npm run changelog && git add CHANGELOG.md"
   },
   "dependencies": {
     "@editorjs/editorjs": "^2.30.8",
@@ -74,6 +82,8 @@
     "@types/express": "^5.0.6",
     "@types/node": "^20.14.8",
     "@types/vscode": "^1.90.0",
+    "conventional-changelog": "^8.1.0",
+    "conventional-changelog-conventionalcommits": "^10.2.1",
     "esbuild": "^0.21.5",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
