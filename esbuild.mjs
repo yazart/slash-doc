@@ -20,6 +20,13 @@ const webviewConfig = {
   platform: 'browser',
   sourcemap: true,
   outfile: 'dist/webview.js',
+  loader: {
+    '.eot': 'file',
+    '.svg': 'file',
+    '.ttf': 'file',
+    '.woff': 'file',
+    '.woff2': 'file',
+  },
 };
 
 const sidebarConfig = {

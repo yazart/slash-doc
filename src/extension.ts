@@ -32,7 +32,9 @@ import {
   addChildToMenu,
   collectMenuItemIds,
   createDefaultPageContent,
+  createNewPageContent,
   findMenuItem,
+  flattenMenuPages,
   getFirstHeaderText,
   readMenu,
   readPageContent,
@@ -49,6 +51,7 @@ import { compileDocumentationSite } from './extension/site-compiler';
 import { ApiServerManager, migrateLegacyModules } from './extension/api-server';
 import { getWebviewHtml } from './extension/editor-webview';
 import { getSidebarHtml } from './extension/sidebar-webview';
+import { searchDocumentation } from './extension/documentation-search';
 import {
   downloadProcessorFile,
   runPageProcessor,
@@ -68,6 +71,7 @@ type SidebarMessage = {
   addonId?: string | null;
   targetId?: string | null;
   position?: PageMovePosition;
+  query?: string;
 };
 
 type SidebarView = 'menu' | 'settings';
@@ -83,6 +87,8 @@ type EditorMessage = {
   inputFiles?: string[];
   fileName?: string;
   text?: string;
+  pageId?: string;
+  url?: string;
 };
 
 type ExportFormat = 'html' | 'md';
@@ -176,139 +182,168 @@ export function activate(context: vscode.ExtensionContext) {
     .catch((error) => console.error('Failed to migrate legacy Slash Doc modules', error))
     .then(() => apiServerManager?.reload());
 
-  const disposable = vscode.commands.registerCommand('slashDoc.openEditor', async (pageId?: string) => {
-    const workspaceRoot = getWorkspaceRoot();
-    const menu = workspaceRoot ? await readMenu(workspaceRoot) : { items: [] };
-    const page = pageId ? findMenuItem(menu.items, pageId) : undefined;
-    const initialData =
-      workspaceRoot && pageId
-        ? await readPageContent(workspaceRoot, pageId, page?.title ?? 'Slash Doc')
-        : createDefaultPageContent('Slash Doc');
-    const settings = workspaceRoot ? await readSettings(workspaceRoot) : getDefaultSettings();
+  const disposable = vscode.commands.registerCommand(
+    'slashDoc.openEditor',
+    async (pageId?: string, options?: { focusEditor?: boolean }) => {
+      const workspaceRoot = getWorkspaceRoot();
+      const menu = workspaceRoot ? await readMenu(workspaceRoot) : { items: [] };
+      const page = pageId ? findMenuItem(menu.items, pageId) : undefined;
+      const initialData =
+        workspaceRoot && pageId
+          ? await readPageContent(workspaceRoot, pageId, page?.title ?? 'Slash Doc')
+          : createDefaultPageContent('Slash Doc');
+      const settings = workspaceRoot ? await readSettings(workspaceRoot) : getDefaultSettings();
 
-    const panel = vscode.window.createWebviewPanel(viewType, page?.title ?? 'Slash Doc', vscode.ViewColumn.One, {
-      enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(context.extensionUri, 'dist'),
-        vscode.Uri.joinPath(context.extensionUri, 'assets'),
-        getGlobalAddonRootUri(context.extensionUri),
-      ],
-    });
-
-    if (pageId) {
-      const panels = openPagePanels.get(pageId) ?? new Set<vscode.WebviewPanel>();
-      panels.add(panel);
-      openPagePanels.set(pageId, panels);
-      panel.onDidDispose(() => {
-        panels.delete(panel);
-
-        if (panels.size === 0) {
-          openPagePanels.delete(pageId);
-        }
+      const panel = vscode.window.createWebviewPanel(viewType, page?.title ?? 'Slash Doc', vscode.ViewColumn.One, {
+        enableScripts: true,
+        localResourceRoots: [
+          vscode.Uri.joinPath(context.extensionUri, 'dist'),
+          vscode.Uri.joinPath(context.extensionUri, 'assets'),
+          getGlobalAddonRootUri(context.extensionUri),
+        ],
       });
-    }
 
-    panel.webview.onDidReceiveMessage(
-      async (message: EditorMessage) => {
-        if (message.type === 'readClipboard') {
-          let text = '';
-          try {
-            text = await vscode.env.clipboard.readText();
-          } catch (error) {
-            console.error('Slash Doc: failed to read clipboard', error);
+      if (pageId) {
+        const panels = openPagePanels.get(pageId) ?? new Set<vscode.WebviewPanel>();
+        panels.add(panel);
+        openPagePanels.set(pageId, panels);
+        panel.onDidDispose(() => {
+          panels.delete(panel);
+
+          if (panels.size === 0) {
+            openPagePanels.delete(pageId);
           }
-          await panel.webview.postMessage({ type: 'clipboardResponse', requestId: message.requestId, text });
-          return;
-        }
+        });
+      }
 
-        if (message.type === 'writeClipboard' && typeof message.text === 'string') {
-          try {
-            await vscode.env.clipboard.writeText(message.text);
-          } catch (error) {
-            console.error('Slash Doc: failed to write clipboard', error);
-          }
-          return;
-        }
-
-        if (message.type?.startsWith('fileProcessor')) {
-          const respond = (ok: boolean, data?: unknown, error?: string) =>
-            panel.webview.postMessage({
-              type: 'fileProcessorResponse',
-              requestId: message.requestId,
-              ok,
-              data,
-              error,
-            });
-
-          if (!workspaceRoot || !pageId) {
-            await respond(false, undefined, 'Сначала сохраните виджет на странице документа.');
+      panel.webview.onDidReceiveMessage(
+        async (message: EditorMessage) => {
+          if (message.type === 'readClipboard') {
+            let text = '';
+            try {
+              text = await vscode.env.clipboard.readText();
+            } catch (error) {
+              console.error('Slash Doc: failed to read clipboard', error);
+            }
+            await panel.webview.postMessage({ type: 'clipboardResponse', requestId: message.requestId, text });
             return;
           }
 
-          try {
-            if (message.type === 'fileProcessorUpload') {
-              await respond(true, await uploadProcessorFiles(workspaceRoot, pageId, message.files ?? []));
-            } else if (message.type === 'fileProcessorRun') {
-              const result = await runPageProcessor(
+          if (message.type === 'writeClipboard' && typeof message.text === 'string') {
+            try {
+              await vscode.env.clipboard.writeText(message.text);
+            } catch (error) {
+              console.error('Slash Doc: failed to write clipboard', error);
+            }
+            return;
+          }
+
+          if (message.type === 'openPage' && message.pageId) {
+            await vscode.commands.executeCommand('slashDoc.openEditor', message.pageId);
+            return;
+          }
+
+          if (message.type === 'openExternal' && message.url) {
+            try {
+              const externalUri = vscode.Uri.parse(message.url);
+              if (externalUri.scheme === 'http' || externalUri.scheme === 'https') {
+                await vscode.env.openExternal(externalUri);
+              }
+            } catch (error) {
+              console.error('Slash Doc: invalid external URL', error);
+            }
+            return;
+          }
+
+          if (message.type?.startsWith('fileProcessor')) {
+            const respond = (ok: boolean, data?: unknown, error?: string) =>
+              panel.webview.postMessage({
+                type: 'fileProcessorResponse',
+                requestId: message.requestId,
+                ok,
+                data,
+                error,
+              });
+
+            if (!workspaceRoot || !pageId) {
+              await respond(false, undefined, 'Сначала сохраните виджет на странице документа.');
+              return;
+            }
+
+            try {
+              if (message.type === 'fileProcessorUpload') {
+                await respond(true, await uploadProcessorFiles(workspaceRoot, pageId, message.files ?? []));
+              } else if (message.type === 'fileProcessorRun') {
+                const result = await runPageProcessor(
+                  context.extensionUri,
+                  workspaceRoot,
+                  pageId,
+                  message.script ?? '',
+                  message.inputFiles ?? [],
+                );
+                await respond(true, result);
+              } else if (message.type === 'fileProcessorDownload' && message.fileName) {
+                await downloadProcessorFile(workspaceRoot, pageId, message.fileName);
+                await respond(true);
+              }
+            } catch (error) {
+              await respond(false, undefined, error instanceof Error ? error.message : String(error));
+            }
+            return;
+          }
+
+          if (message.type !== 'save') {
+            if (message.type === 'export' && message.format) {
+              const content = await exportPageContent(
+                message.data,
+                message.format,
+                settings,
                 context.extensionUri,
                 workspaceRoot,
-                pageId,
-                message.script ?? '',
-                message.inputFiles ?? [],
               );
-              await respond(true, result);
-            } else if (message.type === 'fileProcessorDownload' && message.fileName) {
-              await downloadProcessorFile(workspaceRoot, pageId, message.fileName);
-              await respond(true);
+              const document = await vscode.workspace.openTextDocument({
+                content,
+                language: message.format === 'html' ? 'html' : 'markdown',
+              });
+              await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
             }
-          } catch (error) {
-            await respond(false, undefined, error instanceof Error ? error.message : String(error));
-          }
-          return;
-        }
 
-        if (message.type !== 'save') {
-          if (message.type === 'export' && message.format) {
-            const content = await exportPageContent(
-              message.data,
-              message.format,
-              settings,
-              context.extensionUri,
-              workspaceRoot,
-            );
-            const document = await vscode.workspace.openTextDocument({
-              content,
-              language: message.format === 'html' ? 'html' : 'markdown',
-            });
-            await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
+            return;
           }
 
-          return;
-        }
-
-        if (!workspaceRoot || !pageId) {
-          return;
-        }
-
-        await writeJson(getPageContentUri(workspaceRoot, pageId), message.data);
-        const title = getFirstHeaderText(message.data);
-
-        if (title) {
-          const menu = await readMenu(workspaceRoot);
-
-          if (updateMenuItemTitle(menu.items, pageId, title)) {
-            await writeMenu(workspaceRoot, menu);
-            panel.title = title;
-            await sidebarProvider.refresh();
+          if (!workspaceRoot || !pageId) {
+            return;
           }
-        }
-      },
-      undefined,
-      context.subscriptions,
-    );
 
-    panel.webview.html = getWebviewHtml(panel.webview, context.extensionUri, workspaceRoot, initialData, settings);
-  });
+          await writeJson(getPageContentUri(workspaceRoot, pageId), message.data);
+          const title = getFirstHeaderText(message.data);
+
+          if (title) {
+            const menu = await readMenu(workspaceRoot);
+
+            if (updateMenuItemTitle(menu.items, pageId, title)) {
+              await writeMenu(workspaceRoot, menu);
+              panel.title = title;
+              await sidebarProvider.refresh();
+            }
+          }
+        },
+        undefined,
+        context.subscriptions,
+      );
+
+      panel.webview.html = getWebviewHtml(
+        panel.webview,
+        context.extensionUri,
+        workspaceRoot,
+        initialData,
+        settings,
+        flattenMenuPages(menu.items),
+        pageId,
+        options?.focusEditor === true,
+      );
+    },
+  );
 
   const sidebarRegistration = vscode.window.registerWebviewViewProvider(sidebarViewId, sidebarProvider);
 
@@ -355,7 +390,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
         webviewView.webview.html = await this.getSidebarHtml(webviewView.webview);
 
         if (pageId) {
-          await vscode.commands.executeCommand('slashDoc.openEditor', pageId);
+          await vscode.commands.executeCommand('slashDoc.openEditor', pageId, { focusEditor: true });
         }
       }
 
@@ -370,6 +405,12 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
 
       if (message.type === 'openPage' && message.pageId) {
         await vscode.commands.executeCommand('slashDoc.openEditor', message.pageId);
+      }
+
+      if (message.type === 'searchPages' && typeof message.query === 'string') {
+        const workspaceRoot = getWorkspaceRoot();
+        const results = workspaceRoot ? await searchDocumentation(workspaceRoot, message.query) : [];
+        await webviewView.webview.postMessage({ type: 'searchResults', query: message.query, results });
       }
 
       if (message.type === 'renamePage' && message.pageId) {
@@ -627,7 +668,7 @@ class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     }
 
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(getPagesRootUri(workspaceRoot), id));
-    await writeJsonIfMissing(getPageContentUri(workspaceRoot, id), createDefaultPageContent(title));
+    await writeJsonIfMissing(getPageContentUri(workspaceRoot, id), createNewPageContent(title));
 
     return id;
   }

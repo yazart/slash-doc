@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { getCustomAddonWebviewModules } from './filesystem';
-import type { SlashDocSettings } from './types';
+import type { DocumentationPageLink, SlashDocSettings } from './types';
 import { escapeScriptJson, getNonce } from './utils';
 
 export function getWebviewHtml(
@@ -9,22 +9,30 @@ export function getWebviewHtml(
   workspaceRoot: vscode.Uri | undefined,
   initialData: unknown,
   settings: SlashDocSettings,
+  pages: DocumentationPageLink[],
+  currentPageId: string | undefined,
+  focusEditor: boolean,
 ): string {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'webview.js'));
+  const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'webview.css'));
   const iconUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'assets', 'slash-doc.svg'));
   const nonce = getNonce();
   const initialDataJson = escapeScriptJson(initialData);
   const settingsJson = escapeScriptJson(settings);
+  const pagesJson = escapeScriptJson(pages);
+  const currentPageIdJson = escapeScriptJson(currentPageId ?? null);
+  const focusEditorJson = escapeScriptJson(focusEditor);
   const customAddonsJson = escapeScriptJson(
     getCustomAddonWebviewModules(webview, extensionUri, workspaceRoot, settings),
   );
 
   return /* html */ `<!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https: data: blob:; style-src ${webview.cspSource} 'unsafe-inline'; script-src ${webview.cspSource} 'nonce-${nonce}'; font-src ${webview.cspSource};">
+    <link rel="stylesheet" href="${styleUri}">
     <title>Slash Doc</title>
     <style>
       :root {
@@ -91,7 +99,7 @@ export function getWebviewHtml(
         z-index: 20;
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: flex-start;
         gap: 12px;
         padding: 8px 12px;
         border-bottom: 1px solid var(--border);
@@ -121,6 +129,63 @@ export function getWebviewHtml(
         display: flex;
         align-items: center;
         gap: 6px;
+        margin-left: auto;
+      }
+
+      .header-inline-tools {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-left: 10px;
+      }
+
+      .header-inline-tool {
+        position: relative;
+      }
+
+      .header-inline-tool-button {
+        display: grid;
+        width: 26px;
+        height: 26px;
+        padding: 3px;
+        place-items: center;
+        color: var(--vscode-icon-foreground, var(--vscode-foreground));
+        border: 1px solid transparent;
+        border-radius: 3px;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .header-inline-tool-button:hover,
+      .header-inline-tool-button[aria-expanded="true"] {
+        color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
+        background: var(--vscode-list-hoverBackground);
+      }
+
+      .header-inline-tool-button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+
+      .header-inline-tool-button svg {
+        width: 19px;
+        height: 19px;
+      }
+
+      .header-inline-tool-panel {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        z-index: 50;
+        color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+        border: 1px solid var(--vscode-dropdown-border, var(--border));
+        border-radius: 4px;
+        background: var(--vscode-dropdown-background, var(--surface-raised));
+        box-shadow: 0 6px 18px color-mix(in srgb, #000 32%, transparent);
+      }
+
+      .header-inline-tool-panel[hidden] {
+        display: none;
       }
 
       .export-button {
@@ -215,12 +280,14 @@ export function getWebviewHtml(
       }
 
       #editor {
-        width: min(860px, 100vw);
-        margin: 0 auto 48px;
-        padding: 0;
-        border: 0;
-        border-radius: 0;
-        background: transparent;
+        box-sizing: content-box;
+        width: min(860px, calc(100vw - 24px));
+        min-height: calc(100vh - 72px);
+        margin: 48px auto 24px;
+        padding: 20px 12px 48px;
+        border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--vscode-editorWidget-background) 35%, var(--vscode-editor-background));
       }
 
       .ce-block__content,
@@ -457,6 +524,104 @@ export function getWebviewHtml(
         overflow: hidden;
       }
 
+      .slash-bpmn-tool {
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        margin: 12px 0;
+        overflow: hidden;
+        color: var(--vscode-editor-foreground);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        background: var(--vscode-editor-background);
+      }
+
+      .slash-bpmn-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 34px;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface-raised);
+      }
+
+      .slash-bpmn-header strong {
+        margin-right: auto;
+      }
+
+      .slash-bpmn-status {
+        min-width: 0;
+        overflow: hidden;
+        color: var(--vscode-descriptionForeground);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .slash-bpmn-status-error {
+        color: var(--vscode-errorForeground);
+      }
+
+      .slash-bpmn-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        min-height: 26px;
+        padding: 4px 9px;
+        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+        border: 1px solid var(--vscode-button-border, var(--border));
+        border-radius: 3px;
+        background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .slash-bpmn-button:hover {
+        background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+      }
+
+      .slash-bpmn-canvas {
+        width: 100%;
+        height: 480px;
+        overflow: hidden;
+        background: #fff;
+      }
+
+      .slash-bpmn-preview-controls {
+        display: grid;
+        gap: 8px;
+        padding: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .slash-bpmn-preview-controls .slash-bpmn-button {
+        justify-self: start;
+      }
+
+      .slash-bpmn-xml {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 150px;
+        resize: vertical;
+        padding: 8px;
+        color: var(--vscode-input-foreground);
+        border: 1px solid var(--vscode-input-border, var(--border));
+        outline: none;
+        background: var(--vscode-input-background);
+        font: 12px/1.45 var(--vscode-editor-font-family, monospace);
+        white-space: pre;
+      }
+
+      .slash-bpmn-xml:focus {
+        border-color: var(--vscode-focusBorder);
+      }
+
+      .slash-bpmn-tool .bjs-powered-by {
+        display: none;
+      }
+
       .slash-flow-designer-tool > *,
       .slash-network-canvas-tool > *,
       .slash-image-annotation-tool > *,
@@ -520,6 +685,121 @@ export function getWebviewHtml(
         background: transparent;
         cursor: pointer;
       }
+
+      .slash-page-link,
+      .slash-external-link {
+        color: var(--vscode-textLink-foreground);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        cursor: pointer;
+      }
+
+      .slash-page-link-picker {
+        display: grid;
+        gap: 6px;
+        width: min(320px, 75vw);
+        padding: 7px;
+      }
+
+      .slash-page-link-search {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 5px 7px;
+        color: var(--vscode-input-foreground);
+        border: 1px solid var(--vscode-input-border, var(--border));
+        outline: none;
+        background: var(--vscode-input-background);
+      }
+
+      .slash-page-link-search:focus {
+        border-color: var(--vscode-focusBorder);
+      }
+
+      .slash-page-link-list {
+        display: grid;
+        max-height: 230px;
+        overflow: auto;
+      }
+
+      .slash-page-link-option,
+      .slash-page-link-remove {
+        overflow: hidden;
+        padding: 6px 8px;
+        color: var(--vscode-foreground);
+        border: 0;
+        border-radius: 2px;
+        background: transparent;
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+
+      .slash-page-link-option:hover,
+      .slash-page-link-option:focus-visible,
+      .slash-page-link-remove:hover,
+      .slash-page-link-remove:focus-visible {
+        color: var(--vscode-list-hoverForeground);
+        outline: none;
+        background: var(--vscode-list-hoverBackground);
+      }
+
+      .slash-page-link-current::after {
+        content: " · текущая";
+        color: var(--vscode-descriptionForeground);
+      }
+
+      .slash-page-link-empty {
+        padding: 7px 8px;
+        color: var(--vscode-descriptionForeground);
+      }
+
+      .slash-page-link-remove {
+        color: var(--vscode-errorForeground);
+        border-top: 1px solid var(--border);
+      }
+
+      .slash-external-link-picker {
+        display: grid;
+        gap: 8px;
+        width: min(340px, 78vw);
+        padding: 9px;
+      }
+
+      .slash-external-link-input {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 6px 8px;
+        color: var(--vscode-input-foreground);
+        border: 1px solid var(--vscode-input-border, var(--border));
+        outline: none;
+        background: var(--vscode-input-background);
+      }
+
+      .slash-external-link-input:focus {
+        border-color: var(--vscode-focusBorder);
+      }
+
+      .slash-external-link-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+
+      .slash-external-link-save,
+      .slash-external-link-remove {
+        padding: 5px 9px;
+        color: var(--vscode-button-foreground);
+        border: 1px solid var(--vscode-button-border, transparent);
+        border-radius: 3px;
+        background: var(--vscode-button-background);
+        cursor: pointer;
+      }
+
+      .slash-external-link-remove {
+        color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+        background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
+      }
     </style>
   </head>
   <body>
@@ -529,6 +809,7 @@ export function getWebviewHtml(
           <span class="title-icon" aria-hidden="true"></span>
           <span>Slash Doc</span>
         </h1>
+        <div class="header-inline-tools" id="header-inline-tools" aria-label="Инструменты форматирования"></div>
         <div class="export-actions">
           <button class="export-button" type="button" id="export-html">HTML</button>
           <button class="export-button" type="button" id="export-md">MD</button>
@@ -540,6 +821,9 @@ export function getWebviewHtml(
       window.__SLASH_DOC_INITIAL_DATA__ = ${initialDataJson};
       window.__SLASH_DOC_SETTINGS__ = ${settingsJson};
       window.__SLASH_DOC_CUSTOM_ADDONS__ = ${customAddonsJson};
+      window.__SLASH_DOC_PAGES__ = ${pagesJson};
+      window.__SLASH_DOC_CURRENT_PAGE_ID__ = ${currentPageIdJson};
+      window.__SLASH_DOC_FOCUS_EDITOR__ = ${focusEditorJson};
     </script>
     <script nonce="${nonce}" src="${scriptUri}"></script>
   </body>

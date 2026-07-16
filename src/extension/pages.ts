@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { getMenuUri, getPageContentUri, pathExists, writeJson } from './filesystem';
-import type { PageMovePosition, SlashDocMenu, SlashDocMenuItem } from './types';
+import type { DocumentationPageLink, PageMovePosition, SlashDocMenu, SlashDocMenuItem } from './types';
 import { createPageId, escapeAttribute, escapeHtml, isRecord, stripHtml } from './utils';
 
 export async function readMenu(workspaceRoot: vscode.Uri): Promise<SlashDocMenu> {
@@ -42,6 +42,17 @@ export function createDefaultPageContent(title: string): unknown {
   };
 }
 
+export function createNewPageContent(title: string): unknown {
+  return {
+    time: Date.now(),
+    blocks: [
+      { type: 'header', data: { text: escapeHtml(title), level: 2 } },
+      { type: 'paragraph', data: { text: '' } },
+    ],
+    version: '2.30.8',
+  };
+}
+
 export function updatePageContentTitle(data: unknown, title: string): unknown {
   if (!isRecord(data) || !Array.isArray(data.blocks)) {
     return createDefaultPageContent(title);
@@ -73,6 +84,13 @@ export function normalizeMenuItems(items: unknown): SlashDocMenuItem[] {
       children: normalizeMenuItems(item.children),
     };
   });
+}
+
+export function flattenMenuPages(items: SlashDocMenuItem[], depth = 0): DocumentationPageLink[] {
+  return items.flatMap((item) => [
+    { id: item.id, title: item.title, depth },
+    ...flattenMenuPages(item.children, depth + 1),
+  ]);
 }
 
 export function addChildToMenu(items: SlashDocMenuItem[], parentId: string, child: SlashDocMenuItem): boolean {

@@ -9,6 +9,12 @@ export type SlashDocMenuItem = {
   children: SlashDocMenuItem[];
 };
 
+export type DocumentationPageLink = {
+  id: string;
+  title: string;
+  depth: number;
+};
+
 export type PageMovePosition = 'before' | 'inside' | 'after' | 'root';
 
 export type ApiService = {
@@ -48,6 +54,10 @@ export type SlashDocSettings = {
     apiEndpoint: boolean;
     fileProcessor: boolean;
     taskTable: boolean;
+    codeBlock: boolean;
+    diffBlock: boolean;
+    bpmnModeler: boolean;
+    bpmnPreview: boolean;
   };
   customEditorAddons: CustomEditorAddon[];
   apiPrefix: string;

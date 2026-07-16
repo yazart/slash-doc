@@ -9,6 +9,8 @@ import Marker from '@editorjs/marker';
 import InlineCode from '@editorjs/inline-code';
 import Underline from '@editorjs/underline';
 import TextColorTool from './text-color-tool';
+import PageLinkTool, { type DocumentationPageLink } from './page-link-tool';
+import { setupHeaderInlineTools } from './header-inline-tools';
 import mermaid from 'mermaid';
 import FlowDesignerTool from './flow-designer-tool';
 import NetworkCanvasTool from './network-canvas-tool';
@@ -17,6 +19,12 @@ import ApiEndpointTool from './api-endpoint-tool';
 import FileProcessorTool, { type FileProcessorBridge } from './file-processor-tool';
 import TaskTableTool from './task-table-tool';
 import ConfluenceTableTool from './confluence-table-tool';
+import CodeBlockTool from './code-block-tool';
+import DiffBlockTool from './diff-block-tool';
+import { BpmnModelerTool, BpmnPreviewTool } from './bpmn-tools';
+import 'bpmn-js/dist/assets/diagram-js.css';
+import 'bpmn-js/dist/assets/bpmn-js.css';
+import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
 
 type VSCodeApi = {
   postMessage(message: unknown): void;
@@ -28,6 +36,9 @@ declare global {
     __SLASH_DOC_INITIAL_DATA__?: unknown;
     __SLASH_DOC_SETTINGS__?: SlashDocSettings;
     __SLASH_DOC_CUSTOM_ADDONS__?: CustomAddonModule[];
+    __SLASH_DOC_PAGES__?: DocumentationPageLink[];
+    __SLASH_DOC_CURRENT_PAGE_ID__?: string | null;
+    __SLASH_DOC_FOCUS_EDITOR__?: boolean;
   }
 }
 
@@ -48,6 +59,10 @@ type SlashDocSettings = {
     apiEndpoint?: boolean;
     fileProcessor?: boolean;
     taskTable?: boolean;
+    codeBlock?: boolean;
+    diffBlock?: boolean;
+    bpmnModeler?: boolean;
+    bpmnPreview?: boolean;
   };
 };
 
@@ -66,11 +81,50 @@ type CustomAddonModule = {
   uri: string;
 };
 
+type CustomBlockTool = {
+  render(...args: unknown[]): HTMLElement;
+};
+
+type CustomBlockToolConstructor = new (...args: any[]) => CustomBlockTool;
+
 const vscode = acquireVsCodeApi();
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
 let editor: EditorJS;
 const settings = window.__SLASH_DOC_SETTINGS__ ?? {};
 const tools: NonNullable<EditorConfig['tools']> = {};
+const inlineToolbarTools = [
+  'convertTo',
+  'bold',
+  'italic',
+  'link',
+  ...(settings.editorAddons?.marker !== false ? ['marker'] : []),
+  ...(settings.editorAddons?.inlineCode !== false ? ['inlineCode'] : []),
+  ...(settings.editorAddons?.underline !== false ? ['underline'] : []),
+];
+
+document.addEventListener(
+  'click',
+  (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const anchor = target.closest<HTMLAnchorElement>('a[href]');
+    if (!anchor) return;
+    const pageId = getDocumentationPageId(anchor);
+    if (pageId) {
+      event.preventDefault();
+      event.stopPropagation();
+      vscode.postMessage({ type: 'openPage', pageId });
+      return;
+    }
+    const url = getExternalUrl(anchor);
+    if (url) {
+      event.preventDefault();
+      event.stopPropagation();
+      vscode.postMessage({ type: 'openExternal', url });
+    }
+  },
+  true,
+);
 const fileProcessorRequests = new Map<
   string,
   {
@@ -229,6 +283,20 @@ if (settings.editorAddons?.textColor !== false) {
   tools.textColor = TextColorTool as unknown as InlineToolConstructable;
 }
 
+tools.pageLink = {
+  class: PageLinkTool as unknown as InlineToolConstructable,
+  config: {
+    pages: window.__SLASH_DOC_PAGES__ ?? [],
+    currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
+  },
+};
+
+setupHeaderInlineTools({
+  pages: window.__SLASH_DOC_PAGES__ ?? [],
+  currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
+  textColorEnabled: settings.editorAddons?.textColor !== false,
+});
+
 class MermaidTool {
   private readonly data: MermaidToolData;
   private wrapper?: HTMLDivElement;
@@ -344,6 +412,22 @@ if (settings.editorAddons?.taskTable !== false) {
   tools.taskTable = TaskTableTool;
 }
 
+if (settings.editorAddons?.codeBlock !== false) {
+  tools.codeBlock = CodeBlockTool;
+}
+
+if (settings.editorAddons?.diffBlock !== false) {
+  tools.diffBlock = DiffBlockTool;
+}
+
+if (settings.editorAddons?.bpmnModeler !== false) {
+  tools.bpmnModeler = BpmnModelerTool;
+}
+
+if (settings.editorAddons?.bpmnPreview !== false) {
+  tools.bpmnPreview = BpmnPreviewTool;
+}
+
 function scheduleAutosave() {
   if (autosaveTimer) {
     clearTimeout(autosaveTimer);
@@ -437,7 +521,7 @@ async function initEditor() {
     holder: 'editor',
     autofocus: true,
     placeholder: 'Начните писать в Editor.js…',
-    inlineToolbar: true,
+    inlineToolbar: inlineToolbarTools,
     i18n: {
       messages: {
         ui: {
@@ -478,6 +562,11 @@ async function initEditor() {
           'API Endpoint': 'Эндпоинт API',
           'File Processor': 'Обработчик файлов',
           'Task Table': 'Доска задач',
+          'Page Link': 'Ссылка на страницу',
+          Code: 'Код',
+          Diff: 'Diff',
+          'BPMN Modeler': 'BPMN-редактор',
+          'BPMN Preview': 'Предпросмотр BPMN',
         },
         tools: {
           header: {
@@ -522,6 +611,9 @@ async function initEditor() {
   });
 
   await editor.isReady;
+  if (window.__SLASH_DOC_FOCUS_EDITOR__) {
+    requestAnimationFrame(() => editor.caret.setToLastBlock('start'));
+  }
 }
 
 function normalizeEditorData(value: unknown): OutputData {
@@ -554,10 +646,51 @@ async function loadCustomTools() {
       const tool = module.default ?? module.tool;
 
       if (tool) {
-        tools[addon.toolName] = tool;
+        tools[addon.toolName] = protectCustomTool(tool as CustomBlockToolConstructor, addon);
       }
     }),
   );
+}
+
+function protectCustomTool(tool: CustomBlockToolConstructor, addon: CustomAddonModule): ToolConstructable {
+  return class ProtectedCustomTool extends tool {
+    override render(...args: unknown[]): HTMLElement {
+      const root = super.render(...args);
+      root.dataset.slashDocCustomAddon = addon.id;
+      root.addEventListener('keydown', stopCustomBlockDeletion);
+      return root;
+    }
+  } as unknown as ToolConstructable;
+}
+
+function stopCustomBlockDeletion(event: KeyboardEvent): void {
+  if (event.key !== 'Backspace') return;
+  event.stopPropagation();
+}
+
+function getDocumentationPageId(anchor: HTMLAnchorElement): string | undefined {
+  const explicitPageId = anchor.dataset.pageId;
+  if (explicitPageId) return explicitPageId;
+  const href = anchor.getAttribute('href')?.trim() ?? '';
+  const encodedPageId =
+    /^slash-doc:\/\/(?:page\/)?([^/?#]+)/i.exec(href)?.[1] ?? /^slash-doc:page\/([^/?#]+)/i.exec(href)?.[1];
+  if (!encodedPageId) return undefined;
+  try {
+    return decodeURIComponent(encodedPageId);
+  } catch {
+    return encodedPageId;
+  }
+}
+
+function getExternalUrl(anchor: HTMLAnchorElement): string | undefined {
+  const href = anchor.getAttribute('href')?.trim();
+  if (!href) return undefined;
+  try {
+    const url = new URL(href);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 document.querySelector('#export-html')?.addEventListener('click', () => {

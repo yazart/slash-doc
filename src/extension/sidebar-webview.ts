@@ -45,10 +45,18 @@ export async function getSidebarHtml(
                 </sl-button>
               </sl-tooltip>
             </div>
-            <nav class="tree" aria-label="Страницы">
-              <div class="tree-root-drop" data-root-drop>Переместить на верхний уровень</div>
-              ${renderMenuTree(menu?.items ?? [])}
-            </nav>
+            <div class="documentation-search">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>
+              <input id="documentation-search" type="search" placeholder="Поиск по документации" autocomplete="off" aria-label="Поиск по документации">
+              <button id="clear-documentation-search" type="button" aria-label="Очистить поиск" title="Очистить">×</button>
+            </div>
+            <div class="menu-content">
+              <div id="documentation-search-results" class="documentation-search-results" aria-live="polite" hidden></div>
+              <nav class="tree" aria-label="Страницы">
+                <div class="tree-root-drop" data-root-drop>Переместить на верхний уровень</div>
+                ${renderMenuTree(menu?.items ?? [])}
+              </nav>
+            </div>
           </div>
           <div class="settings-button-row">
             <sl-button id="open-settings" size="small" variant="default">Настройки</sl-button>
@@ -131,12 +139,129 @@ export async function getSidebarHtml(
       gap: 12px;
     }
 
-    .menu-panel {
-      display: grid;
-      grid-template-rows: auto 1fr;
+      .menu-panel {
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr);
       min-height: 0;
       gap: 10px;
-    }
+      }
+
+      .documentation-search {
+        display: grid;
+        grid-template-columns: 20px minmax(0, 1fr) 24px;
+        align-items: center;
+        min-width: 0;
+        color: var(--vscode-input-foreground);
+        border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+        border-radius: 3px;
+        background: var(--vscode-input-background);
+      }
+
+      .documentation-search:focus-within {
+        border-color: var(--vscode-focusBorder);
+      }
+
+      .documentation-search svg {
+        width: 14px;
+        height: 14px;
+        margin-left: 5px;
+        fill: none;
+        stroke: var(--vscode-descriptionForeground);
+        stroke-width: 1.6;
+        stroke-linecap: round;
+      }
+
+      #documentation-search {
+        min-width: 0;
+        height: 27px;
+        padding: 3px 5px;
+        color: inherit;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        font: inherit;
+      }
+
+      #documentation-search::-webkit-search-cancel-button {
+        display: none;
+      }
+
+      #clear-documentation-search {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        color: var(--vscode-descriptionForeground);
+        border: 0;
+        border-radius: 2px;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      #clear-documentation-search:hover {
+        color: var(--vscode-foreground);
+        background: var(--vscode-list-hoverBackground);
+      }
+
+      .menu-content {
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .documentation-search-results {
+        display: grid;
+        align-content: start;
+        gap: 3px;
+        height: 100%;
+        overflow: auto;
+      }
+
+      .documentation-search-results[hidden],
+      .tree[hidden] {
+        display: none;
+      }
+
+      .documentation-search-result {
+        display: grid;
+        gap: 3px;
+        width: 100%;
+        padding: 7px;
+        color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+        border: 0;
+        border-radius: 3px;
+        background: transparent;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .documentation-search-result:hover,
+      .documentation-search-result:focus-visible {
+        outline: none;
+        background: var(--vscode-list-hoverBackground);
+      }
+
+      .documentation-search-result-title {
+        overflow: hidden;
+        font-weight: 600;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .documentation-search-result-snippet {
+        display: -webkit-box;
+        overflow: hidden;
+        color: var(--vscode-descriptionForeground);
+        font-size: 11px;
+        line-height: 1.35;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+      }
+
+      .documentation-search-status {
+        padding: 8px 6px;
+        color: var(--vscode-descriptionForeground);
+        font-size: 11px;
+      }
 
     .actions-row {
       display: flex;
@@ -247,6 +372,7 @@ export async function getSidebarHtml(
     }
 
     .tree {
+      height: 100%;
       min-width: 0;
       overflow: auto;
     }

@@ -18,8 +18,17 @@ declare const acquireVsCodeApi: () => VSCodeApi;
 const vscode = acquireVsCodeApi();
 let selectedPageId: string | null = null;
 let settingsTimer: ReturnType<typeof setTimeout> | undefined;
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
 const sidebarState = readSidebarState();
 const collapsedPageIds = new Set(sidebarState.collapsedPageIds);
+
+type DocumentationSearchResult = {
+  pageId: string;
+  title: string;
+  snippet: string;
+};
+
+bindDocumentationSearch();
 
 document.querySelector('#initialize')?.addEventListener('click', () => {
   vscode.postMessage({
@@ -284,14 +293,94 @@ function autoScrollPageTree(tree: HTMLElement | null, clientY: number): void {
   if (clientY > bounds.bottom - 28) tree.scrollTop += 10;
 }
 
-function readSidebarState(): { collapsedPageIds: string[] } {
+function bindDocumentationSearch() {
+  const input = document.querySelector<HTMLInputElement>('#documentation-search');
+  const clear = document.querySelector<HTMLButtonElement>('#clear-documentation-search');
+  if (!input) return;
+  input.value = sidebarState.searchQuery;
+
+  const submit = () => {
+    const query = input.value.trim();
+    sidebarState.searchQuery = input.value;
+    saveSidebarState();
+    setSearchMode(query.length > 0);
+    if (searchTimer) clearTimeout(searchTimer);
+    if (query.length === 0) return;
+    if (query.length < 2) {
+      renderSearchStatus('Введите не менее двух символов');
+      return;
+    }
+    renderSearchStatus('Поиск…');
+    searchTimer = setTimeout(() => vscode.postMessage({ type: 'searchPages', query }), 180);
+  };
+
+  input.addEventListener('input', submit);
+  clear?.addEventListener('click', () => {
+    input.value = '';
+    input.focus();
+    submit();
+  });
+  window.addEventListener('message', (event) => {
+    const message = event.data as { type?: string; query?: string; results?: DocumentationSearchResult[] };
+    if (message.type !== 'searchResults' || message.query !== input.value.trim()) return;
+    renderSearchResults(message.results ?? []);
+  });
+
+  if (input.value.trim()) submit();
+}
+
+function setSearchMode(active: boolean) {
+  const tree = document.querySelector<HTMLElement>('.tree');
+  const results = document.querySelector<HTMLElement>('#documentation-search-results');
+  if (tree) tree.hidden = active;
+  if (results) results.hidden = !active;
+  if (!active) results?.replaceChildren();
+}
+
+function renderSearchStatus(text: string) {
+  const container = document.querySelector<HTMLElement>('#documentation-search-results');
+  if (!container) return;
+  const status = document.createElement('div');
+  status.className = 'documentation-search-status';
+  status.textContent = text;
+  container.replaceChildren(status);
+}
+
+function renderSearchResults(results: DocumentationSearchResult[]) {
+  const container = document.querySelector<HTMLElement>('#documentation-search-results');
+  if (!container) return;
+  if (results.length === 0) {
+    renderSearchStatus('Ничего не найдено');
+    return;
+  }
+  container.replaceChildren(
+    ...results.map((result) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'documentation-search-result';
+      const title = document.createElement('span');
+      title.className = 'documentation-search-result-title';
+      title.textContent = result.title;
+      const snippet = document.createElement('span');
+      snippet.className = 'documentation-search-result-snippet';
+      snippet.textContent = result.snippet;
+      button.append(title, snippet);
+      button.addEventListener('click', () => vscode.postMessage({ type: 'openPage', pageId: result.pageId }));
+      return button;
+    }),
+  );
+}
+
+function readSidebarState(): { collapsedPageIds: string[]; searchQuery: string } {
   const value = vscode.getState();
-  if (!value || typeof value !== 'object' || !('collapsedPageIds' in value)) return { collapsedPageIds: [] };
-  const collapsed = (value as { collapsedPageIds?: unknown }).collapsedPageIds;
+  if (!value || typeof value !== 'object') return { collapsedPageIds: [], searchQuery: '' };
+  const state = value as { collapsedPageIds?: unknown; searchQuery?: unknown };
+  const collapsed = state.collapsedPageIds;
   return {
     collapsedPageIds: Array.isArray(collapsed)
       ? collapsed.filter((item): item is string => typeof item === 'string')
       : [],
+    searchQuery: typeof state.searchQuery === 'string' ? state.searchQuery : '',
   };
 }
 
@@ -373,6 +462,10 @@ function collectSettings() {
       apiEndpoint: isAddonEnabled('apiEndpoint'),
       fileProcessor: isAddonEnabled('fileProcessor'),
       taskTable: isAddonEnabled('taskTable'),
+      codeBlock: isAddonEnabled('codeBlock'),
+      diffBlock: isAddonEnabled('diffBlock'),
+      bpmnModeler: isAddonEnabled('bpmnModeler'),
+      bpmnPreview: isAddonEnabled('bpmnPreview'),
     },
     customEditorAddons: Array.from(document.querySelectorAll<HTMLElement>('[data-custom-addon-id]')).map((row) => ({
       id: row.dataset.customAddonId ?? createId('addon'),

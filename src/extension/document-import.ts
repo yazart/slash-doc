@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { CODE_LANGUAGES, type CodeLanguage } from '../shared/syntax-highlighter';
 import type { ImportedDocument } from './types';
 import { createPageId, escapeHtml, isRecord, stripHtml } from './utils';
 
@@ -92,22 +93,37 @@ function importMarkdownBlocks(markdown: string): Record<string, unknown>[] {
       continue;
     }
 
-    if (/^```mermaid\s*$/i.test(trimmed)) {
+    const codeFence = /^(`{3,})\s*([^\s`]*)\s*$/.exec(trimmed);
+
+    if (codeFence) {
       flushParagraph();
       const code: string[] = [];
+      const closingFence = codeFence[1];
+      const languageName = codeFence[2].toLowerCase();
       index += 1;
 
-      while (index < lines.length && !/^```\s*$/.test(lines[index].trim())) {
+      while (index < lines.length && lines[index].trim() !== closingFence) {
         code.push(lines[index]);
         index += 1;
       }
 
-      blocks.push(
-        createEditorBlock('mermaid', {
-          code: code.join('\n'),
-          caption: '',
-        }),
-      );
+      if (languageName === 'mermaid') {
+        blocks.push(
+          createEditorBlock('mermaid', {
+            code: code.join('\n'),
+            caption: '',
+          }),
+        );
+      } else if (languageName === 'diff' || languageName === 'patch') {
+        blocks.push(createEditorBlock('diffBlock', { diff: code.join('\n') }));
+      } else {
+        blocks.push(
+          createEditorBlock('codeBlock', {
+            language: importedCodeLanguage(languageName),
+            code: code.join('\n'),
+          }),
+        );
+      }
       continue;
     }
 
@@ -219,7 +235,7 @@ function importHtmlBlocks(html: string): Record<string, unknown>[] {
     .replaceAll(/<script[\s\S]*?<\/script>/gi, '')
     .replaceAll(/<style[\s\S]*?<\/style>/gi, '');
   const blockPattern =
-    /<(h[1-6]|p|ul|ol|table|figure|section|div|article|main|blockquote|pre)\b[^>]*>([\s\S]*?)<\/\1\s*>|<img\b([^>]*)>/gi;
+    /<(h[1-6]|p|ul|ol|table|figure|section|div|article|main|blockquote|pre|svg)\b[^>]*>([\s\S]*?)<\/\1\s*>|<img\b([^>]*)>/gi;
   let match: RegExpExecArray | null;
   let consumedUntil = 0;
 
@@ -256,6 +272,12 @@ function importHtmlBlocks(html: string): Record<string, unknown>[] {
 
     if (tag === 'div' || tag === 'article' || tag === 'main' || tag === 'blockquote') {
       blocks.push(...importHtmlBlocks(inner));
+      continue;
+    }
+
+    if (tag === 'svg') {
+      const bpmn = readBpmnSvg(outer);
+      if (bpmn) blocks.push(createEditorBlock(bpmn.type, bpmn.data));
       continue;
     }
 
@@ -312,6 +334,31 @@ function importHtmlBlocks(html: string): Record<string, unknown>[] {
     }
 
     if (tag === 'pre') {
+      const codeBlock = readCodeBlockHtml(outer);
+      const diffBlock = readDiffBlockHtml(outer);
+
+      if (codeBlock) {
+        blocks.push(createEditorBlock('codeBlock', codeBlock));
+        continue;
+      }
+
+      if (diffBlock) {
+        blocks.push(createEditorBlock('diffBlock', diffBlock));
+        continue;
+      }
+
+      const codeTag = /<code\b([^>]*)>([\s\S]*?)<\/code>/i.exec(inner);
+      if (codeTag) {
+        const languageName = /\blanguage-([\w#+.-]+)/i.exec(getHtmlAttribute(codeTag[1], 'class'))?.[1] ?? '';
+        const source = decodeHtmlEntities(stripHtml(codeTag[2]));
+        if (/^(diff|patch)$/i.test(languageName)) {
+          blocks.push(createEditorBlock('diffBlock', { diff: source }));
+        } else {
+          blocks.push(createEditorBlock('codeBlock', { language: importedCodeLanguage(languageName), code: source }));
+        }
+        continue;
+      }
+
       const text = cleanEditorHtml(inner);
 
       if (stripHtml(text).trim()) {
@@ -363,6 +410,21 @@ function importHtmlBlocks(html: string): Record<string, unknown>[] {
   appendLooseHtmlParagraph(blocks, body.slice(consumedUntil));
 
   return blocks;
+}
+
+function importedCodeLanguage(value: string): CodeLanguage {
+  const aliases: Record<string, CodeLanguage> = {
+    'c#': 'csharp',
+    cs: 'csharp',
+    js: 'javascript',
+    ts: 'typescript',
+    yml: 'yaml',
+    py: 'python',
+    shell: 'bash',
+    sh: 'bash',
+  };
+  const normalized = aliases[value.toLowerCase()] ?? value.toLowerCase();
+  return CODE_LANGUAGES.some((language) => language.id === normalized) ? (normalized as CodeLanguage) : 'javascript';
 }
 
 function appendLooseHtmlParagraph(blocks: Record<string, unknown>[], html: string): void {
@@ -514,6 +576,54 @@ function readTaskTableHtml(sectionHtml: string): Record<string, unknown> | undef
   try {
     const parsed = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
     return isRecord(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readCodeBlockHtml(preHtml: string): Record<string, unknown> | undefined {
+  const encoded = getHtmlAttribute(preHtml, 'data-slash-doc-code');
+  if (!encoded) return undefined;
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+    if (!isRecord(parsed)) return undefined;
+    return {
+      language: importedCodeLanguage(typeof parsed.language === 'string' ? parsed.language : ''),
+      code: typeof parsed.code === 'string' ? parsed.code : '',
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function readDiffBlockHtml(preHtml: string): Record<string, unknown> | undefined {
+  const encoded = getHtmlAttribute(preHtml, 'data-slash-doc-diff');
+  if (!encoded) return undefined;
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+    return isRecord(parsed) ? { diff: typeof parsed.diff === 'string' ? parsed.diff : '' } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readBpmnSvg(
+  svgHtml: string,
+): { type: 'bpmnModeler' | 'bpmnPreview'; data: Record<string, unknown> } | undefined {
+  const kind = getHtmlAttribute(svgHtml, 'data-slash-doc-bpmn');
+  const encoded = getHtmlAttribute(svgHtml, 'data-slash-doc-bpmn-state');
+  if ((kind !== 'modeler' && kind !== 'preview') || !encoded) return undefined;
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+    if (!isRecord(parsed)) return undefined;
+    return {
+      type: kind === 'modeler' ? 'bpmnModeler' : 'bpmnPreview',
+      data: {
+        xml: typeof parsed.xml === 'string' ? parsed.xml : '',
+        fileName: typeof parsed.fileName === 'string' ? parsed.fileName : undefined,
+        svg: svgHtml,
+      },
+    };
   } catch {
     return undefined;
   }

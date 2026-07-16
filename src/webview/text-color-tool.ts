@@ -44,10 +44,6 @@ export default class TextColorTool implements InlineTool {
             element: this.createPalette(),
           },
         ],
-        onOpen: () => {
-          this.captureRange();
-          this.api.selection.setFakeBackground?.();
-        },
         onClose: () => this.api.selection.removeFakeBackground?.(),
       },
     };
@@ -103,6 +99,8 @@ export default class TextColorTool implements InlineTool {
   surround(range: Range | null): void {
     if (!range || range.collapsed) return;
     this.range = range.cloneRange();
+    this.api.selection.setFakeBackground?.();
+    this.api.selection.save?.();
   }
 
   private captureRange(): void {

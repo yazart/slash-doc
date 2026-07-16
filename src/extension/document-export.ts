@@ -3,6 +3,7 @@ import { pathToFileURL } from 'url';
 import { networkIconContent, type NetworkIconName } from '../webview/network-icons';
 import { renderSafeMarkdown } from '../shared/markdown';
 import { createApiEndpointData, generateApiHtmlPreview, type ApiEndpointData } from '../shared/api-endpoint';
+import { highlightSource, normalizeCodeLanguage } from '../shared/syntax-highlighter';
 import { getCustomAddonUri } from './filesystem';
 import type { SlashDocSettings } from './types';
 import { escapeAttribute, escapeHtml, isRecord, stripHtml } from './utils';
@@ -28,6 +29,7 @@ export async function exportPageContent(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(getExportTitle(blocks))}</title>
+    <style>${EXPORT_LAYOUT_STYLES}${CODE_EXPORT_STYLES}</style>
   </head>
   <body>
 ${rendered.filter(Boolean).join('\n')}
@@ -46,22 +48,28 @@ async function exportBlock(
   extensionUri: vscode.Uri,
   workspaceRoot: vscode.Uri | undefined,
 ): Promise<string> {
+  const type = typeof block.type === 'string' ? block.type : '';
   const custom = workspaceRoot
     ? await exportCustomBlock(block, format, settings, extensionUri, workspaceRoot)
     : undefined;
 
   if (custom !== undefined) {
-    return custom;
+    return format === 'html' ? wrapHtmlExportBlock(type, custom) : custom;
   }
 
-  const type = typeof block.type === 'string' ? block.type : '';
   const data = isRecord(block.data) ? block.data : {};
 
   if (format === 'html') {
-    return exportBuiltInBlockToHtml(type, data);
+    return wrapHtmlExportBlock(type, exportBuiltInBlockToHtml(type, data));
   }
 
   return exportBuiltInBlockToMarkdown(type, data);
+}
+
+function wrapHtmlExportBlock(type: string, html: string): string {
+  if (!html) return '';
+  const normalizedType = type.replaceAll(/[^a-zA-Z0-9_-]/g, '-');
+  return `<div class="slash-doc-export-block slash-doc-export-block-${escapeAttribute(normalizedType)}" data-slash-doc-block-type="${escapeAttribute(type)}">${html}</div>`;
 }
 
 async function exportCustomBlock(
@@ -175,6 +183,23 @@ function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>): 
     return exportTaskTableToHtml(data);
   }
 
+  if (type === 'codeBlock') {
+    const language = normalizeCodeLanguage(data.language);
+    const code = typeof data.code === 'string' ? data.code : '';
+    const state = Buffer.from(JSON.stringify({ language, code }), 'utf8').toString('base64');
+    return `<pre class="slash-code-export" data-slash-doc-code="${state}"><code class="language-${language}">${highlightSource(code, language)}</code></pre>`;
+  }
+
+  if (type === 'diffBlock') {
+    const diff = typeof data.diff === 'string' ? data.diff : '';
+    const state = Buffer.from(JSON.stringify({ diff }), 'utf8').toString('base64');
+    return `<pre class="slash-code-export slash-diff-export" data-slash-doc-diff="${state}"><code class="language-diff">${highlightSource(diff, 'diff')}</code></pre>`;
+  }
+
+  if (type === 'bpmnModeler' || type === 'bpmnPreview') {
+    return exportBpmnSvg(type, data);
+  }
+
   return `<pre><code>${escapeHtml(JSON.stringify(data, null, 2))}</code></pre>`;
 }
 
@@ -245,8 +270,48 @@ function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown
     return exportTaskTableToHtml(data);
   }
 
+  if (type === 'codeBlock') {
+    const language = normalizeCodeLanguage(data.language);
+    return markdownCodeFence(language, typeof data.code === 'string' ? data.code : '');
+  }
+
+  if (type === 'diffBlock') {
+    return markdownCodeFence('diff', typeof data.diff === 'string' ? data.diff : '');
+  }
+
+  if (type === 'bpmnModeler' || type === 'bpmnPreview') {
+    return exportBpmnSvg(type, data);
+  }
+
   return `\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
 }
+
+function markdownCodeFence(language: string, source: string): string {
+  const longestFence = Math.max(0, ...(source.match(/`+/g) ?? []).map((match) => match.length));
+  const fence = '`'.repeat(Math.max(3, longestFence + 1));
+  return `${fence}${language}\n${source}\n${fence}`;
+}
+
+function exportBpmnSvg(type: string, data: Record<string, unknown>): string {
+  const xml = typeof data.xml === 'string' ? data.xml : '';
+  const fileName = typeof data.fileName === 'string' ? data.fileName : undefined;
+  const state = Buffer.from(JSON.stringify({ xml, fileName }), 'utf8').toString('base64');
+  const rawSvg = typeof data.svg === 'string' ? data.svg.trim() : '';
+  const svg = rawSvg.startsWith('<svg')
+    ? rawSvg
+    : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 120" role="img"><rect width="640" height="120" fill="#fff"/><text x="24" y="68" fill="#555" font-family="sans-serif" font-size="16">BPMN diagram is not available</text></svg>';
+  const kind = type === 'bpmnModeler' ? 'modeler' : 'preview';
+  const cleanSvg = svg
+    .replace(/\sdata-slash-doc-bpmn=("[^"]*"|'[^']*')/gi, '')
+    .replace(/\sdata-slash-doc-bpmn-state=("[^"]*"|'[^']*')/gi, '');
+  return cleanSvg.replace(
+    /<svg\b/i,
+    `<svg data-slash-doc-bpmn="${kind}" data-slash-doc-bpmn-state="${escapeAttribute(state)}"`,
+  );
+}
+
+const CODE_EXPORT_STYLES = `.slash-code-export{overflow:auto;padding:14px;border:1px solid #d0d7de;border-radius:6px;background:#f6f8fa;color:#24292f;font:13px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre}.hljs-comment,.hljs-quote{color:#6e7781;font-style:italic}.hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-section,.hljs-link{color:#cf222e}.hljs-string,.hljs-title,.hljs-name,.hljs-type,.hljs-attribute,.hljs-symbol,.hljs-bullet,.hljs-addition{color:#0a3069}.hljs-number,.hljs-meta,.hljs-built_in,.hljs-builtin-name,.hljs-params{color:#0550ae}.hljs-variable,.hljs-template-variable,.hljs-selector-id,.hljs-selector-class{color:#953800}.hljs-regexp,.hljs-deletion{color:#82071e}.hljs-addition{background:#dafbe1}.hljs-deletion{background:#ffebe9}.hljs-strong{font-weight:700}.hljs-emphasis{font-style:italic}`;
+const EXPORT_LAYOUT_STYLES = `.slash-doc-export-block{box-sizing:border-box;width:100%;max-width:860px;margin-right:auto;margin-left:auto}.slash-doc-export-block>*{max-width:100%}`;
 
 function getTableRows(data: Record<string, unknown>): unknown[][] {
   const source = Array.isArray(data.rows) ? data.rows : Array.isArray(data.content) ? data.content : [];
@@ -822,11 +887,24 @@ function htmlToMarkdownInline(value: string): string {
       if (!color) return content;
       const index = colorSpans.push(`<span style="color:${color}">${content}</span>`) - 1;
       return `SLASHDOCCOLOR${index}TOKEN`;
+    })
+    .replaceAll(/<a\b([^>]*)>(.*?)<\/a>/gis, (_match, attributes: string, content: string) => {
+      const pageId = readInlineAttribute(attributes, 'data-page-id');
+      const href = pageId ? `slash-doc://page/${encodeURIComponent(pageId)}` : readInlineAttribute(attributes, 'href');
+      if (!href) return content;
+      const markdownHref = href.replaceAll(' ', '%20').replaceAll(')', '%29');
+      return `[${content}](${markdownHref})`;
     });
   return stripHtml(formatted).replaceAll(
     /SLASHDOCCOLOR(\d+)TOKEN/g,
     (_match, index: string) => colorSpans[Number(index)] ?? '',
   );
+}
+
+function readInlineAttribute(attributes: string, name: string): string {
+  const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`\\b${escaped}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(attributes);
+  return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
 }
 
 function readInlineTextColor(attributes: string): string | undefined {
