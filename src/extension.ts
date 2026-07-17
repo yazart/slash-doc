@@ -58,6 +58,7 @@ import {
   uploadProcessorFiles,
   type UploadedProcessorFile,
 } from './extension/file-processor';
+import { searchMockUsers } from './shared/users';
 
 const viewType = 'slashDoc.editor';
 const sidebarViewId = 'slashDoc.actions';
@@ -89,6 +90,7 @@ type EditorMessage = {
   text?: string;
   pageId?: string;
   url?: string;
+  query?: string;
 };
 
 type ExportFormat = 'html' | 'md';
@@ -255,6 +257,15 @@ export function activate(context: vscode.ExtensionContext) {
             return;
           }
 
+          if (message.type === 'searchUsers') {
+            await panel.webview.postMessage({
+              type: 'userSearchResponse',
+              requestId: message.requestId,
+              users: await searchUsers(settings, message.query ?? ''),
+            });
+            return;
+          }
+
           if (message.type?.startsWith('fileProcessor')) {
             const respond = (ok: boolean, data?: unknown, error?: string) =>
               panel.webview.postMessage({
@@ -356,6 +367,21 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
   return apiServerManager?.dispose();
+}
+
+async function searchUsers(settings: SlashDocSettings, query: string) {
+  try {
+    const url = new URL(`http://127.0.0.1:${settings.apiPort}${settings.apiPrefix}/v1/users`);
+    url.searchParams.set('query', query);
+    const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+    const payload = (await response.json()) as unknown;
+    if (response.ok && payload && typeof payload === 'object' && 'users' in payload && Array.isArray(payload.users)) {
+      return payload.users;
+    }
+  } catch {
+    // The built-in API can be restarting; keep the editor usable with the same mock dataset.
+  }
+  return searchMockUsers(query);
 }
 
 class SlashDocSidebarProvider implements vscode.WebviewViewProvider {

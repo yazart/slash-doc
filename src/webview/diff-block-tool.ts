@@ -1,4 +1,5 @@
 import { HighlightedCodeEditor } from './highlighted-code-editor';
+import { LUCIDE_ICONS } from './lucide-icons';
 
 export type DiffBlockData = {
   diff: string;
@@ -13,7 +14,7 @@ export default class DiffBlockTool {
   static get toolbox() {
     return {
       title: 'Diff',
-      icon: '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 5h6M6 2v6M11 12h4M3 14.5h5M11 5h4M3 10.5h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+      icon: LUCIDE_ICONS.fileDiff,
     };
   }
 

@@ -1,3 +1,5 @@
+import { LUCIDE_ICONS } from './lucide-icons';
+
 export type ConfluenceTableData = {
   rows: string[][];
   headerRow: boolean;
@@ -34,7 +36,7 @@ export default class ConfluenceTableTool {
   static get toolbox() {
     return {
       title: 'Таблица Confluence',
-      icon: '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><rect x="1" y="2" width="15" height="13" rx="1" stroke="currentColor"/><path d="M1 6h15M6 2v13M11 2v13M1 10h15" stroke="currentColor"/></svg>',
+      icon: LUCIDE_ICONS.table,
     };
   }
 

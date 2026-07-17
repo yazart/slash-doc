@@ -15,6 +15,7 @@ import {
 import { readSettings, writeSettings } from './settings-store';
 import type { ApiService } from './types';
 import { isExpressRouter, isRecord } from './utils';
+import { searchMockUsers } from '../shared/users';
 
 export class ApiServerManager {
   private server?: Server;
@@ -48,6 +49,16 @@ export class ApiServerManager {
         ok: true,
         prefix: settings.apiPrefix,
       });
+    });
+
+    app.get(`${settings.apiPrefix}/v1/users`, (request, response) => {
+      const query =
+        typeof request.query.query === 'string'
+          ? request.query.query
+          : typeof request.query.q === 'string'
+            ? request.query.q
+            : '';
+      response.json({ users: searchMockUsers(query) });
     });
 
     for (const service of settings.apiServices) {

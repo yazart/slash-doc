@@ -1,5 +1,6 @@
 import { LitElement, css, html, svg } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { LUCIDE_ICONS } from './lucide-icons';
 
 export type NodeType = 'trigger' | 'action' | 'condition' | 'transform' | 'output';
 
@@ -656,7 +657,7 @@ export default class FlowDesignerTool {
   static get toolbox() {
     return {
       title: 'Конструктор процессов',
-      icon: '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><circle cx="3" cy="3" r="2" stroke="currentColor"/><circle cx="14" cy="8.5" r="2" stroke="currentColor"/><circle cx="3" cy="14" r="2" stroke="currentColor"/><path d="M5 3h2.5A3.5 3.5 0 0 1 11 6.5M5 14h2.5a3.5 3.5 0 0 0 3.5-3.5" stroke="currentColor"/></svg>',
+      icon: LUCIDE_ICONS.workflow,
     };
   }
 

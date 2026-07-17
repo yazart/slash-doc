@@ -58,6 +58,8 @@ export type SlashDocSettings = {
     diffBlock: boolean;
     bpmnModeler: boolean;
     bpmnPreview: boolean;
+    userMention: boolean;
+    approvalTable: boolean;
   };
   customEditorAddons: CustomEditorAddon[];
   apiPrefix: string;

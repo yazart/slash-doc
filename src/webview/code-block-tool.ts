@@ -1,5 +1,6 @@
 import { CODE_LANGUAGES, normalizeCodeLanguage, type CodeLanguage } from '../shared/syntax-highlighter';
 import { HighlightedCodeEditor } from './highlighted-code-editor';
+import { LUCIDE_ICONS } from './lucide-icons';
 
 export type CodeBlockData = {
   language: CodeLanguage;
@@ -16,7 +17,7 @@ export default class CodeBlockTool {
   static get toolbox() {
     return {
       title: 'Код',
-      icon: '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="m6.5 4-4 5 4 5M11.5 4l4 5-4 5M10.5 2.5l-3 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      icon: LUCIDE_ICONS.code,
     };
   }
 

@@ -2,6 +2,7 @@ import { LitElement, css, html, svg } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { networkIcon } from './network-icons';
+import { LUCIDE_ICONS } from './lucide-icons';
 
 type NetworkNodeType = 'server' | 'database' | 'workstation' | 'balancer';
 type NetworkLineType = 'solid' | 'dashed' | 'dotted' | 'double';
@@ -723,7 +724,7 @@ export default class NetworkCanvasTool {
   static get toolbox() {
     return {
       title: 'Сетевая схема',
-      icon: '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><rect x="1" y="1" width="5" height="4" rx="1" stroke="currentColor"/><circle cx="14" cy="3" r="2" stroke="currentColor"/><rect x="10" y="12" width="6" height="4" rx="1" stroke="currentColor"/><path d="M6 3h6M14 5v4a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V5" stroke="currentColor"/></svg>',
+      icon: LUCIDE_ICONS.network,
     };
   }
   constructor({ data }: ToolArgs) {

@@ -2,6 +2,7 @@ import { LitElement, css, html, svg } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
 import { renderSafeMarkdown } from '../shared/markdown';
+import { LUCIDE_ICONS } from './lucide-icons';
 
 type AnnotationImage = { dataUrl: string; width: number; height: number; name: string };
 export type ImageRegion = {
@@ -12,6 +13,7 @@ export type ImageRegion = {
   width: number;
   height: number;
   description: string;
+  zIndex: number;
 };
 export type ImageAnnotationData = { version: 1; image: AnnotationImage | null; annotations: ImageRegion[] };
 type ToolArgs = { data?: Partial<ImageAnnotationData> };
@@ -144,14 +146,18 @@ export class ImageAnnotationElement extends LitElement {
       stroke: #ffd24a;
     }
     .region-number-bg {
-      fill: #ffbc00;
-    }
-    .region-number {
-      fill: #1f1f1f;
-      font: 700 18px sans-serif;
-      text-anchor: middle;
-      dominant-baseline: middle;
+      position: absolute;
+      z-index: 2;
+      display: grid;
+      width: 18px;
+      height: 18px;
+      place-items: center;
+      color: #1f1f1f;
+      border-radius: 50%;
+      background: #ffbc00;
+      font: 700 10px/1 sans-serif;
       pointer-events: none;
+      transform: translate(4px, 4px);
     }
     .draft {
       fill: rgba(0, 127, 212, 0.12);
@@ -206,6 +212,18 @@ export class ImageAnnotationElement extends LitElement {
       border-radius: 3px;
       background: transparent;
       cursor: pointer;
+    }
+    .send-back {
+      margin-right: auto;
+      padding: 5px 9px;
+      color: var(--vscode-foreground);
+      border: 1px solid var(--vscode-panel-border, #555);
+      border-radius: 3px;
+      background: transparent;
+      cursor: pointer;
+    }
+    .send-back:hover {
+      background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.08));
     }
     table {
       width: 100%;
@@ -334,6 +352,7 @@ export class ImageAnnotationElement extends LitElement {
       width,
       height,
       description: '',
+      zIndex: Math.max(-1, ...this.annotations.map((item) => item.zIndex)) + 1,
     };
     this.annotations = [...this.annotations, region];
     this.editingId = region.id;
@@ -359,6 +378,17 @@ export class ImageAnnotationElement extends LitElement {
       .filter((item) => item.id !== this.editingId)
       .map((item, index) => ({ ...item, number: index + 1 }));
     this.editingId = null;
+    this.emitChange();
+  }
+  private sendRegionToBack() {
+    if (!this.editingId) return;
+    const selected = this.annotations.find((item) => item.id === this.editingId);
+    if (!selected) return;
+    this.annotations = [selected, ...this.annotations.filter((item) => item.id !== selected.id)].map((item, index) => ({
+      ...item,
+      number: index + 1,
+      zIndex: index,
+    }));
     this.emitChange();
   }
   private draftRect() {
@@ -428,8 +458,13 @@ export class ImageAnnotationElement extends LitElement {
                   @pointermove=${this.moveDraw}
                   @pointerup=${this.finishDraw}
                 >
-                  ${this.annotations.map((region) => svg`<g @pointerdown=${(event: PointerEvent) => this.openRegion(event, region)}><rect class="region ${region.id === this.editingId ? 'active' : ''}" x=${region.x * 1000} y=${region.y * 1000} width=${region.width * 1000} height=${region.height * 1000}/><circle class="region-number-bg" cx=${region.x * 1000 + 14} cy=${region.y * 1000 + 14} r="13" vector-effect="non-scaling-stroke"/><text class="region-number" x=${region.x * 1000 + 14} y=${region.y * 1000 + 15}>${region.number}</text></g>`)}${draft ? svg`<rect class="draft" x=${draft.x * 1000} y=${draft.y * 1000} width=${draft.width * 1000} height=${draft.height * 1000}/>` : ''}</svg
-                >${
+                  ${[...this.annotations].sort((left, right) => left.zIndex - right.zIndex).map((region) => svg`<rect class="region ${region.id === this.editingId ? 'active' : ''}" x=${region.x * 1000} y=${region.y * 1000} width=${region.width * 1000} height=${region.height * 1000} @pointerdown=${(event: PointerEvent) => this.openRegion(event, region)}/>`)}${draft ? svg`<rect class="draft" x=${draft.x * 1000} y=${draft.y * 1000} width=${draft.width * 1000} height=${draft.height * 1000}/>` : ''}</svg
+                >${this.annotations.map(
+                  (region) =>
+                    html`<span class="region-number-bg" style=${`left:${region.x * 100}%;top:${region.y * 100}%`}
+                      >${region.number}</span
+                    >`,
+                )}${
                   this.editingId
                     ? html`<div class="popup">
                         <h4 class="popup-title">
@@ -443,7 +478,8 @@ export class ImageAnnotationElement extends LitElement {
                           }}
                         ></textarea>
                         <div class="popup-actions">
-                          <button class="delete" @click=${this.deleteRegion}>Удалить</button
+                          <button class="send-back" @click=${this.sendRegionToBack}>На задний план</button
+                          ><button class="delete" @click=${this.deleteRegion}>Удалить</button
                           ><button class="button" @click=${this.saveDescription}>Сохранить</button>
                         </div>
                       </div>`
@@ -488,7 +524,7 @@ export default class ImageAnnotationTool {
   static get toolbox() {
     return {
       title: 'Аннотация изображения',
-      icon: '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><rect x="1" y="2" width="15" height="13" rx="2" stroke="currentColor"/><path d="m2 12 4-4 3 3 2-2 4 4" stroke="currentColor"/><rect x="9" y="3" width="5" height="4" rx=".5" stroke="currentColor"/></svg>',
+      icon: LUCIDE_ICONS.scanLine,
     };
   }
   constructor({ data }: ToolArgs) {
@@ -530,6 +566,7 @@ function normalizeData(data?: Partial<ImageAnnotationData>): ImageAnnotationData
         y: clamp(item.y),
         width: clamp(item.width),
         height: clamp(item.height),
+        zIndex: finite(item.zIndex, index),
       }))
     : [];
   return { version: 1, image, annotations };

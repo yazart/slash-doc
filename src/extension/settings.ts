@@ -24,6 +24,8 @@ export function getDefaultSettings(): SlashDocSettings {
       diffBlock: true,
       bpmnModeler: true,
       bpmnPreview: true,
+      userMention: true,
+      approvalTable: true,
     },
     customEditorAddons: [],
     apiPrefix: '/api',
@@ -66,6 +68,8 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
       diffBlock: getBooleanSetting(value.editorAddons, 'diffBlock', defaults.editorAddons.diffBlock),
       bpmnModeler: getBooleanSetting(value.editorAddons, 'bpmnModeler', defaults.editorAddons.bpmnModeler),
       bpmnPreview: getBooleanSetting(value.editorAddons, 'bpmnPreview', defaults.editorAddons.bpmnPreview),
+      userMention: getBooleanSetting(value.editorAddons, 'userMention', defaults.editorAddons.userMention),
+      approvalTable: getBooleanSetting(value.editorAddons, 'approvalTable', defaults.editorAddons.approvalTable),
     },
     customEditorAddons: normalizeCustomEditorAddons(value.customEditorAddons),
     apiPrefix: typeof value.apiPrefix === 'string' ? normalizeApiPrefix(value.apiPrefix) : defaults.apiPrefix,
@@ -148,7 +152,7 @@ export function getCustomAddonTemplate(name: string): string {
   static get toolbox() {
     return {
       title: '${escapeJavaScriptString(name)}',
-      icon: '<svg width="17" height="15" viewBox="0 0 17 15" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 0L10.4 5.7H16.4L11.5 9.2L13.4 14.9L8.5 11.4L3.6 14.9L5.5 9.2L0.6 5.7H6.6L8.5 0Z"/></svg>'
+      icon: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></svg>'
     };
   }
 

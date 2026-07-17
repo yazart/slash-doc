@@ -88,6 +88,13 @@ function importMarkdownBlocks(markdown: string): Record<string, unknown>[] {
       continue;
     }
 
+    if (trimmed.includes('data-slash-doc-approval-table=')) {
+      flushParagraph();
+      const approvalTable = readApprovalTableHtml(trimmed);
+      if (approvalTable) blocks.push(createEditorBlock('approvalTable', approvalTable));
+      continue;
+    }
+
     if (!trimmed) {
       flushParagraph();
       continue;
@@ -312,6 +319,11 @@ function importHtmlBlocks(html: string): Record<string, unknown>[] {
     }
 
     if (tag === 'table') {
+      const approvalTable = readApprovalTableHtml(outer);
+      if (approvalTable) {
+        blocks.push(createEditorBlock('approvalTable', approvalTable));
+        continue;
+      }
       const htmlRows = inner.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi) ?? [];
       blocks.push(
         createEditorBlock('confluenceTable', {
@@ -581,6 +593,17 @@ function readTaskTableHtml(sectionHtml: string): Record<string, unknown> | undef
   }
 }
 
+function readApprovalTableHtml(tableHtml: string): Record<string, unknown> | undefined {
+  const encoded = getHtmlAttribute(tableHtml, 'data-slash-doc-approval-table');
+  if (!encoded) return undefined;
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+    return isRecord(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function readCodeBlockHtml(preHtml: string): Record<string, unknown> | undefined {
   const encoded = getHtmlAttribute(preHtml, 'data-slash-doc-code');
   if (!encoded) return undefined;
@@ -719,7 +742,7 @@ function getHtmlAttribute(html: string, attribute: string): string {
 function cleanEditorHtml(value: string): string {
   return decodeHtmlEntities(
     value
-      .replaceAll(/<\/?(span|div|section|article|main|header|footer)[^>]*>/gi, '')
+      .replaceAll(/<\/?(div|section|article|main|header|footer)[^>]*>/gi, '')
       .replaceAll(/\s+/g, ' ')
       .trim(),
   );

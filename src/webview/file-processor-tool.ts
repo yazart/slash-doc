@@ -1,3 +1,5 @@
+import { LUCIDE_ICONS } from './lucide-icons';
+
 export type ProcessorFileInfo = { name: string; size: number; modified: number };
 export type FileProcessorData = {
   script: string;
@@ -52,7 +54,7 @@ export default class FileProcessorTool {
   static get toolbox() {
     return {
       title: 'Обработчик файлов',
-      icon: '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><path d="M4 1.5h6l3 3v11H4zM10 1.5v3.5h3M6.5 8h4M6.5 11h3" stroke="currentColor"/></svg>',
+      icon: LUCIDE_ICONS.fileCog,
     };
   }
 

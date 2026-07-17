@@ -1,6 +1,7 @@
 import { LitElement, css, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { unsafeHTML } from 'lit/directives/unsafe-html.js';
+import { LUCIDE_ICONS } from './lucide-icons';
 import {
   apiBodyKinds,
   apiContentTypes,
@@ -611,7 +612,7 @@ export default class ApiEndpointTool {
   static get toolbox() {
     return {
       title: 'Эндпоинт API',
-      icon: '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><path d="M5 3 1.5 8.5 5 14M12 3l3.5 5.5L12 14M10 1 7 16" stroke="currentColor" stroke-linecap="round"/></svg>',
+      icon: LUCIDE_ICONS.braces,
     };
   }
   constructor({ data }: ToolArgs) {

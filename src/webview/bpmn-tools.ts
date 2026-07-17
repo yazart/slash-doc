@@ -1,5 +1,6 @@
 import Modeler from 'bpmn-js/lib/Modeler';
 import NavigatedViewer from 'bpmn-js/lib/NavigatedViewer';
+import { LUCIDE_ICONS } from './lucide-icons';
 
 type BpmnData = {
   xml: string;
@@ -14,9 +15,6 @@ type ToolArgs = {
 type CanvasService = {
   zoom(value: 'fit-viewport'): void;
 };
-
-const BPMN_ICON =
-  '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="4" cy="9" r="2.5" stroke="currentColor" stroke-width="1.4"/><rect x="8" y="3.5" width="6" height="5" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 9h2M11 8.5v3M11 11.5h3.5v3H8v-3h3Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
 
 const EMPTY_BPMN_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
@@ -100,7 +98,7 @@ export class BpmnModelerTool extends BpmnToolBase {
   private snapshotPromise: Promise<void> = Promise.resolve();
 
   static get toolbox() {
-    return { title: 'BPMN Modeler', icon: BPMN_ICON };
+    return { title: 'BPMN Modeler', icon: LUCIDE_ICONS.penTool };
   }
 
   render(): HTMLElement {
@@ -175,7 +173,7 @@ export class BpmnPreviewTool extends BpmnToolBase {
   private importPromise: Promise<void> = Promise.resolve();
 
   static get toolbox() {
-    return { title: 'BPMN Preview', icon: BPMN_ICON };
+    return { title: 'BPMN Preview', icon: LUCIDE_ICONS.fileSearch };
   }
 
   render(): HTMLElement {

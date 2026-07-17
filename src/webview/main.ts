@@ -22,6 +22,9 @@ import ConfluenceTableTool from './confluence-table-tool';
 import CodeBlockTool from './code-block-tool';
 import DiffBlockTool from './diff-block-tool';
 import { BpmnModelerTool, BpmnPreviewTool } from './bpmn-tools';
+import ApprovalTableTool from './approval-table-tool';
+import { createUserDirectoryBridge, setupUserMentions } from './user-directory';
+import { LUCIDE_ICONS } from './lucide-icons';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
@@ -63,6 +66,8 @@ type SlashDocSettings = {
     diffBlock?: boolean;
     bpmnModeler?: boolean;
     bpmnPreview?: boolean;
+    userMention?: boolean;
+    approvalTable?: boolean;
   };
 };
 
@@ -88,10 +93,30 @@ type CustomBlockTool = {
 type CustomBlockToolConstructor = new (...args: any[]) => CustomBlockTool;
 
 const vscode = acquireVsCodeApi();
+const userDirectory = createUserDirectoryBridge(vscode);
+window.__SLASH_DOC_USER_DIRECTORY__ = userDirectory;
 let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
 let editor: EditorJS;
 const settings = window.__SLASH_DOC_SETTINGS__ ?? {};
 const tools: NonNullable<EditorConfig['tools']> = {};
+
+class LucideMarker extends Marker {
+  get toolboxIcon(): string {
+    return LUCIDE_ICONS.highlighter;
+  }
+}
+
+class LucideInlineCode extends InlineCode {
+  get toolboxIcon(): string {
+    return LUCIDE_ICONS.code;
+  }
+}
+
+class LucideUnderline extends Underline {
+  get toolboxIcon(): string {
+    return LUCIDE_ICONS.underline;
+  }
+}
 const inlineToolbarTools = [
   'convertTo',
   'bold',
@@ -239,11 +264,14 @@ mermaid.initialize({
 });
 
 if (settings.editorAddons?.header !== false) {
-  tools.header = { class: Header, toolbox: { title: 'Заголовок' } };
+  tools.header = { class: Header, toolbox: { title: 'Заголовок', icon: LUCIDE_ICONS.heading } };
 }
 
 if (settings.editorAddons?.list !== false) {
-  tools.list = { class: List as unknown as ToolConstructable, toolbox: { title: 'Список' } };
+  tools.list = {
+    class: List as unknown as ToolConstructable,
+    toolbox: { title: 'Список', icon: LUCIDE_ICONS.list },
+  };
 }
 
 if (settings.editorAddons?.confluenceTable !== false) {
@@ -253,7 +281,7 @@ if (settings.editorAddons?.confluenceTable !== false) {
 if (settings.editorAddons?.image !== false) {
   tools.image = {
     class: ImageTool,
-    toolbox: { title: 'Изображение' },
+    toolbox: { title: 'Изображение', icon: LUCIDE_ICONS.image },
     config: {
       uploader: {
         uploadByFile: async (file: File) => ({
@@ -268,19 +296,23 @@ if (settings.editorAddons?.image !== false) {
 }
 
 if (settings.editorAddons?.marker !== false) {
-  tools.marker = { class: Marker, toolbox: { title: 'Маркер' } };
+  tools.marker = { class: LucideMarker, toolbox: { title: 'Маркер' } };
 }
 
 if (settings.editorAddons?.inlineCode !== false) {
-  tools.inlineCode = { class: InlineCode, toolbox: { title: 'Встроенный код' } };
+  tools.inlineCode = { class: LucideInlineCode, toolbox: { title: 'Встроенный код' } };
 }
 
 if (settings.editorAddons?.underline !== false) {
-  tools.underline = { class: Underline, toolbox: { title: 'Подчёркивание' } };
+  tools.underline = { class: LucideUnderline, toolbox: { title: 'Подчёркивание' } };
 }
 
 if (settings.editorAddons?.textColor !== false) {
   tools.textColor = TextColorTool as unknown as InlineToolConstructable;
+}
+
+if (settings.editorAddons?.approvalTable !== false) {
+  tools.approvalTable = ApprovalTableTool;
 }
 
 tools.pageLink = {
@@ -297,6 +329,10 @@ setupHeaderInlineTools({
   textColorEnabled: settings.editorAddons?.textColor !== false,
 });
 
+if (settings.editorAddons?.userMention !== false) {
+  setupUserMentions(userDirectory);
+}
+
 class MermaidTool {
   private readonly data: MermaidToolData;
   private wrapper?: HTMLDivElement;
@@ -308,7 +344,7 @@ class MermaidTool {
   static get toolbox() {
     return {
       title: 'Диаграмма Mermaid',
-      icon: '<svg xmlns="http://www.w3.org/2000/svg" width="17" height="15" fill="none" viewBox="0 0 17 15"><path stroke="currentColor" stroke-linecap="round" stroke-width="1.6" d="M4 3H13M4 7.5H13M4 12H13"/><path stroke="currentColor" stroke-linecap="round" stroke-width="1.6" d="M1.5 3H1.51M1.5 7.5H1.51M1.5 12H1.51"/></svg>',
+      icon: LUCIDE_ICONS.chart,
     };
   }
 
@@ -439,7 +475,7 @@ function scheduleAutosave() {
 }
 
 async function savePage(source: 'auto' | 'manual') {
-  const data = await editor.save();
+  const data = preserveInlineMarkup(await editor.save());
   vscode.postMessage({
     type: 'save',
     source,
@@ -448,7 +484,7 @@ async function savePage(source: 'auto' | 'manual') {
 }
 
 async function exportPage(format: 'html' | 'md') {
-  const data = await editor.save();
+  const data = preserveInlineMarkup(await editor.save());
   vscode.postMessage({
     type: 'export',
     format,
@@ -459,6 +495,8 @@ async function exportPage(format: 'html' | 'md') {
 const editorInitialization = initEditor();
 
 window.addEventListener('message', (event: MessageEvent<unknown>) => {
+  if (userDirectory.handleMessage(event.data)) return;
+
   if (isRecord(event.data) && event.data.type === 'clipboardResponse' && typeof event.data.requestId === 'string') {
     const pending = clipboardRequests.get(event.data.requestId);
     if (!pending) return;
@@ -567,6 +605,7 @@ async function initEditor() {
           Diff: 'Diff',
           'BPMN Modeler': 'BPMN-редактор',
           'BPMN Preview': 'Предпросмотр BPMN',
+          'Approval Table': 'Таблица согласования',
         },
         tools: {
           header: {
@@ -637,6 +676,24 @@ function normalizeEditorData(value: unknown): OutputData {
         : block,
     ),
   } as unknown as OutputData;
+}
+
+function preserveInlineMarkup(data: OutputData): OutputData {
+  const blockElements = Array.from(document.querySelectorAll<HTMLElement>('#editor .ce-block'));
+  data.blocks.forEach((block, index) => {
+    const element = blockElements[index];
+    if (!element || !isRecord(block.data)) return;
+    if (block.type === 'paragraph' || block.type === 'header') {
+      const editable = element.querySelector<HTMLElement>('.ce-paragraph, .ce-header, [contenteditable="true"]');
+      if (editable) block.data.text = editable.innerHTML;
+      return;
+    }
+    if (block.type === 'list') {
+      const items = Array.from(element.querySelectorAll<HTMLElement>('.cdx-list__item')).map((item) => item.innerHTML);
+      if (items.length > 0) block.data.items = items;
+    }
+  });
+  return data;
 }
 
 async function loadCustomTools() {

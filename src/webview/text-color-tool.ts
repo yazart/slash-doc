@@ -1,6 +1,7 @@
 import type { API } from '@editorjs/editorjs/types';
 import type { InlineTool, MenuConfig } from '@editorjs/editorjs/types/tools';
 import type { PopoverItemType } from '@editorjs/editorjs/types/utils/popover';
+import { LUCIDE_ICONS } from './lucide-icons';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
 
@@ -33,7 +34,7 @@ export default class TextColorTool implements InlineTool {
   render(): MenuConfig {
     this.captureRange();
     return {
-      icon: '<svg class="slash-text-color-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15.5h10M7 13l3-9 3 9M8.1 10h3.8"/><path class="color-line" d="M4 18h12"/></svg>',
+      icon: LUCIDE_ICONS.palette,
       title: 'Цвет текста',
       isActive: () => Boolean(this.api.selection.findParentTag('SPAN', 'slash-text-color')),
       children: {
@@ -130,6 +131,7 @@ export default class TextColorTool implements InlineTool {
     range.insertNode(span);
     this.api.selection.removeFakeBackground?.();
     this.api.selection.expandToTag(span);
+    span.closest<HTMLElement>('[contenteditable="true"]')?.dispatchEvent(new Event('input', { bubbles: true }));
     this.range = undefined;
   }
 }

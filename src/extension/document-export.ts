@@ -183,6 +183,10 @@ function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>): 
     return exportTaskTableToHtml(data);
   }
 
+  if (type === 'approvalTable') {
+    return exportApprovalTableToHtml(data);
+  }
+
   if (type === 'codeBlock') {
     const language = normalizeCodeLanguage(data.language);
     const code = typeof data.code === 'string' ? data.code : '';
@@ -270,6 +274,10 @@ function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown
     return exportTaskTableToHtml(data);
   }
 
+  if (type === 'approvalTable') {
+    return exportApprovalTableToMarkdown(data);
+  }
+
   if (type === 'codeBlock') {
     const language = normalizeCodeLanguage(data.language);
     return markdownCodeFence(language, typeof data.code === 'string' ? data.code : '');
@@ -311,7 +319,7 @@ function exportBpmnSvg(type: string, data: Record<string, unknown>): string {
 }
 
 const CODE_EXPORT_STYLES = `.slash-code-export{overflow:auto;padding:14px;border:1px solid #d0d7de;border-radius:6px;background:#f6f8fa;color:#24292f;font:13px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre}.hljs-comment,.hljs-quote{color:#6e7781;font-style:italic}.hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-section,.hljs-link{color:#cf222e}.hljs-string,.hljs-title,.hljs-name,.hljs-type,.hljs-attribute,.hljs-symbol,.hljs-bullet,.hljs-addition{color:#0a3069}.hljs-number,.hljs-meta,.hljs-built_in,.hljs-builtin-name,.hljs-params{color:#0550ae}.hljs-variable,.hljs-template-variable,.hljs-selector-id,.hljs-selector-class{color:#953800}.hljs-regexp,.hljs-deletion{color:#82071e}.hljs-addition{background:#dafbe1}.hljs-deletion{background:#ffebe9}.hljs-strong{font-weight:700}.hljs-emphasis{font-style:italic}`;
-const EXPORT_LAYOUT_STYLES = `.slash-doc-export-block{box-sizing:border-box;width:100%;max-width:860px;margin-right:auto;margin-left:auto}.slash-doc-export-block>*{max-width:100%}`;
+const EXPORT_LAYOUT_STYLES = `.slash-doc-export-block{box-sizing:border-box;width:100%;max-width:860px;margin-right:auto;margin-left:auto}.slash-doc-export-block>*{max-width:100%}.slash-user-mention{display:inline-flex;align-items:center;padding:1px 6px;color:#0969da;border-radius:10px;background:#ddf4ff;text-decoration:none;white-space:nowrap}`;
 
 function getTableRows(data: Record<string, unknown>): unknown[][] {
   const source = Array.isArray(data.rows) ? data.rows : Array.isArray(data.content) ? data.content : [];
@@ -674,6 +682,7 @@ type ExportImageRegion = {
   width: number;
   height: number;
   description: string;
+  zIndex: number;
 };
 type ExportImageAnnotation = { version: 1; image: ExportAnnotationImage | null; annotations: ExportImageRegion[] };
 
@@ -686,7 +695,7 @@ function exportImageAnnotationToHtml(data: Record<string, unknown>): string {
 
   const encodedState = Buffer.from(JSON.stringify(annotation), 'utf8').toString('base64');
   const metadata = JSON.stringify(annotation).replaceAll(']]>', ']]]]><![CDATA[>');
-  const overlay = renderAnnotationOverlay(annotation.annotations);
+  const overlay = renderAnnotationOverlay(annotation.annotations, annotation.image.width, annotation.image.height);
   const hotspots = annotation.annotations
     .map(
       (region) =>
@@ -697,7 +706,7 @@ function exportImageAnnotationToHtml(data: Record<string, unknown>): string {
 
   return `<style>
     .slash-image-annotation-export{margin:1em 0}.slash-annotation-canvas{position:relative;max-width:100%;line-height:0}.slash-annotation-canvas>img{display:block;max-width:100%;height:auto}.slash-annotation-overlay,.slash-annotation-hotspots{position:absolute;inset:0;width:100%;height:100%}.slash-annotation-overlay{pointer-events:none}.slash-annotation-hotspots{pointer-events:none}.slash-annotation-hotspot{position:absolute;pointer-events:auto;outline:none}.slash-annotation-tooltip{position:absolute;z-index:3;left:50%;bottom:calc(100% + 8px);display:none;min-width:180px;max-width:320px;padding:8px 10px;color:#fff;border-radius:5px;background:#202124;box-shadow:0 4px 14px #0005;font:12px/1.4 sans-serif;transform:translateX(-50%);line-height:1.4}.slash-annotation-tooltip strong{display:inline-grid;place-items:center;width:20px;height:20px;margin-right:6px;color:#202124;border-radius:50%;background:#ffbc00}.slash-annotation-tooltip p{display:inline;margin:0}.slash-annotation-tooltip a{color:#8cc8ff}.slash-annotation-hotspot:hover .slash-annotation-tooltip,.slash-annotation-hotspot:focus .slash-annotation-tooltip{display:block}.slash-annotation-table{width:100%;margin-top:10px;border-collapse:collapse;font:13px/1.45 sans-serif}.slash-annotation-table th,.slash-annotation-table td{padding:7px 9px;border:1px solid #bbb;text-align:left;vertical-align:top}.slash-annotation-table th:first-child,.slash-annotation-table td:first-child{width:48px;text-align:center}
-  </style><figure class="slash-image-annotation-export"><div class="slash-annotation-canvas"><img src="${escapeAttribute(annotation.image.dataUrl)}" alt="${escapeAttribute(annotation.image.name)}" data-slash-doc-annotation="${encodedState}"><svg class="slash-annotation-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">${overlay}</svg><div class="slash-annotation-hotspots">${hotspots}</div></div>${rows ? `<table class="slash-annotation-table"><thead><tr><th>#</th><th>Описание</th></tr></thead><tbody>${rows}</tbody></table>` : ''}<svg width="0" height="0" aria-hidden="true"><metadata id="slash-doc-image-annotation-data"><![CDATA[${metadata}]]></metadata></svg></figure>`;
+  </style><figure class="slash-image-annotation-export"><div class="slash-annotation-canvas"><img src="${escapeAttribute(annotation.image.dataUrl)}" alt="${escapeAttribute(annotation.image.name)}" data-slash-doc-annotation="${encodedState}"><svg class="slash-annotation-overlay" viewBox="0 0 ${annotation.image.width} ${annotation.image.height}" preserveAspectRatio="none" aria-hidden="true">${overlay}</svg><div class="slash-annotation-hotspots">${hotspots}</div></div>${rows ? `<table class="slash-annotation-table"><thead><tr><th>#</th><th>Описание</th></tr></thead><tbody>${rows}</tbody></table>` : ''}<svg width="0" height="0" aria-hidden="true"><metadata id="slash-doc-image-annotation-data"><![CDATA[${metadata}]]></metadata></svg></figure>`;
 }
 
 function exportImageAnnotationToMarkdown(data: Record<string, unknown>): string {
@@ -731,10 +740,11 @@ function createAnnotatedImageDataUri(annotation: ExportImageAnnotation): string 
 }
 
 function renderAnnotationOverlay(regions: ExportImageRegion[], width = 1000, height = 1000): string {
-  const strokeWidth = Math.max(2, Math.min(width, height) * 0.004);
-  const badgeRadius = Math.max(12, Math.min(width, height) * 0.022);
-  const fontSize = badgeRadius * 1.15;
-  return regions
+  const strokeWidth = 2;
+  const badgeRadius = Math.max(8, Math.min(14, Math.min(width, height) * 0.012));
+  const fontSize = badgeRadius;
+  return [...regions]
+    .sort((left, right) => left.zIndex - right.zIndex)
     .map((region) => {
       const x = region.x * width;
       const y = region.y * height;
@@ -742,7 +752,7 @@ function renderAnnotationOverlay(regions: ExportImageRegion[], width = 1000, hei
       const regionHeight = region.height * height;
       const badgeX = x + badgeRadius + strokeWidth;
       const badgeY = y + badgeRadius + strokeWidth;
-      return `<g><rect x="${x}" y="${y}" width="${regionWidth}" height="${regionHeight}" fill="#ffbc00" fill-opacity="0.12" stroke="#ffbc00" stroke-width="${strokeWidth}"/><circle cx="${badgeX}" cy="${badgeY}" r="${badgeRadius}" fill="#ffbc00"/><text x="${badgeX}" y="${badgeY + fontSize * 0.34}" fill="#202124" font-family="sans-serif" font-size="${fontSize}" font-weight="700" text-anchor="middle">${region.number}</text></g>`;
+      return `<g><rect x="${x}" y="${y}" width="${regionWidth}" height="${regionHeight}" fill="#ffbc00" fill-opacity="0.12" stroke="#ffbc00" stroke-width="${strokeWidth}" vector-effect="non-scaling-stroke"/><circle cx="${badgeX}" cy="${badgeY}" r="${badgeRadius}" fill="#ffbc00"/><text x="${badgeX}" y="${badgeY + fontSize * 0.34}" fill="#202124" font-family="sans-serif" font-size="${fontSize}" font-weight="700" text-anchor="middle">${region.number}</text></g>`;
     })
     .join('');
 }
@@ -786,6 +796,7 @@ function normalizeExportImageAnnotation(data: Record<string, unknown>): ExportIm
             width: clampUnit(region.width),
             height: clampUnit(region.height),
             description: typeof region.description === 'string' ? region.description : '',
+            zIndex: getFiniteNumber(region.zIndex, index),
           },
         ];
       })
@@ -830,6 +841,53 @@ function exportTaskTableToHtml(data: Record<string, unknown>): string {
     })
     .join('');
   return `<style>.task-table-export{margin:1em 0;padding:14px;border:1px solid #d0d7de;border-radius:7px;background:#f6f8fa;font:14px/1.4 sans-serif}.task-table-export>h2{margin:0 0 12px}.task-table-board{display:flex;align-items:flex-start;gap:12px;overflow-x:auto}.task-table-column{flex:1 0 220px;padding:10px;border-radius:6px;background:#eaeef2}.task-table-column h3{margin:0 0 8px;font-size:14px}.task-table-cards{display:grid;gap:8px}.task-table-card{padding:9px;border:1px solid #d0d7de;border-radius:5px;background:#fff}.task-table-card p{margin:5px 0 0;color:#57606a;white-space:pre-wrap}</style><section class="task-table-export" data-slash-doc-task-table="${state}"><h2>${escapeHtml(title)}</h2><div class="task-table-board">${renderedColumns}</div></section>`;
+}
+
+function exportApprovalTableToHtml(data: Record<string, unknown>): string {
+  const rows = getApprovalRows(data);
+  const state = Buffer.from(JSON.stringify({ rows }), 'utf8').toString('base64');
+  const body = rows
+    .map((row) => {
+      const responsibles = Array.isArray(row.responsibles) ? row.responsibles.filter(isRecord) : [];
+      const users = responsibles
+        .map((user) => {
+          const name = String(user.fullName ?? '');
+          const email = String(user.email ?? '');
+          const photo = String(user.photo ?? '');
+          const link = String(user.link ?? '');
+          const label = `<span><strong>${escapeHtml(name)}</strong>${email ? `<small>${escapeHtml(email)}</small>` : ''}</span>`;
+          const content = `${photo ? `<img src="${escapeAttribute(photo)}" alt="">` : ''}${label}`;
+          return link
+            ? `<a class="slash-approval-person" href="${escapeAttribute(link)}" target="_blank" rel="noopener noreferrer">${content}</a>`
+            : `<span class="slash-approval-person">${content}</span>`;
+        })
+        .join('');
+      return `<tr><td>${escapeHtml(String(row.stage ?? ''))}</td><td><div class="slash-approval-people">${users}</div></td><td>${escapeHtml(String(row.result ?? ''))}</td></tr>`;
+    })
+    .join('');
+  return `<style>.slash-approval-export{width:100%;border-collapse:collapse;font:14px/1.4 sans-serif}.slash-approval-export th,.slash-approval-export td{padding:8px 10px;border:1px solid #d0d7de;text-align:left;vertical-align:top}.slash-approval-export th{background:#f6f8fa}.slash-approval-people{display:flex;flex-wrap:wrap;gap:5px}.slash-approval-person{display:inline-flex;align-items:center;gap:5px;padding:3px 7px 3px 3px;color:#24292f;border-radius:16px;background:#eaeef2;text-decoration:none}.slash-approval-person img{width:24px;height:24px;border-radius:50%}.slash-approval-person span,.slash-approval-person strong,.slash-approval-person small{display:block}.slash-approval-person small{color:#57606a;font-size:11px}</style><table class="slash-approval-export" data-slash-doc-approval-table="${state}"><thead><tr><th>Этап</th><th>Ответственные</th><th>Результат</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function exportApprovalTableToMarkdown(data: Record<string, unknown>): string {
+  const rows = getApprovalRows(data).map((row) => {
+    const users = Array.isArray(row.responsibles)
+      ? row.responsibles
+          .filter(isRecord)
+          .map((user) => String(user.fullName ?? ''))
+          .filter(Boolean)
+          .join(', ')
+      : '';
+    return [row.stage, users, row.result].map((value) => escapeMarkdownTableCell(String(value ?? '')));
+  });
+  return [
+    '| Этап | Ответственные | Результат |',
+    '| --- | --- | --- |',
+    ...rows.map((row) => `| ${row.join(' | ')} |`),
+  ].join('\n');
+}
+
+function getApprovalRows(data: Record<string, unknown>): Record<string, unknown>[] {
+  return Array.isArray(data.rows) ? data.rows.filter(isRecord) : [];
 }
 
 function getEditorBlocks(data: unknown): Record<string, unknown>[] {

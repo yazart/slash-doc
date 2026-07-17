@@ -1,6 +1,7 @@
 import type { API } from '@editorjs/editorjs/types';
 import type { InlineTool, MenuConfig } from '@editorjs/editorjs/types/tools';
 import type { PopoverItemType } from '@editorjs/editorjs/types/utils/popover';
+import { LUCIDE_ICONS } from './lucide-icons';
 
 export type DocumentationPageLink = {
   id: string;
@@ -49,7 +50,7 @@ export default class PageLinkTool implements InlineTool {
   render(): MenuConfig {
     this.captureRange();
     return {
-      icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg>',
+      icon: LUCIDE_ICONS.link,
       title: 'Ссылка на страницу',
       isActive: () => Boolean(this.findSelectedLink()),
       children: {

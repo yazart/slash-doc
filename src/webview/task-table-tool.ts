@@ -1,3 +1,5 @@
+import { LUCIDE_ICONS } from './lucide-icons';
+
 export type TaskCard = {
   id: string;
   title: string;
@@ -26,7 +28,7 @@ export default class TaskTableTool {
   static get toolbox() {
     return {
       title: 'Доска задач',
-      icon: '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><rect x="1" y="2" width="15" height="13" rx="2" stroke="currentColor"/><path d="M6 2v13M11 2v13M2 5h3M7 5h3M12 5h3" stroke="currentColor"/></svg>',
+      icon: LUCIDE_ICONS.kanban,
     };
   }
 

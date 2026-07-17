@@ -466,6 +466,8 @@ function collectSettings() {
       diffBlock: isAddonEnabled('diffBlock'),
       bpmnModeler: isAddonEnabled('bpmnModeler'),
       bpmnPreview: isAddonEnabled('bpmnPreview'),
+      userMention: isAddonEnabled('userMention'),
+      approvalTable: isAddonEnabled('approvalTable'),
     },
     customEditorAddons: Array.from(document.querySelectorAll<HTMLElement>('[data-custom-addon-id]')).map((row) => ({
       id: row.dataset.customAddonId ?? createId('addon'),

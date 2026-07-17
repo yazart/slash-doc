@@ -1,4 +1,5 @@
 import type { DocumentationPageLink } from './page-link-tool';
+import { LUCIDE_ICONS } from './lucide-icons';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
 
@@ -30,10 +31,7 @@ export function setupHeaderInlineTools(config: HeaderInlineToolsConfig): void {
   };
 
   if (config.textColorEnabled) {
-    const colorTool = createHeaderTool(
-      'Цвет текста',
-      '<svg class="slash-text-color-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 15.5h10M7 13l3-9 3 9M8.1 10h3.8"/><path class="color-line" d="M4 18h12"/></svg>',
-    );
+    const colorTool = createHeaderTool('Цвет текста', LUCIDE_ICONS.palette);
     const actions = document.createElement('div');
     actions.className = 'slash-text-color-actions';
     for (const color of COLORS) {
@@ -69,10 +67,7 @@ export function setupHeaderInlineTools(config: HeaderInlineToolsConfig): void {
     root.append(colorTool.root);
   }
 
-  const pageTool = createHeaderTool(
-    'Ссылка на страницу',
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg>',
-  );
+  const pageTool = createHeaderTool('Ссылка на страницу', LUCIDE_ICONS.link);
   const picker = createPagePicker(config, getRange, closePanels);
   pageTool.panel.append(picker);
   pageTool.root.addEventListener('slash-doc-tool-open', () => {
@@ -82,10 +77,7 @@ export function setupHeaderInlineTools(config: HeaderInlineToolsConfig): void {
   toolButtons.push(pageTool.button);
   root.append(pageTool.root);
 
-  const externalTool = createHeaderTool(
-    'Внешняя ссылка',
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>',
-  );
+  const externalTool = createHeaderTool('Внешняя ссылка', LUCIDE_ICONS.externalLink);
   const externalPicker = createExternalLinkPicker(getRange, closePanels);
   externalTool.panel.append(externalPicker);
   externalTool.root.addEventListener('slash-doc-tool-open', () => {
