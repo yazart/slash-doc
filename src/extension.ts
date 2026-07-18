@@ -63,8 +63,8 @@ export function activate(context: vscode.ExtensionContext) {
     'slashDoc.openEditor',
     async (pageId?: string, options?: { focusEditor?: boolean }) => {
       if (pageId) {
-        if (!(await saveAndCloseOtherPages(pageId))) return;
-        if (revealOpenPage(pageId)) return;
+        if (isPageVisible(pageId) && revealOpenPage(pageId)) return;
+        if (!(await saveAndCloseOpenPages())) return;
       }
 
       const workspaceRoot = getWorkspaceRoot();
@@ -301,10 +301,12 @@ function revealOpenPage(pageId: string): boolean {
   return true;
 }
 
-async function saveAndCloseOtherPages(targetPageId: string): Promise<boolean> {
-  const panels = [...openPagePanels.entries()]
-    .filter(([pageId]) => pageId !== targetPageId)
-    .flatMap(([, pagePanels]) => [...pagePanels]);
+function isPageVisible(pageId: string): boolean {
+  return [...(openPagePanels.get(pageId) ?? [])].some((panel) => panel.visible);
+}
+
+async function saveAndCloseOpenPages(): Promise<boolean> {
+  const panels = [...openPagePanels.values()].flatMap((pagePanels) => [...pagePanels]);
   if (panels.length === 0) return true;
   const saved = await Promise.all(panels.map(requestPanelSave));
   if (saved.some((ok) => !ok)) {
