@@ -1,5 +1,12 @@
 function lucideIcon(children: string, className?: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"${className ? ` class="${className}"` : ''} aria-hidden="true">${children}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"${className ? ` class="${className}"` : ''} aria-hidden="true">${outlineSvgPrimitives(children)}</svg>`;
+}
+
+export function outlineSvgPrimitives(content: string): string {
+  return content.replace(
+    /<(path|line|polyline|polygon|rect|circle|ellipse)\b(?![^>]*\bfill=)/g,
+    '<$1 fill="none" stroke="currentColor"',
+  );
 }
 
 export const LUCIDE_ICONS = {

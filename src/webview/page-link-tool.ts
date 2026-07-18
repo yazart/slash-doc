@@ -1,7 +1,23 @@
 import type { API } from '@editorjs/editorjs/types';
-import type { InlineTool, MenuConfig } from '@editorjs/editorjs/types/tools';
-import type { PopoverItemType } from '@editorjs/editorjs/types/utils/popover';
 import { LUCIDE_ICONS } from './lucide-icons';
+
+type ExtendedSelection = API['selection'] & {
+  removeFakeBackground?: () => void;
+  save?: () => void;
+  setFakeBackground?: () => void;
+};
+
+type PageLinkMenuConfig = {
+  icon: string;
+  title: string;
+  isActive: () => boolean;
+  children: {
+    isFlippable: boolean;
+    items: Array<{ type: 'html'; element: HTMLElement }>;
+    onOpen: () => void;
+    onClose: () => void;
+  };
+};
 
 export type DocumentationPageLink = {
   id: string;
@@ -14,8 +30,8 @@ type PageLinkToolConfig = {
   currentPageId?: string;
 };
 
-export default class PageLinkTool implements InlineTool {
-  private readonly api: API;
+export default class PageLinkTool {
+  private readonly api: Omit<API, 'selection'> & { selection: ExtendedSelection };
   private readonly pages: DocumentationPageLink[];
   private readonly currentPageId?: string;
   private range?: Range;
@@ -42,12 +58,12 @@ export default class PageLinkTool implements InlineTool {
   }
 
   constructor({ api, config }: { api: API; config?: PageLinkToolConfig }) {
-    this.api = api;
+    this.api = api as Omit<API, 'selection'> & { selection: ExtendedSelection };
     this.pages = config?.pages ?? [];
     this.currentPageId = config?.currentPageId;
   }
 
-  render(): MenuConfig {
+  render(): PageLinkMenuConfig {
     this.captureRange();
     return {
       icon: LUCIDE_ICONS.link,
@@ -57,7 +73,7 @@ export default class PageLinkTool implements InlineTool {
         isFlippable: false,
         items: [
           {
-            type: 'html' as PopoverItemType.Html,
+            type: 'html',
             element: this.createPicker(),
           },
         ],

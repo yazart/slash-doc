@@ -1,3 +1,5 @@
+import { outlineSvgPrimitives } from './lucide-icons';
+
 export type NetworkIconName = 'server' | 'database' | 'workstation' | 'balancer' | 'layers';
 
 // Entity icon paths are kept in sync with network-canvas/src/components/editor/icons.ts.
@@ -13,9 +15,9 @@ const paths: Record<NetworkIconName, string> = {
 };
 
 export function networkIcon(name: NetworkIconName, size = 20): string {
-  return `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>`;
+  return `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${outlineSvgPrimitives(paths[name])}</svg>`;
 }
 
 export function networkIconContent(name: NetworkIconName): string {
-  return paths[name];
+  return outlineSvgPrimitives(paths[name]);
 }

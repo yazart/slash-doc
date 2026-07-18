@@ -4,14 +4,14 @@ import { escapeAttribute } from './utils';
 export function renderSettingsPanel(settings: SlashDocSettings): string {
   return `<div class="panel panel-settings">
     <header class="settings-header">
-      <sl-button id="back-to-menu" size="small" variant="default">Назад</sl-button>
+      <slash-button id="back-to-menu" size="small" variant="default">Назад</slash-button>
       <h2 class="settings-title">Настройки</h2>
     </header>
     <section class="settings-panel" aria-label="Настройки">
       <div class="settings-group">
         <div class="settings-group-title">Свои Editor.js аддоны</div>
         <div id="custom-addons-list" class="settings-list">${settings.customEditorAddons.map(renderCustomAddonRow).join('')}</div>
-        <div class="service-actions"><sl-button id="add-addon" size="small" variant="default">Добавить модуль</sl-button></div>
+        <div class="service-actions"><slash-button id="add-addon" size="small" variant="default">Добавить модуль</slash-button></div>
       </div>
       <div class="settings-group">
         <div class="settings-group-title">HTTP API сервисы</div>
@@ -21,14 +21,14 @@ export function renderSettingsPanel(settings: SlashDocSettings): string {
         </div>
         <div id="services-list" class="settings-list">${settings.apiServices.map(renderServiceRow).join('')}</div>
         <div class="service-actions">
-          <sl-button id="add-service" size="small" variant="default">Добавить маршрут</sl-button>
-          <sl-button id="reload-api-services" size="small" variant="primary">Перезагрузить API</sl-button>
+          <slash-button id="add-service" size="small" variant="default">Добавить маршрут</slash-button>
+          <slash-button id="reload-api-services" size="small" variant="primary">Перезагрузить API</slash-button>
         </div>
       </div>
       <div class="settings-group">
         <div class="settings-group-title">Переменные сервисов</div>
         <div id="variables-list" class="settings-list">${settings.variables.map(renderVariableRow).join('')}</div>
-        <sl-button id="add-variable" size="small" variant="default">Добавить переменную</sl-button>
+        <slash-button id="add-variable" size="small" variant="default">Добавить переменную</slash-button>
       </div>
     </section>
   </div>`;
@@ -47,7 +47,7 @@ function renderCustomAddonRow(addon: CustomEditorAddon): string {
     <input class="settings-input" data-custom-addon-field="name" value="${escapeAttribute(addon.name)}" placeholder="название">
     <input class="settings-input" data-custom-addon-field="toolName" value="${escapeAttribute(addon.toolName)}" placeholder="имя инструмента">
     <input class="settings-input" data-custom-addon-field="file" value="${escapeAttribute(addon.file)}" placeholder="tool.mjs">
-    <sl-switch data-custom-addon-enabled="${escapeAttribute(addon.id)}" ${addon.enabled ? 'checked' : ''}></sl-switch>
+    <slash-switch data-custom-addon-enabled="${escapeAttribute(addon.id)}" ${addon.enabled ? 'checked' : ''}></slash-switch>
     <button class="settings-open-button" type="button" data-open-addon="${escapeAttribute(addon.id)}">Открыть</button>
   </div>`;
 }

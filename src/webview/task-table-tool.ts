@@ -257,8 +257,9 @@ export default class TaskTableTool {
 }
 
 function normalizeTaskTable(value: Partial<TaskTableData> | undefined): TaskTableData {
-  const columns = Array.isArray(value?.columns)
-    ? value.columns.flatMap((column) => {
+  const columnValues = value?.columns;
+  const columns = Array.isArray(columnValues)
+    ? columnValues.flatMap((column) => {
         if (!column || typeof column !== 'object') return [];
         return [
           {

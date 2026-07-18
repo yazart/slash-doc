@@ -1,5 +1,6 @@
 import type { DocumentationPageLink } from './page-link-tool';
 import { LUCIDE_ICONS } from './lucide-icons';
+import { preventDefault as preventSelectionLoss } from './event-utils';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
 
@@ -394,8 +395,4 @@ function normalizeExternalUrl(value: string): string | undefined {
   } catch {
     return undefined;
   }
-}
-
-function preventSelectionLoss(event: Event): void {
-  event.preventDefault();
 }

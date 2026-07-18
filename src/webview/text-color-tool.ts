@@ -1,12 +1,27 @@
 import type { API } from '@editorjs/editorjs/types';
-import type { InlineTool, MenuConfig } from '@editorjs/editorjs/types/tools';
-import type { PopoverItemType } from '@editorjs/editorjs/types/utils/popover';
 import { LUCIDE_ICONS } from './lucide-icons';
+
+type ExtendedSelection = API['selection'] & {
+  removeFakeBackground?: () => void;
+  save?: () => void;
+  setFakeBackground?: () => void;
+};
+
+type TextColorMenuConfig = {
+  icon: string;
+  title: string;
+  isActive: () => boolean;
+  children: {
+    isFlippable: boolean;
+    items: Array<{ type: 'html'; element: HTMLElement }>;
+    onClose: () => void;
+  };
+};
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
 
-export default class TextColorTool implements InlineTool {
-  private readonly api: API;
+export default class TextColorTool {
+  private readonly api: Omit<API, 'selection'> & { selection: ExtendedSelection };
   private range?: Range;
 
   static get isInline(): boolean {
@@ -28,10 +43,10 @@ export default class TextColorTool implements InlineTool {
   }
 
   constructor({ api }: { api: API }) {
-    this.api = api;
+    this.api = api as Omit<API, 'selection'> & { selection: ExtendedSelection };
   }
 
-  render(): MenuConfig {
+  render(): TextColorMenuConfig {
     this.captureRange();
     return {
       icon: LUCIDE_ICONS.palette,
@@ -41,7 +56,7 @@ export default class TextColorTool implements InlineTool {
         isFlippable: false,
         items: [
           {
-            type: 'html' as PopoverItemType.Html,
+            type: 'html',
             element: this.createPalette(),
           },
         ],

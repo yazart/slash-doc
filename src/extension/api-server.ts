@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import express = require('express');
+import express from 'express';
 import type { Server } from 'http';
 import { PuppeteerNode } from 'puppeteer/lib/cjs/puppeteer/node/Puppeteer.js';
 import { PUPPETEER_REVISIONS } from 'puppeteer/lib/cjs/puppeteer/revisions.js';

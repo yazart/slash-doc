@@ -194,7 +194,9 @@ function escapeHtml(value) {
 }
 
 function getBooleanSetting(value: unknown, key: string, fallback: boolean): boolean {
-  return isRecord(value) && typeof value[key] === 'boolean' ? value[key] : fallback;
+  if (!isRecord(value)) return fallback;
+  const setting = value[key];
+  return typeof setting === 'boolean' ? setting : fallback;
 }
 
 function normalizeApiServices(value: unknown): ApiService[] {
