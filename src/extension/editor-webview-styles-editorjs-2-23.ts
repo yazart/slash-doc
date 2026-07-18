@@ -168,4 +168,43 @@ export const EDITORJS_2_23_THEME_STYLES = `
         ) svg [stroke]:not([stroke="none"]) {
         stroke: currentColor !important;
       }
+
+      @media (max-width: 650px) {
+        .ce-toolbar,
+        .ce-toolbox,
+        .ce-inline-toolbar,
+        .ce-conversion-toolbar,
+        .ce-settings {
+          color: var(--slash-popup-foreground) !important;
+          border-color: var(--slash-popup-border) !important;
+          background: var(--slash-popup-background) !important;
+          box-shadow: 0 8px 18px color-mix(in srgb, var(--vscode-editor-background) 45%, transparent) !important;
+        }
+
+        .ce-toolbar__plus,
+        .ce-toolbar__settings-btn,
+        .ce-toolbox__button,
+        .ce-inline-toolbar__dropdown,
+        .ce-inline-tool,
+        .ce-conversion-tool,
+        .ce-settings__button,
+        .cdx-settings-button {
+          color: var(--slash-popup-foreground) !important;
+          background: transparent !important;
+        }
+
+        .ce-toolbar__plus:hover,
+        .ce-toolbar__plus--active,
+        .ce-toolbar__settings-btn:hover,
+        .ce-toolbar__settings-btn--active,
+        .ce-toolbox__button:hover,
+        .ce-inline-toolbar__dropdown:hover,
+        .ce-inline-tool:hover,
+        .ce-conversion-tool:hover,
+        .ce-settings__button:hover,
+        .cdx-settings-button:hover {
+          color: var(--slash-hover-foreground) !important;
+          background: var(--slash-hover-background) !important;
+        }
+      }
 `;

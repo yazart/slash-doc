@@ -16,6 +16,7 @@ import {
   exportTaskTableToHtml,
 } from './document-export-widgets';
 import {
+  BASE_EXPORT_STYLES,
   clampHeadingLevel,
   CODE_EXPORT_STYLES,
   EXPORT_LAYOUT_STYLES,
@@ -49,7 +50,7 @@ export async function exportPageContent(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(getExportTitle(blocks))}</title>
-    <style>${EXPORT_LAYOUT_STYLES}${CODE_EXPORT_STYLES}</style>
+    <style>${BASE_EXPORT_STYLES}${EXPORT_LAYOUT_STYLES}${CODE_EXPORT_STYLES}</style>
   </head>
   <body>
 ${rendered.filter(Boolean).join('\n')}

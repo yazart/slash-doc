@@ -19,7 +19,10 @@ export async function initializeDocumentation(extensionUri: vscode.Uri, silent =
   if (!silent) void vscode.window.showInformationMessage('Документация Slash Doc инициализирована.');
 }
 
-export async function compileDocumentation(extensionUri: vscode.Uri): Promise<void> {
+export async function compileDocumentation(
+  extensionUri: vscode.Uri,
+  saveOpenPages?: () => Promise<boolean>,
+): Promise<void> {
   const workspaceRoot = getWorkspaceRoot();
   if (!workspaceRoot) {
     void vscode.window.showWarningMessage('Откройте папку рабочей области перед сборкой документации.');
@@ -35,6 +38,10 @@ export async function compileDocumentation(extensionUri: vscode.Uri): Promise<vo
   });
   const outputRoot = folders?.[0];
   if (!outputRoot) return;
+  if (saveOpenPages && !(await saveOpenPages())) {
+    void vscode.window.showErrorMessage('Сборка отменена: не удалось сохранить открытую страницу.');
+    return;
+  }
   try {
     const result = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, title: 'Сборка Slash Doc в HTML…' },

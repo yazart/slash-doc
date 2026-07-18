@@ -54,7 +54,12 @@ const openPagePanels = new Map<string, Set<vscode.WebviewPanel>>();
 
 export function activate(context: vscode.ExtensionContext) {
   apiServerManager = new ApiServerManager(context.extensionUri);
-  const sidebarProvider = new SlashDocSidebarProvider(context.extensionUri, apiServerManager, openPagePanels);
+  const sidebarProvider = new SlashDocSidebarProvider(
+    context.extensionUri,
+    apiServerManager,
+    openPagePanels,
+    saveOpenPages,
+  );
   void migrateLegacyModules(context.extensionUri)
     .catch((error) => console.error('Failed to migrate legacy Slash Doc modules', error))
     .then(() => apiServerManager?.reload());
@@ -315,6 +320,13 @@ async function saveAndCloseOpenPages(): Promise<boolean> {
   }
   panels.forEach((panel) => panel.dispose());
   return true;
+}
+
+async function saveOpenPages(): Promise<boolean> {
+  const panels = [...openPagePanels.values()].flatMap((pagePanels) => [...pagePanels]);
+  if (panels.length === 0) return true;
+  const saved = await Promise.all(panels.map(requestPanelSave));
+  return saved.every(Boolean);
 }
 
 async function requestPanelSave(panel: vscode.WebviewPanel): Promise<boolean> {

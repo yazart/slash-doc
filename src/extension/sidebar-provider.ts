@@ -42,6 +42,7 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     private readonly extensionUri: vscode.Uri,
     private readonly apiServerManager: ApiServerManager,
     private readonly openPagePanels: Map<string, Set<vscode.WebviewPanel>>,
+    private readonly saveOpenPages: () => Promise<boolean>,
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -110,7 +111,7 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       }
 
       if (message.type === 'compileDocumentation') {
-        await compileDocumentation(this.extensionUri);
+        await compileDocumentation(this.extensionUri, this.saveOpenPages);
       }
 
       if (message.type === 'updateSettings' && message.settings) {

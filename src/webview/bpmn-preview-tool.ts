@@ -99,13 +99,22 @@ export class BpmnPreviewTool extends BpmnToolBase {
     this.setStatus('Загрузка…');
     try {
       await this.viewer.importXML(xml);
-      (this.viewer.get('canvas') as unknown as BpmnCanvasService).zoom('fit-viewport');
       const { svg } = await this.viewer.saveSVG();
       this.data.svg = svg ?? '';
+      this.fitViewport();
       this.setStatus(this.data.fileName ?? '');
       if (notify) this.changed();
     } catch (error) {
       this.setStatus(bpmnErrorMessage(error, 'Некорректный BPMN XML.'), true);
+    }
+  }
+
+  private fitViewport(): void {
+    if (!this.viewer) return;
+    try {
+      (this.viewer.get('canvas') as unknown as BpmnCanvasService).zoom('fit-viewport');
+    } catch {
+      // A hidden webview may not have measurable canvas bounds yet; SVG saving does not depend on zoom.
     }
   }
 }

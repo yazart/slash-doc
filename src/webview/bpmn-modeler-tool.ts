@@ -51,7 +51,7 @@ export class BpmnModelerTool extends BpmnToolBase {
 
     this.modeler = new Modeler({ container: this.canvas });
     this.modeler.on('commandStack.changed', () => this.scheduleSnapshot());
-    void this.importDiagram(this.data.xml || EMPTY_BPMN_XML);
+    this.snapshotPromise = this.importDiagram(this.data.xml || EMPTY_BPMN_XML);
     return root;
   }
 
@@ -75,12 +75,21 @@ export class BpmnModelerTool extends BpmnToolBase {
     this.setStatus('Загрузка…');
     try {
       await this.modeler.importXML(xml);
-      (this.modeler.get('canvas') as unknown as BpmnCanvasService).zoom('fit-viewport');
       await this.snapshot(false);
+      this.fitViewport();
       this.setStatus('');
       this.changed();
     } catch (error) {
       this.setStatus(bpmnErrorMessage(error, 'Не удалось открыть BPMN-диаграмму.'), true);
+    }
+  }
+
+  private fitViewport(): void {
+    if (!this.modeler) return;
+    try {
+      (this.modeler.get('canvas') as unknown as BpmnCanvasService).zoom('fit-viewport');
+    } catch {
+      // A hidden webview may not have measurable canvas bounds yet; SVG saving does not depend on zoom.
     }
   }
 

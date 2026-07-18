@@ -225,7 +225,4 @@ const HOST_STYLES = `
 @media(max-width:760px){body{grid-template-columns:210px minmax(0,1fr)}}`;
 
 const PAGE_STYLES = `
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#fff;line-height:1.55}
-*{box-sizing:border-box}body{max-width:980px;margin:0 auto;padding:32px 40px 64px}h1,h2,h3,h4,h5,h6{line-height:1.25;margin:1.35em 0 .55em}p,ul,ol,pre,table,figure{margin:0 0 1em}a{color:#2563eb}img,svg{max-width:100%;height:auto}figure{margin-left:0;margin-right:0}figcaption{color:#667085;font-size:.9em}
-table{width:100%;border-spacing:0;border-collapse:collapse;overflow:auto}th,td{padding:8px 10px;border:1px solid #d7dce4;text-align:left;vertical-align:top}th{background:#f4f6f8}pre{overflow:auto;padding:14px;border:1px solid #e1e5eb;border-radius:6px;background:#f7f8fa}code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}
-@media(max-width:700px){body{padding:22px 18px 48px}}`;
+body{max-width:980px}`;
