@@ -172,10 +172,11 @@ export function getEditorWebviewStylesA(iconUri: string): string {
       }
 
       #editor {
-        box-sizing: content-box;
-        width: min(860px, calc(100vw - 24px));
+        box-sizing: border-box;
+        width: calc(100% - 24px);
+        min-width: 960px;
         min-height: calc(100vh - 72px);
-        margin: 48px auto 24px;
+        margin: 48px 12px 24px;
         padding: 20px 12px 48px;
         border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
         border-radius: 6px;
@@ -184,7 +185,8 @@ export function getEditorWebviewStylesA(iconUri: string): string {
 
       .ce-block__content,
       .ce-toolbar__content {
-        max-width: 760px;
+        width: 100%;
+        max-width: none;
       }
 
       .codex-editor,

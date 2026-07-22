@@ -1,5 +1,6 @@
 import { createApiEndpointData, type ApiEndpointData } from '../shared/api-endpoint';
-import { ApiEndpointElement } from './api-endpoint-element';
+import type { ApiEndpointElement } from './api-endpoint-element';
+import './api-endpoint-element';
 import { LUCIDE_ICONS } from './lucide-icons';
 
 export default class ApiEndpointTool {

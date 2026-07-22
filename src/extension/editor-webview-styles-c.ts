@@ -283,12 +283,10 @@ export const EDITOR_WEBVIEW_STYLES_C = `      }
       }
 
       .slash-approval-user-menu {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        z-index: 5;
+        position: fixed;
+        z-index: 1000;
         display: grid;
+        box-sizing: border-box;
         max-height: 210px;
         overflow: auto;
         padding: 4px;

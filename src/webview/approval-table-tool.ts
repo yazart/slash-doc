@@ -16,6 +16,7 @@ type ApprovalTableData = {
 export default class ApprovalTableTool {
   private readonly data: ApprovalTableData;
   private root?: HTMLElement;
+  private readonly userMenuCleanups: Array<() => void> = [];
 
   static get toolbox() {
     return {
@@ -44,8 +45,13 @@ export default class ApprovalTableTool {
     };
   }
 
+  destroy(): void {
+    this.clearUserMenus();
+  }
+
   private renderTable(): void {
     if (!this.root) return;
+    this.clearUserMenus();
     this.root.replaceChildren();
     const table = document.createElement('table');
     table.className = 'slash-approval-table';
@@ -149,11 +155,37 @@ export default class ApprovalTableTool {
     const menu = document.createElement('div');
     menu.className = 'slash-approval-user-menu';
     menu.hidden = true;
+    document.body.append(menu);
+    const positionMenu = () => {
+      if (menu.hidden || !field.isConnected) return;
+      const rect = search.getBoundingClientRect();
+      const gap = 4;
+      const viewportPadding = 8;
+      const spaceBelow = window.innerHeight - rect.bottom - gap - viewportPadding;
+      const spaceAbove = rect.top - gap - viewportPadding;
+      const openAbove = spaceBelow < 160 && spaceAbove > spaceBelow;
+      const availableHeight = Math.max(80, Math.min(210, openAbove ? spaceAbove : spaceBelow));
+      const width = Math.min(Math.max(rect.width, 260), window.innerWidth - viewportPadding * 2);
+      const left = Math.min(Math.max(viewportPadding, rect.left), window.innerWidth - width - viewportPadding);
+      menu.style.left = `${left}px`;
+      menu.style.width = `${width}px`;
+      menu.style.maxHeight = `${availableHeight}px`;
+      menu.style.top = openAbove ? 'auto' : `${rect.bottom + gap}px`;
+      menu.style.bottom = openAbove ? `${window.innerHeight - rect.top + gap}px` : 'auto';
+    };
+    const handleViewportChange = () => positionMenu();
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('scroll', handleViewportChange, true);
+    this.userMenuCleanups.push(() => {
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('scroll', handleViewportChange, true);
+      menu.remove();
+    });
     let sequence = 0;
     const runSearch = async () => {
       const current = ++sequence;
       const users = (await window.__SLASH_DOC_USER_DIRECTORY__?.search(search.value)) ?? [];
-      if (current !== sequence) return;
+      if (current !== sequence || !field.isConnected) return;
       menu.replaceChildren();
       for (const user of users.filter((item) => !row.responsibles.some((selected) => selected.id === item.id))) {
         const option = createUserOption(user);
@@ -168,12 +200,17 @@ export default class ApprovalTableTool {
         menu.append(option);
       }
       menu.hidden = menu.childElementCount === 0;
+      positionMenu();
     };
     search.addEventListener('focus', () => void runSearch());
     search.addEventListener('input', () => void runSearch());
     search.addEventListener('blur', () => setTimeout(() => (menu.hidden = true), 120));
-    field.append(chips, search, menu);
+    field.append(chips, search);
     return field;
+  }
+
+  private clearUserMenus(): void {
+    this.userMenuCleanups.splice(0).forEach((cleanup) => cleanup());
   }
 
   private notifyChange(): void {
