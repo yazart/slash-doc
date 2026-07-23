@@ -13,6 +13,12 @@ import {
 import type { SlashDocMenuItem } from './types';
 import { createPageId } from './utils';
 
+export type OpenPagePanel = {
+  pageId?: string;
+  panel: vscode.WebviewPanel;
+  waitForPendingSave(): Promise<void>;
+};
+
 export async function deleteSidebarPage(pageId: string): Promise<void> {
   const workspaceRoot = getWorkspaceRoot();
   if (!workspaceRoot) return;
@@ -35,10 +41,7 @@ export async function deleteSidebarPage(pageId: string): Promise<void> {
   }
 }
 
-export async function renameSidebarPage(
-  pageId: string,
-  openPagePanels: Map<string, Set<vscode.WebviewPanel>>,
-): Promise<void> {
+export async function renameSidebarPage(pageId: string, openPagePanel: OpenPagePanel | undefined): Promise<void> {
   const workspaceRoot = getWorkspaceRoot();
   if (!workspaceRoot) return;
   const menu = await readMenu(workspaceRoot);
@@ -57,9 +60,9 @@ export async function renameSidebarPage(
   const content = await readPageContent(workspaceRoot, pageId, normalizedTitle);
   const updatedContent = updatePageContentTitle(content, normalizedTitle);
   await writeJson(getPageContentUri(workspaceRoot, pageId), updatedContent);
-  for (const panel of openPagePanels.get(pageId) ?? []) {
-    panel.title = normalizedTitle;
-    void panel.webview.postMessage({ type: 'replaceData', data: updatedContent });
+  if (openPagePanel?.pageId === pageId) {
+    openPagePanel.panel.title = normalizedTitle;
+    void openPagePanel.panel.webview.postMessage({ type: 'replaceData', data: updatedContent });
   }
 }
 

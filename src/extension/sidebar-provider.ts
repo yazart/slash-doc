@@ -20,7 +20,12 @@ import { searchDocumentation } from './documentation-search';
 import { getSidebarHtml } from './sidebar-webview';
 import type { ApiServerManager } from './api-server';
 import { compileDocumentation, initializeDocumentation } from './sidebar-provider-actions';
-import { createSidebarPageWithContent, deleteSidebarPage, renameSidebarPage } from './sidebar-page-actions';
+import {
+  createSidebarPageWithContent,
+  deleteSidebarPage,
+  renameSidebarPage,
+  type OpenPagePanel,
+} from './sidebar-page-actions';
 
 type SidebarMessage = {
   type?: string;
@@ -41,8 +46,8 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly apiServerManager: ApiServerManager,
-    private readonly openPagePanels: Map<string, Set<vscode.WebviewPanel>>,
-    private readonly saveOpenPages: () => Promise<boolean>,
+    private readonly getOpenPagePanel: () => OpenPagePanel | undefined,
+    private readonly saveOpenPage: () => Promise<boolean>,
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -96,7 +101,7 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       }
 
       if (message.type === 'renamePage' && message.pageId) {
-        await renameSidebarPage(message.pageId, this.openPagePanels);
+        await renameSidebarPage(message.pageId, this.getOpenPagePanel());
         webviewView.webview.html = await this.getSidebarHtml(webviewView.webview);
       }
 
@@ -111,7 +116,7 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       }
 
       if (message.type === 'compileDocumentation') {
-        await compileDocumentation(this.extensionUri, this.saveOpenPages);
+        await compileDocumentation(this.extensionUri, this.saveOpenPage);
       }
 
       if (message.type === 'updateSettings' && message.settings) {

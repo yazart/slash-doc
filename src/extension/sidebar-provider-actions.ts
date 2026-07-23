@@ -21,7 +21,7 @@ export async function initializeDocumentation(extensionUri: vscode.Uri, silent =
 
 export async function compileDocumentation(
   extensionUri: vscode.Uri,
-  saveOpenPages?: () => Promise<boolean>,
+  saveOpenPage?: () => Promise<boolean>,
 ): Promise<void> {
   const workspaceRoot = getWorkspaceRoot();
   if (!workspaceRoot) {
@@ -38,7 +38,7 @@ export async function compileDocumentation(
   });
   const outputRoot = folders?.[0];
   if (!outputRoot) return;
-  if (saveOpenPages && !(await saveOpenPages())) {
+  if (saveOpenPage && !(await saveOpenPage())) {
     void vscode.window.showErrorMessage('Сборка отменена: не удалось сохранить открытую страницу.');
     return;
   }
