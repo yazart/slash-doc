@@ -6,7 +6,7 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['dist/**', 'node_modules/**', 'addons/**', 'api/**'],
+    ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'addons/**', 'api/**'],
   },
   eslint.configs.recommended,
   {
@@ -34,7 +34,7 @@ export default [
     },
   },
   {
-    files: ['*.mjs'],
+    files: ['**/*.mjs'],
     languageOptions: {
       globals: globals.node,
     },

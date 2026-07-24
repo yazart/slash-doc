@@ -1,4 +1,7 @@
 import { LUCIDE_ICONS } from './lucide-icons';
+import styles from './file-processor-tool.shadow.css?raw';
+import { createToolSurface } from './tool-surface';
+import { FILE_PROCESSOR_TEMPLATE } from './file-processor-template';
 
 export type ProcessorFileInfo = { name: string; size: number; modified: number };
 export type FileProcessorData = {
@@ -70,32 +73,10 @@ export default class FileProcessorTool {
   }
 
   render(): HTMLElement {
+    const surface = createToolSurface(styles, 'slash-file-processor-surface');
     const wrapper = document.createElement('div');
     wrapper.className = 'slash-file-processor-tool';
-    wrapper.innerHTML = `<style>
-      .slash-file-processor-tool{box-sizing:border-box;width:100%;color:var(--vscode-editor-foreground);font-family:var(--vscode-font-family,sans-serif)}
-      .slash-file-processor-tool *{box-sizing:border-box}.fp-shell{overflow:hidden;border:1px solid var(--vscode-panel-border);border-radius:5px;background:var(--vscode-editor-background)}
-      .fp-head{display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border-bottom:1px solid var(--vscode-panel-border);background:var(--vscode-editorWidget-background)}.fp-title{font-weight:600}.fp-status{color:var(--vscode-descriptionForeground);font-size:11px}
-      .fp-body{display:grid;gap:12px;padding:12px}.fp-drop{display:grid;place-items:center;min-height:82px;padding:12px;border:1px dashed var(--vscode-panel-border);border-radius:4px;color:var(--vscode-descriptionForeground);cursor:pointer}.fp-drop.drag{border-color:var(--vscode-focusBorder);background:var(--vscode-list-hoverBackground)}
-      .fp-button{padding:5px 10px;color:var(--vscode-button-foreground);border:0;border-radius:3px;background:var(--vscode-button-background);cursor:pointer}.fp-button:hover{background:var(--vscode-button-hoverBackground)}.fp-button.secondary{color:var(--vscode-foreground);border:1px solid var(--vscode-panel-border);background:var(--vscode-editorWidget-background)}
-      .fp-section{display:grid;gap:6px}.fp-label{color:var(--vscode-descriptionForeground);font-size:10px;text-transform:uppercase}.fp-files{display:flex;flex-wrap:wrap;gap:5px}.fp-file{display:flex;align-items:center;gap:6px;padding:4px 7px;border:1px solid var(--vscode-panel-border);border-radius:3px;background:var(--vscode-editorWidget-background);font-size:11px}.fp-size{color:var(--vscode-descriptionForeground)}
-      .fp-editor{position:relative;display:grid;min-height:260px;overflow:hidden;border:1px solid var(--vscode-panel-border);border-radius:3px;background:var(--vscode-textCodeBlock-background)}.fp-editor:focus-within{border-color:var(--vscode-focusBorder)}
-      .fp-highlight,.fp-script{grid-area:1/1;width:100%;min-height:260px;margin:0;padding:10px;border:0;outline:0;font:12px/1.5 var(--vscode-editor-font-family,monospace);tab-size:2;white-space:pre;overflow:auto}
-      .fp-highlight{position:absolute;inset:0;pointer-events:none;color:var(--vscode-editor-foreground);background:transparent}.fp-script{position:relative;z-index:1;color:transparent;caret-color:var(--vscode-editor-foreground);background:transparent;resize:vertical;-webkit-text-fill-color:transparent}.fp-script::selection{color:#fff;background:var(--vscode-editor-selectionBackground);-webkit-text-fill-color:#fff}
-      .fp-token-keyword{color:var(--vscode-debugTokenExpression-name,#c586c0)}.fp-token-string{color:var(--vscode-debugTokenExpression-string,#ce9178)}.fp-token-number{color:var(--vscode-debugTokenExpression-number,#b5cea8)}.fp-token-comment{color:var(--vscode-descriptionForeground,#6a9955);font-style:italic}.fp-token-property{color:var(--vscode-symbolIcon-propertyForeground,#9cdcfe)}.fp-token-punctuation{color:var(--vscode-symbolIcon-operatorForeground,#d4d4d4)}
-      .fp-actions{display:flex;align-items:center;gap:8px}.fp-console{max-height:170px;overflow:auto;margin:0;padding:9px;border:1px solid var(--vscode-panel-border);border-radius:3px;background:var(--vscode-textCodeBlock-background);font:11px/1.45 var(--vscode-editor-font-family,monospace);white-space:pre-wrap}.fp-empty{color:var(--vscode-descriptionForeground);font-size:11px}
-    </style>
-    <div class="fp-shell">
-      <div class="fp-head"><span class="fp-title">Обработчик CSV / JSON</span><span class="fp-status"></span></div>
-      <div class="fp-body">
-        <div class="fp-drop" tabindex="0"><span>Перетащите CSV/JSON файлы или <button class="fp-button secondary fp-select" type="button">выберите</button></span><input class="fp-input" type="file" accept=".csv,.json,text/csv,application/json" multiple hidden></div>
-        <section class="fp-section"><span class="fp-label">Файлы страницы</span><div class="fp-files fp-input-files"></div></section>
-        <section class="fp-section"><span class="fp-label">JavaScript</span><div class="fp-editor"><pre class="fp-highlight" aria-hidden="true"></pre><textarea class="fp-script" spellcheck="false" wrap="off" aria-label="JavaScript обработки файлов"></textarea></div></section>
-        <div class="fp-actions"><button class="fp-button fp-run" type="button">Выполнить</button><span class="fp-status-text fp-empty">Доступны Node.js API, csv и csv/sync</span></div>
-        <section class="fp-section"><span class="fp-label">Результаты</span><div class="fp-files fp-results"></div></section>
-        <section class="fp-section"><span class="fp-label">Вывод</span><pre class="fp-console"></pre></section>
-      </div>
-    </div>`;
+    wrapper.innerHTML = FILE_PROCESSOR_TEMPLATE;
     this.wrapper = wrapper;
     this.scriptInput = wrapper.querySelector('.fp-script') ?? undefined;
     this.scriptHighlight = wrapper.querySelector('.fp-highlight') ?? undefined;
@@ -137,7 +118,8 @@ export default class FileProcessorTool {
     });
     wrapper.querySelector('.fp-run')?.addEventListener('click', () => void this.run());
     this.refresh();
-    return wrapper;
+    surface.content.append(wrapper);
+    return surface;
   }
 
   save(): FileProcessorData {

@@ -1,32 +1,4 @@
-const SWITCH_STYLES = `
-  :host { display: inline-flex; align-items: center; vertical-align: middle; }
-  button { display: inline-flex; align-items: center; gap: 7px; padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
-  [part="control"] {
-    box-sizing: border-box;
-    display: inline-flex;
-    align-items: center;
-    width: 28px;
-    height: 16px;
-    padding: 2px;
-    border: 1px solid var(--vscode-input-border, transparent);
-    border-radius: 999px;
-    background: var(--vscode-input-background);
-    transition: background-color 100ms ease;
-  }
-  [part="control"]::after {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--vscode-foreground);
-    content: '';
-    transition: transform 100ms ease;
-  }
-  :host([checked]) [part="control"] { border-color: var(--vscode-button-background); background: var(--vscode-button-background); }
-  :host([checked]) [part="control"]::after { background: var(--vscode-button-foreground); transform: translateX(12px); }
-  button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
-  button:disabled { opacity: .55; cursor: default; }
-`;
-
+import switchStyles from './styled-switch.shadow.css?raw';
 export class SlashSwitchElement extends HTMLElement {
   static get observedAttributes(): string[] {
     return ['checked', 'disabled', 'aria-label'];
@@ -46,7 +18,7 @@ export class SlashSwitchElement extends HTMLElement {
     super();
     const root = this.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
-    style.textContent = SWITCH_STYLES;
+    style.textContent = switchStyles;
     this.button = document.createElement('button');
     this.button.type = 'button';
     this.button.part.add('base');

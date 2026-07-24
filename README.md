@@ -21,7 +21,7 @@ Slash Doc — расширение для Visual Studio Code, предназна
 ## Требования
 
 - Visual Studio Code 1.90 или новее;
-- Node.js и npm для разработки и сборки расширения;
+- Node.js 20.19 или новее и npm для разработки, тестирования и сборки расширения;
 - открытая рабочая папка VS Code для хранения документации.
 
 ## Использование
@@ -64,15 +64,20 @@ npm install
 npm run compile
 ```
 
-Откройте проект в VS Code, нажмите `F5` и запустите расширение в Extension Development Host.
+Сборка выполняется Vite и формирует в `dist/` четыре точки входа: extension host, основной webview,
+sidebar и обработчик файлов. Откройте проект в VS Code, нажмите `F5` и запустите расширение в
+Extension Development Host.
 
 Основные команды:
 
 | Команда                    | Назначение                                                   |
 | -------------------------- | ------------------------------------------------------------ |
 | `npm run compile`          | Собрать extension host, webview, sidebar и обработчик файлов |
-| `npm run watch`            | Запустить сборку в режиме наблюдения                         |
-| `npm run check`            | Выполнить ESLint, проверку TypeScript и Prettier             |
+| `npm run watch`            | Запустить Vite в режиме наблюдения                           |
+| `npm run test`             | Однократно выполнить тесты Vitest                            |
+| `npm run test:watch`       | Запустить Vitest в интерактивном режиме                      |
+| `npm run test:coverage`    | Выполнить тесты и сформировать отчёт покрытия                |
+| `npm run check`            | Выполнить ESLint, TypeScript, Vitest и Prettier              |
 | `npm run lint:fix`         | Исправить доступные ошибки ESLint                            |
 | `npm run format`           | Отформатировать проект с помощью Prettier                    |
 | `npm run changelog`        | Полностью пересоздать CHANGELOG из истории Git               |

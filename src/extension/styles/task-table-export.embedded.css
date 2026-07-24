@@ -1,0 +1,49 @@
+.task-table-export {
+  margin: 1em 0;
+  padding: 14px;
+  border: 1px solid #d0d7de;
+  border-radius: 7px;
+  background: #f6f8fa;
+  font: 14px/1.4 sans-serif;
+}
+
+.task-table-export > h2 {
+  margin: 0 0 12px;
+}
+
+.task-table-board {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  overflow-x: auto;
+}
+
+.task-table-column {
+  flex: 1 0 220px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #eaeef2;
+}
+
+.task-table-column h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.task-table-cards {
+  display: grid;
+  gap: 8px;
+}
+
+.task-table-card {
+  padding: 9px;
+  border: 1px solid #d0d7de;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.task-table-card p {
+  margin: 5px 0 0;
+  color: #57606a;
+  white-space: pre-wrap;
+}

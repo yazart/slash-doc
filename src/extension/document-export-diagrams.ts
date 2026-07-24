@@ -1,5 +1,7 @@
 import { networkIconContent, type NetworkIconName } from '../webview/network-icons';
 import { escapeAttribute, escapeHtml, isRecord } from './utils';
+import flowExportStyles from './styles/flow-export.embedded.css?raw';
+import networkExportStyles from './styles/network-export.embedded.css?raw';
 
 type ExportFlowNode = {
   id: string;
@@ -96,13 +98,7 @@ function renderFlowDesignerSvg(data: Record<string, unknown>): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Диаграмма конструктора процессов">
   <metadata id="slash-doc-flow-data"><![CDATA[${serializedData}]]></metadata>
-  <style><![CDATA[
-    .background { fill: #ffffff; }
-    .connections path { fill: none; stroke: #4f83cc; stroke-width: 2; }
-    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #202124; }
-    .label { font-size: 14px; font-weight: 600; }
-    .description { font-size: 11px; fill: #5f6368; }
-  ]]></style>
+  <style><![CDATA[${flowExportStyles}]]></style>
   <rect class="background" width="100%" height="100%" rx="8"/>
   <g class="connections">${connectionSvg}</g>
   <g class="nodes">${nodeSvg}</g>
@@ -266,16 +262,7 @@ function renderNetworkCanvasSvg(data: Record<string, unknown>): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Сетевая схема">
   <metadata id="slash-doc-network-data"><![CDATA[${metadata}]]></metadata>
-  <style><![CDATA[
-    .background { fill:#f6f8fa; }
-    .grid { stroke:#d8dee4; stroke-width:1; }
-    text { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-    .vlan-label { font-size:11px; font-weight:600; letter-spacing:.06em; }
-    .connection line { stroke:#378b9c; stroke-width:2; }
-    .connection-label rect { fill:#fff; stroke:#8dbbc4; }
-    .connection-label text { fill:#57606a; font-size:10px; text-anchor:middle; }
-    .node-label { fill:#424a53; font-size:11px; text-anchor:middle; }
-  ]]></style>
+  <style><![CDATA[${networkExportStyles}]]></style>
   <defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path class="grid" d="M20 0H0V20" fill="none"/></pattern></defs>
   <rect class="background" width="100%" height="100%" rx="8"/><rect width="100%" height="100%" fill="url(#grid)" opacity=".55"/>
   <g class="vlans">${vlanSvg}</g><g class="connections">${connectionSvg}</g><g class="nodes">${nodeSvg}</g>
@@ -286,12 +273,12 @@ function renderNetworkNodeSvg(node: ExportNetworkNode, offsetX: number, offsetY:
   const x = node.x + offsetX;
   const y = node.y + offsetY;
   const color =
-    ({ server: '#0891b2', database: '#7c3aed', workstation: '#159447', balancer: '#d97706' } as Record<string, string>)[
+    ({ server: '#06b6d4', database: '#8b5cf6', workstation: '#10b981', balancer: '#f97316' } as Record<string, string>)[
       node.type
     ] ?? '#697386';
   const iconName: NetworkIconName =
     node.type === 'database' || node.type === 'workstation' || node.type === 'balancer' ? node.type : 'server';
-  return `<g class="node node-${escapeAttribute(node.type)}"><rect x="${x - 29}" y="${y - 29}" width="58" height="54" rx="8" fill="#fff" stroke="${color}"/><g transform="translate(${x - 22} ${y - 22}) scale(1.84)" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${networkIconContent(iconName)}</g><text class="node-label" x="${x}" y="${y + 42}">${escapeHtml(node.label)}</text></g>`;
+  return `<g class="node node-${escapeAttribute(node.type)}"><rect x="${x - 29}" y="${y - 29}" width="58" height="54" rx="8" fill="#fff" stroke="${color}"/><g transform="translate(${x - 22} ${y - 22}) scale(1.84)" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${networkIconContent(iconName, color)}</g><text class="node-label" x="${x}" y="${y + 42}">${escapeHtml(node.label)}</text></g>`;
 }
 
 function normalizeExportNetworkNodes(value: unknown): ExportNetworkNode[] {

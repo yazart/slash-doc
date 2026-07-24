@@ -1,0 +1,24 @@
+.background {
+  fill: #ffffff;
+}
+
+.connections path {
+  fill: none;
+  stroke: #4f83cc;
+  stroke-width: 2;
+}
+
+text {
+  fill: #202124;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.description {
+  fill: #5f6368;
+  font-size: 11px;
+}

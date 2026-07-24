@@ -56,6 +56,26 @@ export function normalizeSizes(value: unknown, length: number): number[] {
   return Array.from({ length }, (_, index) => sizes[index] ?? 0);
 }
 
+export function insertTableRow(data: ConfluenceTableData, index: number): number {
+  const target = Math.max(0, Math.min(index, data.rows.length));
+  const columns = data.rows[0]?.length ?? 1;
+  data.rows.splice(
+    target,
+    0,
+    Array.from({ length: columns }, () => ''),
+  );
+  data.rowHeights.splice(target, 0, 0);
+  return target;
+}
+
+export function insertTableColumn(data: ConfluenceTableData, index: number): number {
+  const columns = data.rows[0]?.length ?? 1;
+  const target = Math.max(0, Math.min(index, columns));
+  for (const row of data.rows) row.splice(target, 0, '');
+  data.columnWidths.splice(target, 0, 0);
+  return target;
+}
+
 export function readClipboardTable(text: string, html: string): string[][] | undefined {
   if (/<table\b/i.test(html)) {
     const document = new DOMParser().parseFromString(html, 'text/html');

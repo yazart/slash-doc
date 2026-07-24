@@ -1,0 +1,93 @@
+.slash-bpmn-tool {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 12px 0;
+  overflow: hidden;
+  color: var(--vscode-editor-foreground);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--vscode-editor-background);
+}
+
+.slash-bpmn-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.slash-bpmn-header strong {
+  margin-right: auto;
+}
+
+.slash-bpmn-status {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slash-bpmn-status-error {
+  color: var(--vscode-errorForeground);
+}
+
+.slash-bpmn-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 26px;
+  padding: 4px 9px;
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-button-border, var(--border));
+  border-radius: 3px;
+  background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
+  font: inherit;
+  cursor: pointer;
+}
+
+.slash-bpmn-button:hover {
+  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.slash-bpmn-canvas {
+  width: 100%;
+  height: 480px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.slash-bpmn-preview-controls {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.slash-bpmn-preview-controls .slash-bpmn-button {
+  justify-self: start;
+}
+
+.slash-bpmn-xml {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  padding: 8px;
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--border));
+  outline: none;
+  background: var(--vscode-input-background);
+  font: 12px/1.45 var(--vscode-editor-font-family, monospace);
+  white-space: pre;
+}
+
+.slash-bpmn-xml:focus {
+  border-color: var(--vscode-focusBorder);
+}

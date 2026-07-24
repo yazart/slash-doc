@@ -162,7 +162,7 @@ async function mountApiService(
   }
 
   const moduleUrl = `${pathToFileURL(serviceUri.fsPath).href}?v=${Date.now()}`;
-  const routeModule = (await import(moduleUrl)) as Record<string, unknown>;
+  const routeModule = (await import(/* @vite-ignore */ moduleUrl)) as Record<string, unknown>;
   const router = express.Router();
   const register = routeModule.register ?? routeModule.default;
 

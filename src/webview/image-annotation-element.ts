@@ -1,10 +1,9 @@
-import { LitElement, html, svg } from 'lit';
+import { LitElement, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { IMAGE_ANNOTATION_STYLES } from './image-annotation-styles';
-import { unsafeHTML } from 'lit/directives/unsafe-html.js';
-import { renderSafeMarkdown } from '../shared/markdown';
+import imageAnnotationStyles from './image-annotation-styles.shadow.css?raw';
+import { renderImageAnnotationTemplate } from './image-annotation-template';
 
-type AnnotationImage = { dataUrl: string; width: number; height: number; name: string };
+export type AnnotationImage = { dataUrl: string; width: number; height: number; name: string };
 export type ImageRegion = {
   id: string;
   number: number;
@@ -15,7 +14,12 @@ export type ImageRegion = {
   description: string;
   zIndex: number;
 };
-export type ImageAnnotationData = { version: 1; image: AnnotationImage | null; annotations: ImageRegion[] };
+export type ImageAnnotationData = {
+  version: 1;
+  image: AnnotationImage | null;
+  annotations: ImageRegion[];
+  stretchToWidth: boolean;
+};
 type Point = { x: number; y: number };
 
 @customElement('slash-image-annotation')
@@ -23,19 +27,21 @@ export class ImageAnnotationElement extends LitElement {
   @property({ attribute: false }) data: ImageAnnotationData = normalizeData();
   @state() private image: AnnotationImage | null = null;
   @state() private annotations: ImageRegion[] = [];
+  @state() private stretchToWidth = true;
   @state() private drawing: { start: Point; current: Point } | null = null;
   @state() private editingId: string | null = null;
   @state() private draftDescription = '';
   @state() private isDraggingFile = false;
   private initialized = false;
 
-  static styles = IMAGE_ANNOTATION_STYLES;
+  static styles = unsafeCSS(imageAnnotationStyles);
 
   protected willUpdate(changes: Map<PropertyKey, unknown>) {
     if (changes.has('data') && !this.initialized) {
       const data = normalizeData(this.data);
       this.image = data.image;
       this.annotations = data.annotations;
+      this.stretchToWidth = data.stretchToWidth;
       this.initialized = true;
     }
   }
@@ -53,6 +59,7 @@ export class ImageAnnotationElement extends LitElement {
       version: 1,
       image: this.image ? { ...this.image } : null,
       annotations: this.annotations.map((item) => ({ ...item })),
+      stretchToWidth: this.stretchToWidth,
     };
   }
   private emitChange() {
@@ -166,119 +173,44 @@ export class ImageAnnotationElement extends LitElement {
     };
   }
   render() {
-    const draft = this.draftRect();
-    return html`<input
-        type="file"
-        accept="image/*"
-        hidden
-        @change=${(event: Event) => {
-          const input = event.target as HTMLInputElement;
-          const file = input.files?.[0];
-          if (file) void this.loadFile(file);
-          input.value = '';
-        }}
-      />${
-        !this.image
-          ? html`<div
-              class="empty ${this.isDraggingFile ? 'dragging' : ''}"
-              @dragover=${(event: DragEvent) => {
-                event.preventDefault();
-                this.isDraggingFile = true;
-              }}
-              @dragleave=${() => {
-                this.isDraggingFile = false;
-              }}
-              @drop=${this.dropFile}
-              @click=${() => this.focus()}
-            >
-              <div>
-                <div class="empty-icon">▧</div>
-                <h3>Аннотация изображения</h3>
-                <p>Перетащите изображение сюда, вставьте его из буфера<br />или выберите файл.</p>
-                <button
-                  class="button"
-                  @click=${(event: Event) => {
-                    event.stopPropagation();
-                    this.chooseFile();
-                  }}
-                >
-                  Выбрать изображение
-                </button>
-              </div>
-            </div>`
-          : html`<div class="editor" @dragover=${(event: DragEvent) => event.preventDefault()} @drop=${this.dropFile}>
-              <div class="toolbar">
-                <p>
-                  Проведите по изображению, чтобы создать прямоугольную аннотацию. Нажмите на область для
-                  редактирования.
-                </p>
-                <button class="replace" @click=${this.chooseFile}>Заменить изображение</button>
-              </div>
-              <div class="frame">
-                <img src=${this.image.dataUrl} alt=${this.image.name} /><svg
-                  class="overlay"
-                  viewBox="0 0 1000 1000"
-                  preserveAspectRatio="none"
-                  @pointerdown=${this.startDraw}
-                  @pointermove=${this.moveDraw}
-                  @pointerup=${this.finishDraw}
-                >
-                  ${[...this.annotations].sort((left, right) => left.zIndex - right.zIndex).map((region) => svg`<rect class="region ${region.id === this.editingId ? 'active' : ''}" x=${region.x * 1000} y=${region.y * 1000} width=${region.width * 1000} height=${region.height * 1000} @pointerdown=${(event: PointerEvent) => this.openRegion(event, region)}/>`)}${draft ? svg`<rect class="draft" x=${draft.x * 1000} y=${draft.y * 1000} width=${draft.width * 1000} height=${draft.height * 1000}/>` : ''}</svg
-                >${this.annotations.map(
-                  (region) =>
-                    html`<span class="region-number-bg" style=${`left:${region.x * 100}%;top:${region.y * 100}%`}
-                      >${region.number}</span
-                    >`,
-                )}${
-                  this.editingId
-                    ? html`<div class="popup">
-                        <h4 class="popup-title">
-                          Аннотация ${this.annotations.find((item) => item.id === this.editingId)?.number}
-                        </h4>
-                        <textarea
-                          placeholder="Описание (поддерживается Markdown)"
-                          .value=${this.draftDescription}
-                          @input=${(event: Event) => {
-                            this.draftDescription = (event.target as HTMLTextAreaElement).value;
-                          }}
-                        ></textarea>
-                        <div class="popup-actions">
-                          <button class="send-back" @click=${this.sendRegionToBack}>На задний план</button
-                          ><button class="delete" @click=${this.deleteRegion}>Удалить</button
-                          ><button class="button" @click=${this.saveDescription}>Сохранить</button>
-                        </div>
-                      </div>`
-                    : ''
-                }
-              </div>
-              ${
-                this.annotations.length
-                  ? html`<table>
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Описание</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${this.annotations.map(
-                          (region) =>
-                            html`<tr
-                              @click=${() => {
-                                this.editingId = region.id;
-                                this.draftDescription = region.description;
-                              }}
-                            >
-                              <td>${region.number}</td>
-                              <td class="description">${unsafeHTML(renderSafeMarkdown(region.description || '—'))}</td>
-                            </tr>`,
-                        )}
-                      </tbody>
-                    </table>`
-                  : ''
-              }
-            </div>`
-      }`;
+    return renderImageAnnotationTemplate(
+      {
+        image: this.image,
+        annotations: this.annotations,
+        stretchToWidth: this.stretchToWidth,
+        isDraggingFile: this.isDraggingFile,
+        editingId: this.editingId,
+        draftDescription: this.draftDescription,
+        draft: this.draftRect(),
+      },
+      {
+        loadFile: (file) => void this.loadFile(file),
+        chooseFile: () => this.chooseFile(),
+        focus: () => this.focus(),
+        setDraggingFile: (value) => {
+          this.isDraggingFile = value;
+        },
+        setStretchToWidth: (value) => {
+          this.stretchToWidth = value;
+          this.emitChange();
+        },
+        setDraftDescription: (value) => {
+          this.draftDescription = value;
+        },
+        dropFile: (event) => this.dropFile(event),
+        startDraw: (event) => this.startDraw(event),
+        moveDraw: (event) => this.moveDraw(event),
+        finishDraw: (event) => this.finishDraw(event),
+        openRegion: (event, region) => this.openRegion(event, region),
+        editRegion: (region) => {
+          this.editingId = region.id;
+          this.draftDescription = region.description;
+        },
+        sendRegionToBack: () => this.sendRegionToBack(),
+        deleteRegion: () => this.deleteRegion(),
+        saveDescription: () => this.saveDescription(),
+      },
+    );
   }
 }
 
@@ -305,7 +237,7 @@ export function normalizeData(data?: Partial<ImageAnnotationData>): ImageAnnotat
         zIndex: finite(item.zIndex, index),
       }))
     : [];
-  return { version: 1, image, annotations };
+  return { version: 1, image, annotations, stretchToWidth: data?.stretchToWidth !== false };
 }
 function isRegion(value: unknown): value is ImageRegion {
   if (!value || typeof value !== 'object') return false;

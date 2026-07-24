@@ -3,6 +3,7 @@ import { CONFLUENCE_TABLE_TEMPLATE } from './confluence-table-template';
 import {
   clearTableCellRange,
   getSelectedTableCellData,
+  installTablePasteTargetCleanup,
   insertTableData,
   openTableContextMenu,
   startTableCellSelection,
@@ -10,13 +11,17 @@ import {
 } from './confluence-table-interactions';
 import {
   escapeClipboardHtml,
+  insertTableColumn,
   insertTextAtSelection,
+  insertTableRow,
   normalizeTable,
   readClipboardTable,
   serializeClipboardText,
   type ConfluenceTableData,
   type ToolArgs,
 } from './confluence-table-data';
+import styles from './confluence-table-tool.shadow.css?raw';
+import { createToolSurface } from './tool-surface';
 
 export type { ConfluenceTableData } from './confluence-table-data';
 
@@ -26,17 +31,16 @@ export default class ConfluenceTableTool {
   private selectedRow = 0;
   private selectedColumn = 0;
   private suppressNextClick = false;
+  private removePasteTargetCleanup?: () => void;
   static get toolbox() {
-    return {
-      title: 'Таблица Confluence',
-      icon: LUCIDE_ICONS.table,
-    };
+    return { title: 'Таблица Confluence', icon: LUCIDE_ICONS.table };
   }
   constructor({ data }: ToolArgs) {
     this.data = normalizeTable(data);
   }
 
   render(): HTMLElement {
+    const surface = createToolSurface(styles, 'slash-confluence-table-surface');
     const wrapper = document.createElement('div');
     wrapper.className = 'slash-confluence-table-tool';
     wrapper.innerHTML = CONFLUENCE_TABLE_TEMPLATE;
@@ -70,20 +74,18 @@ export default class ConfluenceTableTool {
       },
       true,
     );
-    document.addEventListener('pointerdown', (event) => {
-      if (
-        window.__SLASH_DOC_TABLE_PASTE_TARGET__?.owner === wrapper &&
-        !wrapper.contains(event.target as Node | null)
-      ) {
-        delete window.__SLASH_DOC_TABLE_PASTE_TARGET__;
-      }
-    });
+    this.removePasteTargetCleanup = installTablePasteTargetCleanup(wrapper);
     this.renderTable();
-    return wrapper;
+    surface.content.append(wrapper);
+    return surface;
   }
 
   save(): ConfluenceTableData {
     return structuredClone(this.data);
+  }
+
+  destroy(): void {
+    this.removePasteTargetCleanup?.();
   }
 
   private renderTable(): void {
@@ -245,22 +247,13 @@ export default class ConfluenceTableTool {
   }
 
   private addRow(index: number): void {
-    const columns = this.data.rows[0]?.length ?? 1;
-    this.data.rows.splice(
-      index,
-      0,
-      Array.from({ length: columns }, () => ''),
-    );
-    this.data.rowHeights.splice(index, 0, 0);
-    this.selectedRow = index;
+    this.selectedRow = insertTableRow(this.data, index);
     this.changed();
     this.renderTable();
   }
 
   private addColumn(index: number): void {
-    for (const row of this.data.rows) row.splice(index, 0, '');
-    this.data.columnWidths.splice(index, 0, 0);
-    this.selectedColumn = index;
+    this.selectedColumn = insertTableColumn(this.data, index);
     this.changed();
     this.renderTable();
   }

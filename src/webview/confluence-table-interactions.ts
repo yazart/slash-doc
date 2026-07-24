@@ -18,7 +18,7 @@ export function startTableCellSelection(
     current.preventDefault();
     wrapper?.classList.add('selecting');
     window.getSelection()?.removeAllRanges();
-    const target = findTableCellAtPoint(wrapper, current.clientX, current.clientY);
+    const target = findTableCellFromPointer(wrapper, current);
     if (target)
       highlightTableCellRange(
         wrapper,
@@ -84,12 +84,32 @@ export function openTableContextMenu(
       document.addEventListener(
         'pointerdown',
         (event) => {
-          if (!menu.contains(event.target as Node | null)) menu.classList.remove('open');
+          if (!eventPathContains(event, menu)) menu.classList.remove('open');
         },
         { once: true },
       ),
     0,
   );
+}
+
+export function eventPathContains(event: Event, target: EventTarget): boolean {
+  return event.composedPath().includes(target);
+}
+
+export function installTablePasteTargetCleanup(wrapper: HTMLElement): () => void {
+  const close = (event: PointerEvent) => {
+    if (window.__SLASH_DOC_TABLE_PASTE_TARGET__?.owner !== wrapper || eventPathContains(event, wrapper)) return;
+    delete window.__SLASH_DOC_TABLE_PASTE_TARGET__;
+  };
+  document.addEventListener('pointerdown', close);
+  return () => document.removeEventListener('pointerdown', close);
+}
+
+export function findEventPathTarget<T extends EventTarget>(
+  event: Event,
+  predicate: (target: EventTarget) => target is T,
+): T | undefined {
+  return event.composedPath().find(predicate);
 }
 
 export function trackTableResize(
@@ -133,8 +153,18 @@ export function insertTableData(
   );
 }
 
-function findTableCellAtPoint(wrapper: HTMLElement | undefined, x: number, y: number): HTMLElement | undefined {
-  const hit = document.elementFromPoint(x, y) as HTMLElement | null;
+function findTableCellFromPointer(wrapper: HTMLElement | undefined, event: PointerEvent): HTMLElement | undefined {
+  const pathCell = findEventPathTarget(
+    event,
+    (item): item is HTMLElement => item instanceof HTMLElement && item.classList.contains('ct-cell'),
+  );
+  if (pathCell && wrapper?.contains(pathCell)) return pathCell;
+
+  const root = wrapper?.getRootNode();
+  const hit =
+    root instanceof ShadowRoot
+      ? (root.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null)
+      : (document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null);
   const editor =
     hit?.closest<HTMLElement>('.ct-cell') ??
     hit?.closest<HTMLTableCellElement>('td, th')?.querySelector<HTMLElement>('.ct-cell');

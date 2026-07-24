@@ -2,6 +2,7 @@
 src/**
 node_modules/**
 *.map
-dist/sidebar.css
 tsconfig.json
-esbuild.mjs
+vite.config.mjs
+vitest.config.ts
+test/**

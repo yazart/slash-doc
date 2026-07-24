@@ -1,5 +1,6 @@
 import NavigatedViewer from 'bpmn-js/lib/NavigatedViewer';
 import { BpmnToolBase } from './bpmn-tool-base';
+import { replaceClipboardRange } from './bpmn-preview-clipboard';
 import type { BpmnCanvasService, BpmnData } from './bpmn-tool-types';
 import { bpmnErrorMessage } from './bpmn-tool-utils';
 import { LUCIDE_ICONS } from './lucide-icons';
@@ -32,6 +33,11 @@ export class BpmnPreviewTool extends BpmnToolBase {
     this.textarea.placeholder = 'Вставьте BPMN XML или перетащите сюда XML-файл';
     this.textarea.spellcheck = false;
     this.textarea.value = this.data.xml;
+    (
+      this.textarea as HTMLTextAreaElement & {
+        __slashDocPasteText?: (text: string) => void;
+      }
+    ).__slashDocPasteText = (text) => this.pasteText(text);
     this.textarea.addEventListener('input', () => this.scheduleImport());
     controls.append(fileLabel, this.textarea);
     root.insertBefore(controls, this.canvas ?? null);
@@ -48,7 +54,7 @@ export class BpmnPreviewTool extends BpmnToolBase {
 
     this.viewer = new NavigatedViewer({ container: this.canvas });
     if (this.data.xml.trim()) void this.queueImport(this.data.xml, false);
-    return root;
+    return this.renderedSurface(root);
   }
 
   async save(): Promise<BpmnData> {
@@ -80,6 +86,21 @@ export class BpmnPreviewTool extends BpmnToolBase {
       this.importTimer = undefined;
       void this.queueImport(this.textarea?.value ?? '', true);
     }, 450);
+  }
+
+  private pasteText(text: string): void {
+    if (!this.textarea) return;
+    const replacement = replaceClipboardRange(
+      this.textarea.value,
+      text,
+      this.textarea.selectionStart,
+      this.textarea.selectionEnd,
+    );
+    this.textarea.value = replacement.value;
+    this.textarea.setSelectionRange(replacement.caret, replacement.caret);
+    this.textarea.dispatchEvent(
+      new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertFromPaste', data: text }),
+    );
   }
 
   private queueImport(xml: string, notify: boolean): Promise<void> {

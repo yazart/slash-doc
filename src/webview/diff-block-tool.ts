@@ -1,5 +1,7 @@
 import { HighlightedCodeEditor } from './highlighted-code-editor';
 import { LUCIDE_ICONS } from './lucide-icons';
+import styles from './code-block-tool.shadow.css?raw';
+import { createToolSurface } from './tool-surface';
 
 export type DiffBlockData = {
   diff: string;
@@ -23,6 +25,7 @@ export default class DiffBlockTool {
   }
 
   render(): HTMLElement {
+    const surface = createToolSurface(styles, 'slash-code-surface');
     const root = document.createElement('div');
     root.className = 'slash-code-tool slash-diff-tool';
     const toolbar = document.createElement('div');
@@ -33,7 +36,8 @@ export default class DiffBlockTool {
     toolbar.append(title);
     this.editor = new HighlightedCodeEditor(this.source, 'diff', 'Изменения в формате diff');
     root.append(toolbar, this.editor.root);
-    return root;
+    surface.content.append(root);
+    return surface;
   }
 
   save(): DiffBlockData {

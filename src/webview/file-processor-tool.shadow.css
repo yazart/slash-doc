@@ -1,0 +1,178 @@
+.slash-file-processor-tool {
+  box-sizing: border-box;
+  width: 100%;
+  color: var(--vscode-editor-foreground);
+  font-family: var(--vscode-font-family, sans-serif);
+}
+.slash-file-processor-tool * {
+  box-sizing: border-box;
+}
+.fp-shell {
+  overflow: hidden;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 5px;
+  background: var(--vscode-editor-background);
+}
+.fp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-editorWidget-background);
+}
+.fp-title {
+  font-weight: 600;
+}
+.fp-status {
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+}
+.fp-body {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+.fp-drop {
+  display: grid;
+  place-items: center;
+  min-height: 82px;
+  padding: 12px;
+  border: 1px dashed var(--vscode-panel-border);
+  border-radius: 4px;
+  color: var(--vscode-descriptionForeground);
+  cursor: pointer;
+}
+.fp-drop.drag {
+  border-color: var(--vscode-focusBorder);
+  background: var(--vscode-list-hoverBackground);
+}
+.fp-button {
+  padding: 5px 10px;
+  color: var(--vscode-button-foreground);
+  border: 0;
+  border-radius: 3px;
+  background: var(--vscode-button-background);
+  cursor: pointer;
+}
+.fp-button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+.fp-button.secondary {
+  color: var(--vscode-foreground);
+  border: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-editorWidget-background);
+}
+.fp-section {
+  display: grid;
+  gap: 6px;
+}
+.fp-label {
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.fp-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.fp-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 3px;
+  background: var(--vscode-editorWidget-background);
+  font-size: 11px;
+}
+.fp-size {
+  color: var(--vscode-descriptionForeground);
+}
+.fp-editor {
+  position: relative;
+  display: grid;
+  min-height: 260px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 3px;
+  background: var(--vscode-textCodeBlock-background);
+}
+.fp-editor:focus-within {
+  border-color: var(--vscode-focusBorder);
+}
+.fp-highlight,
+.fp-script {
+  grid-area: 1/1;
+  width: 100%;
+  min-height: 260px;
+  margin: 0;
+  padding: 10px;
+  border: 0;
+  outline: 0;
+  font: 12px/1.5 var(--vscode-editor-font-family, monospace);
+  tab-size: 2;
+  white-space: pre;
+  overflow: auto;
+}
+.fp-highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--vscode-editor-foreground);
+  background: transparent;
+}
+.fp-script {
+  position: relative;
+  z-index: 1;
+  color: transparent;
+  caret-color: var(--vscode-editor-foreground);
+  background: transparent;
+  resize: vertical;
+  -webkit-text-fill-color: transparent;
+}
+.fp-script::selection {
+  color: #fff;
+  background: var(--vscode-editor-selectionBackground);
+  -webkit-text-fill-color: #fff;
+}
+.fp-token-keyword {
+  color: var(--vscode-debugTokenExpression-name, #c586c0);
+}
+.fp-token-string {
+  color: var(--vscode-debugTokenExpression-string, #ce9178);
+}
+.fp-token-number {
+  color: var(--vscode-debugTokenExpression-number, #b5cea8);
+}
+.fp-token-comment {
+  color: var(--vscode-descriptionForeground, #6a9955);
+  font-style: italic;
+}
+.fp-token-property {
+  color: var(--vscode-symbolIcon-propertyForeground, #9cdcfe);
+}
+.fp-token-punctuation {
+  color: var(--vscode-symbolIcon-operatorForeground, #d4d4d4);
+}
+.fp-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fp-console {
+  max-height: 170px;
+  overflow: auto;
+  margin: 0;
+  padding: 9px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 3px;
+  background: var(--vscode-textCodeBlock-background);
+  font: 11px/1.45 var(--vscode-editor-font-family, monospace);
+  white-space: pre-wrap;
+}
+.fp-empty {
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+}

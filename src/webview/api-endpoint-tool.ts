@@ -2,11 +2,12 @@ import { createApiEndpointData, type ApiEndpointData } from '../shared/api-endpo
 import type { ApiEndpointElement } from './api-endpoint-element';
 import './api-endpoint-element';
 import { LUCIDE_ICONS } from './lucide-icons';
+import { createToolSurface, type ToolSurfaceElement } from './tool-surface';
 
 export default class ApiEndpointTool {
   private readonly data: ApiEndpointData;
   private element?: ApiEndpointElement;
-  private wrapper?: HTMLDivElement;
+  private wrapper?: ToolSurfaceElement;
   static get toolbox() {
     return {
       title: 'Эндпоинт API',
@@ -17,8 +18,7 @@ export default class ApiEndpointTool {
     this.data = createApiEndpointData(data);
   }
   render() {
-    this.wrapper = document.createElement('div');
-    this.wrapper.className = 'slash-api-endpoint-tool';
+    this.wrapper = createToolSurface('', 'slash-api-endpoint-tool');
     this.element = document.createElement('slash-api-endpoint');
     this.element.data = this.data;
     this.element.addEventListener('api-endpoint-change', () => {
@@ -26,7 +26,7 @@ export default class ApiEndpointTool {
       this.wrapper.dataset.revision = String(Number(this.wrapper.dataset.revision ?? '0') + 1);
       this.wrapper.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
     });
-    this.wrapper.append(this.element);
+    this.wrapper.content.append(this.element);
     return this.wrapper;
   }
   save() {

@@ -12,6 +12,7 @@ import {
   readEmbeddedDiagramDataUri,
   readFileProcessorHtml,
   readImageAnnotationHtml,
+  readMermaidSvg,
   readTaskTableHtml,
 } from './document-import-readers';
 
@@ -62,6 +63,11 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
     }
 
     if (tag === 'svg') {
+      const mermaid = readMermaidSvg(outer);
+      if (mermaid) {
+        blocks.push(createEditorBlock('mermaid', mermaid));
+        continue;
+      }
       const bpmn = readBpmnSvg(outer);
       if (bpmn) blocks.push(createEditorBlock(bpmn.type, bpmn.data));
       continue;

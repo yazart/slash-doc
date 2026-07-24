@@ -18,6 +18,6 @@ export function networkIcon(name: NetworkIconName, size = 20): string {
   return `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${outlineSvgPrimitives(paths[name])}</svg>`;
 }
 
-export function networkIconContent(name: NetworkIconName): string {
-  return outlineSvgPrimitives(paths[name]);
+export function networkIconContent(name: NetworkIconName, color = 'currentColor'): string {
+  return outlineSvgPrimitives(paths[name]).replaceAll('currentColor', color);
 }

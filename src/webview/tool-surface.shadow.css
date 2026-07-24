@@ -1,0 +1,24 @@
+:host {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 12px 0;
+  overflow: visible;
+  color: var(--vscode-editor-foreground);
+  font-family: var(--vscode-font-family, sans-serif);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.tool-content,
+.tool-content > * {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}

@@ -1,11 +1,12 @@
 import { LUCIDE_ICONS } from './lucide-icons';
 import { FlowDesignerElement, createFlowDesignerData } from './flow-designer-element';
 import type { FlowDesignerData } from './flow-designer-element';
+import { createToolSurface, type ToolSurfaceElement } from './tool-surface';
 
 export default class FlowDesignerTool {
   private readonly data: FlowDesignerData;
   private element?: FlowDesignerElement;
-  private wrapper?: HTMLDivElement;
+  private wrapper?: ToolSurfaceElement;
 
   static get toolbox() {
     return {
@@ -19,8 +20,7 @@ export default class FlowDesignerTool {
   }
 
   render() {
-    this.wrapper = document.createElement('div');
-    this.wrapper.className = 'slash-flow-designer-tool';
+    this.wrapper = createToolSurface('', 'slash-flow-designer-tool');
     this.element = document.createElement('slash-flow-designer');
     this.element.data = this.data;
     this.element.addEventListener('workflow-change', () => {
@@ -28,7 +28,7 @@ export default class FlowDesignerTool {
       this.wrapper.dataset.revision = String(Number(this.wrapper.dataset.revision ?? '0') + 1);
       this.wrapper.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
     });
-    this.wrapper.append(this.element);
+    this.wrapper.content.append(this.element);
     return this.wrapper;
   }
 

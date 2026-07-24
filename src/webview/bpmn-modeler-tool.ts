@@ -52,7 +52,7 @@ export class BpmnModelerTool extends BpmnToolBase {
     this.modeler = new Modeler({ container: this.canvas });
     this.modeler.on('commandStack.changed', () => this.scheduleSnapshot());
     this.snapshotPromise = this.importDiagram(this.data.xml || EMPTY_BPMN_XML);
-    return root;
+    return this.renderedSurface(root);
   }
 
   async save(): Promise<BpmnData> {

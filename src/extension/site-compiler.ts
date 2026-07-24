@@ -5,6 +5,8 @@ import { readSettings } from './settings-store';
 import type { SlashDocMenuItem } from './types';
 import { escapeAttribute, escapeHtml, escapeScriptJson } from './utils';
 import { getDocumentationSearchText } from './documentation-search';
+import hostStyles from './styles/site-host.embedded.css?raw';
+import pageStyles from './styles/site-page.embedded.css?raw';
 
 export type CompiledDocumentation = {
   indexUri: vscode.Uri;
@@ -46,7 +48,7 @@ function flattenPages(items: SlashDocMenuItem[]): SlashDocMenuItem[] {
 function prepareCompiledPage(html: string, pageId: string, pageIds: Set<string>): string {
   const withLinks = rewriteDocumentationLinks(html, pageIds);
   const additions = `<meta name="slash-doc-page-id" content="${escapeAttribute(pageId)}">
-  <style>${PAGE_STYLES}</style>`;
+  <style>${pageStyles}</style>`;
   return withLinks.replace('</head>', `${additions}\n  </head>`);
 }
 
@@ -131,7 +133,7 @@ function renderHostHtml(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(projectName)}</title>
-  <style>${HOST_STYLES}</style>
+  <style>${hostStyles}</style>
 </head>
 <body>
   <aside class="sidebar">
@@ -211,18 +213,3 @@ function renderHostMenuItem(item: SlashDocMenuItem): string {
 async function writeText(uri: vscode.Uri, text: string): Promise<void> {
   await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(text));
 }
-
-const HOST_STYLES = `
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#fff}
-*{box-sizing:border-box}body{display:grid;grid-template-columns:280px minmax(0,1fr);height:100vh;margin:0;overflow:hidden}
-.sidebar{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-width:0;border-right:1px solid #dfe3ea;background:#f7f8fa}
-.sidebar-title{padding:18px 16px 14px;border-bottom:1px solid #dfe3ea;font-size:16px;font-weight:700}
-.documentation-search{padding:10px 10px 0}.documentation-search input{width:100%;padding:7px 9px;border:1px solid #cfd5df;border-radius:5px;background:#fff;color:#172033;outline:none}.documentation-search input:focus{border-color:#2563eb;box-shadow:0 0 0 2px #2563eb22}
-.navigation{overflow:auto;padding:10px 8px 24px}.navigation ul{display:grid;gap:2px;margin:0;padding:0;list-style:none}.navigation ul ul{margin-left:14px;padding-top:2px}
-.search-results{display:grid;align-content:start;gap:3px;overflow:auto;padding:10px 8px 24px;color:#6b7280;font-size:12px}.search-result{display:grid;gap:3px;padding:7px 8px;color:#263247;border-radius:5px;text-decoration:none}.search-result:hover{background:#e9edf3}.search-result strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.search-result span{display:-webkit-box;overflow:hidden;color:#6b7280;font-size:11px;line-height:1.35;-webkit-box-orient:vertical;-webkit-line-clamp:3}
-.navigation summary{list-style-position:outside;margin-left:18px}.navigation summary::marker{color:#7b8495}.page-link{display:block;padding:6px 8px;color:#263247;border-radius:5px;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.leaf{padding-left:18px}.page-link:hover{background:#e9edf3}.page-link.active{color:#fff;background:#2563eb}.content{width:100%;height:100%;border:0;background:#fff}.empty{padding:8px;color:#6b7280}
-@media(max-width:760px){body{grid-template-columns:210px minmax(0,1fr)}}`;
-
-const PAGE_STYLES = `
-body{max-width:980px}`;

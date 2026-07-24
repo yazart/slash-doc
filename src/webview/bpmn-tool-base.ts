@@ -1,10 +1,13 @@
 import type { BpmnData, BpmnToolArgs } from './bpmn-tool-types';
+import styles from './bpmn-tool.shadow.css?raw';
+import { createToolSurface, type ToolSurfaceElement } from './tool-surface';
 
 export abstract class BpmnToolBase {
   protected data: BpmnData;
   protected root?: HTMLDivElement;
   protected canvas?: HTMLDivElement;
   protected status?: HTMLDivElement;
+  protected surface?: ToolSurfaceElement;
 
   constructor({ data }: BpmnToolArgs) {
     this.data = {
@@ -15,6 +18,7 @@ export abstract class BpmnToolBase {
   }
 
   protected createRoot(className: string, titleText: string): HTMLDivElement {
+    this.surface = createToolSurface(styles, 'slash-bpmn-surface', true);
     const root = document.createElement('div');
     root.className = `slash-bpmn-tool ${className}`;
     root.addEventListener('keydown', (event) => {
@@ -34,8 +38,13 @@ export abstract class BpmnToolBase {
     this.canvas = document.createElement('div');
     this.canvas.className = 'slash-bpmn-canvas';
     root.append(header, this.canvas);
+    this.surface.content.append(root);
     this.root = root;
     return root;
+  }
+
+  protected renderedSurface(fallback: HTMLElement): HTMLElement {
+    return this.surface ?? fallback;
   }
 
   protected setStatus(message = '', error = false): void {

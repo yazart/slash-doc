@@ -1,6 +1,9 @@
 import type { SlashDocUser } from '../shared/users';
 import { createUserOption } from './user-directory';
 import { LUCIDE_ICONS } from './lucide-icons';
+import styles from './approval-table-tool.shadow.css?raw';
+import { APPROVAL_TABLE_HEAD_TEMPLATE } from './approval-table-template';
+import { createToolSurface, type ToolSurfaceElement } from './tool-surface';
 
 type ApprovalRow = {
   id: string;
@@ -16,6 +19,7 @@ type ApprovalTableData = {
 export default class ApprovalTableTool {
   private readonly data: ApprovalTableData;
   private root?: HTMLElement;
+  private surface?: ToolSurfaceElement;
   private readonly userMenuCleanups: Array<() => void> = [];
 
   static get toolbox() {
@@ -30,13 +34,15 @@ export default class ApprovalTableTool {
   }
 
   render(): HTMLElement {
+    this.surface = createToolSurface(styles, 'slash-approval-surface');
     this.root = document.createElement('div');
     this.root.className = 'slash-approval-table-tool';
     this.root.addEventListener('keydown', (event) => {
       if (event.key === 'Backspace' || event.key === 'Delete') event.stopPropagation();
     });
     this.renderTable();
-    return this.root;
+    this.surface.content.append(this.root);
+    return this.surface;
   }
 
   save(): ApprovalTableData {
@@ -56,7 +62,7 @@ export default class ApprovalTableTool {
     const table = document.createElement('table');
     table.className = 'slash-approval-table';
     const head = document.createElement('thead');
-    head.innerHTML = '<tr><th>Этап</th><th>Ответственные</th><th>Результат</th><th aria-label="Действия"></th></tr>';
+    head.innerHTML = APPROVAL_TABLE_HEAD_TEMPLATE;
     const body = document.createElement('tbody');
     this.data.rows.forEach((row) => body.append(this.renderRow(row)));
     table.append(head, body);
@@ -155,7 +161,7 @@ export default class ApprovalTableTool {
     const menu = document.createElement('div');
     menu.className = 'slash-approval-user-menu';
     menu.hidden = true;
-    document.body.append(menu);
+    this.surface?.shadowRoot?.append(menu);
     const positionMenu = () => {
       if (menu.hidden || !field.isConnected) return;
       const rect = search.getBoundingClientRect();

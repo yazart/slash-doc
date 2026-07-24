@@ -1,0 +1,211 @@
+.slash-page-link-option,
+.slash-page-link-remove {
+  overflow: hidden;
+  padding: 6px 8px;
+  color: var(--vscode-foreground);
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.slash-page-link-option:hover,
+.slash-page-link-option:focus-visible,
+.slash-page-link-remove:hover,
+.slash-page-link-remove:focus-visible {
+  color: var(--vscode-list-hoverForeground);
+  outline: none;
+  background: var(--vscode-list-hoverBackground);
+}
+
+.slash-page-link-current::after {
+  content: ' · текущая';
+  color: var(--vscode-descriptionForeground);
+}
+.slash-page-link-empty {
+  padding: 7px 8px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.slash-page-link-remove {
+  color: var(--vscode-errorForeground);
+  border-top: 1px solid var(--border);
+}
+
+.slash-external-link-picker {
+  display: grid;
+  gap: 8px;
+  width: min(340px, 78vw);
+  padding: 9px;
+}
+
+.slash-external-link-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--border));
+  outline: none;
+  background: var(--vscode-input-background);
+}
+
+.slash-external-link-input:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.slash-external-link-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.slash-external-link-save,
+.slash-external-link-remove {
+  padding: 5px 9px;
+  color: var(--vscode-button-foreground);
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 3px;
+  background: var(--vscode-button-background);
+  cursor: pointer;
+}
+
+.slash-external-link-remove {
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
+}
+
+.slash-user-mention {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  color: var(--vscode-textLink-foreground);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--vscode-textLink-foreground) 15%, transparent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.slash-user-search-popup {
+  position: fixed;
+  z-index: 100;
+  display: grid;
+  width: min(320px, 80vw);
+  max-height: 240px;
+  overflow: auto;
+  padding: 5px;
+  border: 1px solid var(--vscode-dropdown-border, var(--border));
+  border-radius: 5px;
+  background: var(--vscode-dropdown-background, var(--surface-raised));
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 34%, transparent);
+}
+
+.slash-user-search-popup[hidden] {
+  display: none;
+}
+
+.slash-user-search-option {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 6px;
+  color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.slash-user-search-option:hover,
+.slash-user-search-option.active {
+  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+  background: var(--vscode-list-activeSelectionBackground, var(--vscode-list-hoverBackground));
+}
+
+.slash-user-search-option img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+
+.slash-user-search-option span,
+.slash-user-search-option strong,
+.slash-user-search-option small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slash-user-search-option small,
+.slash-user-search-empty {
+  color: var(--vscode-descriptionForeground);
+}
+
+.slash-user-search-empty {
+  padding: 8px;
+}
+
+.header-inline-tool-button:hover,
+.header-inline-tool-button[aria-expanded='true'] {
+  color: var(--vscode-list-hoverForeground, var(--vscode-icon-foreground, var(--vscode-foreground))) !important;
+  background: var(
+    --vscode-toolbar-hoverBackground,
+    var(--vscode-list-hoverBackground, var(--vscode-editorWidget-background))
+  ) !important;
+  outline: 1px solid var(--vscode-toolbar-hoverOutline, transparent);
+  outline-offset: -1px;
+}
+
+.codex-editor {
+  --slash-toolbar-foreground: var(--vscode-icon-foreground, var(--vscode-editor-foreground));
+  --slash-popup-foreground: var(--vscode-dropdown-foreground, var(--vscode-editor-foreground));
+  --slash-hover-foreground: var(--vscode-list-hoverForeground, var(--slash-toolbar-foreground));
+  --slash-hover-background: var(
+    --vscode-toolbar-hoverBackground,
+    var(--vscode-list-hoverBackground, var(--vscode-editorWidget-background))
+  );
+  --slash-active-foreground: var(--vscode-list-activeSelectionForeground, var(--slash-hover-foreground));
+  --slash-active-background: var(--vscode-list-activeSelectionBackground, var(--slash-hover-background));
+  --slash-popup-background: var(
+    --vscode-dropdown-background,
+    var(--vscode-editorWidget-background, var(--vscode-editor-background))
+  );
+  --slash-popup-border: var(--vscode-dropdown-border, var(--vscode-panel-border, var(--border)));
+}
+
+.ce-toolbar__plus,
+.ce-toolbar__settings-btn {
+  color: var(--slash-toolbar-foreground) !important;
+  background: transparent !important;
+}
+
+.ce-toolbar__plus:hover,
+.ce-toolbar__plus--active,
+.ce-toolbar__settings-btn:hover,
+.ce-toolbar__settings-btn--active {
+  color: var(--slash-hover-foreground) !important;
+  background: var(--slash-hover-background) !important;
+  outline: 1px solid var(--vscode-toolbar-hoverOutline, transparent);
+  outline-offset: -1px;
+}
+
+.ce-toolbox,
+.ce-inline-toolbar,
+.ce-conversion-toolbar,
+.ce-settings {
+  color: var(--slash-popup-foreground) !important;
+  border-color: var(--slash-popup-border) !important;
+  background: var(--slash-popup-background) !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--vscode-editor-background) 45%, transparent) !important;
+}
+
+.ce-toolbox {
+  border: 1px solid var(--slash-popup-border);
+  border-radius: 6px;
+}

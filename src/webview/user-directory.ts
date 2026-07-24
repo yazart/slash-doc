@@ -1,4 +1,5 @@
 import type { SlashDocUser } from '../shared/users';
+import { USER_SEARCH_LOADING_TEMPLATE } from './user-directory-template';
 
 type MessageSender = {
   postMessage(message: unknown): void;
@@ -110,7 +111,7 @@ export function setupUserMentions(directory: UserDirectoryBridge): void {
     popup.style.top = `${Math.max(8, Math.min(marker.bottom + 6, window.innerHeight - 260))}px`;
     popup.hidden = false;
     results = [];
-    popup.innerHTML = '<div class="slash-user-search-empty">Поиск…</div>';
+    popup.innerHTML = USER_SEARCH_LOADING_TEMPLATE;
     const sequence = ++requestSequence;
     const users = await directory.search(context.query);
     if (sequence !== requestSequence || popup.hidden) return;

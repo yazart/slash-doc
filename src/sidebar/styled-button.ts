@@ -1,34 +1,4 @@
-const BUTTON_STYLES = `
-  :host { display: inline-flex; min-width: 0; vertical-align: middle; }
-  button {
-    box-sizing: border-box;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    min-width: 0;
-    min-height: 24px;
-    padding: 4px 10px;
-    color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
-    border: 1px solid var(--vscode-button-border, var(--vscode-input-border, transparent));
-    border-radius: 2px;
-    background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
-    font: inherit;
-    line-height: normal;
-    cursor: pointer;
-  }
-  :host([variant="primary"]) button {
-    color: var(--vscode-button-foreground);
-    border-color: var(--vscode-button-border, transparent);
-    background: var(--vscode-button-background);
-  }
-  button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground)); }
-  :host([variant="primary"]) button:hover { background: var(--vscode-button-hoverBackground); }
-  button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
-  button:disabled { opacity: .55; cursor: default; }
-  [part="label"] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-`;
-
+import buttonStyles from './styled-button.shadow.css?raw';
 export class SlashButtonElement extends HTMLElement {
   static get observedAttributes(): string[] {
     return ['aria-label', 'disabled', 'type'];
@@ -40,7 +10,7 @@ export class SlashButtonElement extends HTMLElement {
     super();
     const root = this.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
-    style.textContent = BUTTON_STYLES;
+    style.textContent = buttonStyles;
     this.button = document.createElement('button');
     this.button.part.add('base');
     const label = document.createElement('span');

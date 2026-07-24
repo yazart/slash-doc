@@ -4,13 +4,19 @@ import type { FileProcessorBridge } from './file-processor-tool';
 import type { DocumentationPageLink } from './page-link-tool';
 import { createUserDirectoryBridge } from './user-directory';
 import { createEditorTools } from './editor-tool-registry';
+import { installEditorPasteHandlers } from './editor-paste-handlers';
 import { isRecord, normalizeEditorData, preserveInlineMarkup } from './editor-data';
 import type { SlashDocWebviewSettings } from './editor-settings';
 import { protectCustomTool, type CustomAddonModule, type CustomBlockToolConstructor } from './custom-tool-protection';
 import { createPageSaveController, updatePageSaveStatus } from './page-save-controller';
+import { renderPendingMermaidDiagrams } from './mermaid-tool';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
+import './editor-foundation.css';
+import './editor-layout.css';
+import './editor-components.css';
+import './editor-editorjs.css';
 
 type VSCodeApi = {
   postMessage(message: unknown): void;
@@ -36,7 +42,7 @@ const settings = window.__SLASH_DOC_SETTINGS__ ?? {};
 const { tools, inlineToolbarTools } = createEditorTools(settings, userDirectory);
 const saveStatus = document.querySelector<HTMLElement>('#save-status');
 const pageSave = createPageSaveController({
-  readData: async () => preserveInlineMarkup(await editor.save()),
+  readData: readEditorData,
   postMessage: (message) => vscode.postMessage(message),
   setStatus: (status) => updatePageSaveStatus(saveStatus, status),
   reportError: (error, requestId) => {
@@ -104,6 +110,7 @@ window.__SLASH_DOC_READ_CLIPBOARD__ = () => {
 window.__SLASH_DOC_WRITE_CLIPBOARD__ = (text) => {
   vscode.postMessage({ type: 'writeClipboard', text });
 };
+installEditorPasteHandlers(window.__SLASH_DOC_READ_CLIPBOARD__);
 
 window.__SLASH_DOC_FILE_PROCESSOR__ = {
   upload: (files) => requestFileProcessor('fileProcessorUpload', { files }),
@@ -111,71 +118,13 @@ window.__SLASH_DOC_FILE_PROCESSOR__ = {
   download: (fileName) => requestFileProcessor('fileProcessorDownload', { fileName }),
 } satisfies FileProcessorBridge;
 
-window.addEventListener(
-  'paste',
-  (event) => {
-    const target = event
-      .composedPath()
-      .find((item) => item instanceof HTMLElement && item.matches('.slash-confluence-table-tool .ct-cell')) as
-      | (HTMLElement & {
-          __slashDocPasteTable?: (text: string, html: string) => void;
-        })
-      | undefined;
-    const paste = target?.__slashDocPasteTable ?? window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
-    if (!paste) return;
-    const text = event.clipboardData?.getData('text/plain') ?? '';
-    const html = event.clipboardData?.getData('text/html') ?? '';
-    // Some VS Code/Electron versions expose an empty DataTransfer to webviews.
-    // In that case do not suppress the native paste; beforeinput/keydown below
-    // will request the clipboard through the extension host instead.
-    if (!text && !html) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    paste(text, html);
-  },
-  true,
-);
-
-window.addEventListener(
-  'keydown',
-  (event) => {
-    const isPasteKey = event.code === 'KeyV' || ['v', 'м'].includes(event.key.toLowerCase());
-    if (!(event.metaKey || event.ctrlKey) || event.altKey || !isPasteKey) return;
-    const paste = window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
-    if (!paste || !window.__SLASH_DOC_READ_CLIPBOARD__) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    void window
-      .__SLASH_DOC_READ_CLIPBOARD__()
-      .then((text) => paste(text, ''))
-      .catch(() => undefined);
-  },
-  true,
-);
-
-window.addEventListener(
-  'beforeinput',
-  (event) => {
-    if (!(event instanceof InputEvent) || event.inputType !== 'insertFromPaste') return;
-    const paste = window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
-    if (!paste || !window.__SLASH_DOC_READ_CLIPBOARD__) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    void window
-      .__SLASH_DOC_READ_CLIPBOARD__()
-      .then((text) => paste(text, ''))
-      .catch(() => undefined);
-  },
-  true,
-);
-
 async function exportPage(format: 'html' | 'md') {
-  const data = preserveInlineMarkup(await editor.save());
-  vscode.postMessage({
-    type: 'export',
-    format,
-    data,
-  });
+  vscode.postMessage({ type: 'export', format, data: await readEditorData() });
+}
+
+async function readEditorData(): Promise<OutputData> {
+  await renderPendingMermaidDiagrams();
+  return preserveInlineMarkup(await editor.save());
 }
 
 const editorInitialization = initEditor();

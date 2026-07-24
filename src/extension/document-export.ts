@@ -6,6 +6,11 @@ import type { SlashDocSettings } from './types';
 import { escapeAttribute, escapeHtml, isRecord, stripHtml } from './utils';
 import { createFlowDesignerDataUri, createNetworkCanvasDataUri } from './document-export-diagrams';
 import { exportImageAnnotationToHtml, exportImageAnnotationToMarkdown } from './document-export-annotation';
+import { exportMermaidFigure } from './document-export-mermaid';
+import { exportTableToHtml } from './document-export-table';
+import baseExportStyles from './styles/document-base.embedded.css?raw';
+import codeExportStyles from './styles/document-code.embedded.css?raw';
+import exportLayoutStyles from './styles/document-layout.embedded.css?raw';
 import {
   exportApiEndpointToHtml,
   exportApiEndpointToMarkdown,
@@ -16,10 +21,7 @@ import {
   exportTaskTableToHtml,
 } from './document-export-widgets';
 import {
-  BASE_EXPORT_STYLES,
   clampHeadingLevel,
-  CODE_EXPORT_STYLES,
-  EXPORT_LAYOUT_STYLES,
   exportBpmnSvg,
   getEditorBlocks,
   getExportTitle,
@@ -50,7 +52,7 @@ export async function exportPageContent(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${escapeHtml(getExportTitle(blocks))}</title>
-    <style>${BASE_EXPORT_STYLES}${EXPORT_LAYOUT_STYLES}${CODE_EXPORT_STYLES}</style>
+    <style>${baseExportStyles}${exportLayoutStyles}${codeExportStyles}</style>
   </head>
   <body>
 ${rendered.filter(Boolean).join('\n')}
@@ -108,7 +110,7 @@ async function exportCustomBlock(
   }
 
   const moduleUrl = `${pathToFileURL(getCustomAddonUri(extensionUri, workspaceRoot, addon).fsPath).href}?v=${Date.now()}`;
-  const adapterModule = (await import(moduleUrl)) as Record<string, unknown>;
+  const adapterModule = (await import(/* @vite-ignore */ moduleUrl)) as Record<string, unknown>;
   const adapters = isRecord(adapterModule.adapters) ? adapterModule.adapters : {};
   const adapter =
     format === 'html'
@@ -139,30 +141,7 @@ function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>): 
   }
 
   if (type === 'table' || type === 'confluenceTable') {
-    const rows = getTableRows(data);
-    const headerRow = type === 'table' ? data.withHeadings === true : data.headerRow === true;
-    const headerColumn = type === 'confluenceTable' && data.headerColumn === true;
-    const columnWidths = Array.isArray(data.columnWidths) ? data.columnWidths : [];
-    const rowHeights = Array.isArray(data.rowHeights) ? data.rowHeights : [];
-    return `<table>${rows
-      .map((row, rowIndex) => {
-        const cells = Array.isArray(row) ? row : [];
-        const rowHeight =
-          typeof rowHeights[rowIndex] === 'number' && rowHeights[rowIndex] > 0
-            ? ` style="height:${rowHeights[rowIndex]}px"`
-            : '';
-        return `<tr${rowHeight}>${cells
-          .map((cell, columnIndex) => {
-            const tag = (headerRow && rowIndex === 0) || (headerColumn && columnIndex === 0) ? 'th' : 'td';
-            const width =
-              typeof columnWidths[columnIndex] === 'number' && columnWidths[columnIndex] > 0
-                ? ` style="width:${columnWidths[columnIndex]}px"`
-                : '';
-            return `<${tag}${width}>${escapeHtml(String(cell ?? ''))}</${tag}>`;
-          })
-          .join('')}</tr>`;
-      })
-      .join('')}</table>`;
+    return exportTableToHtml(type, data);
   }
 
   if (type === 'image') {
@@ -173,9 +152,7 @@ function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>): 
   }
 
   if (type === 'mermaid') {
-    const code = typeof data.code === 'string' ? data.code : '';
-    const caption = typeof data.caption === 'string' ? data.caption : '';
-    return `<figure class="mermaid-figure"><pre class="mermaid">${escapeHtml(code)}</pre>${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ''}</figure>`;
+    return exportMermaidFigure(data);
   }
 
   if (type === 'flowDesigner') {

@@ -5,7 +5,6 @@ import { getDefaultSettings } from './settings';
 import { readSettings } from './settings-store';
 import { renderSettingsPanel } from './sidebar-render';
 import { getNonce } from './utils';
-import { SIDEBAR_WEBVIEW_STYLES } from './sidebar-webview-styles';
 
 type SidebarView = 'menu' | 'settings';
 
@@ -15,6 +14,7 @@ export async function getSidebarHtml(
   view: SidebarView = 'menu',
 ): Promise<string> {
   const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'sidebar.js'));
+  const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', 'sidebar.css'));
   const nonce = getNonce();
   const workspaceRoot = getWorkspaceRoot();
   const isInitialized = workspaceRoot ? await pathExists(vscode.Uri.joinPath(workspaceRoot, '.slash-doc')) : false;
@@ -75,7 +75,7 @@ export async function getSidebarHtml(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Slash Doc</title>
-  <style>${SIDEBAR_WEBVIEW_STYLES}</style>
+  <link rel="stylesheet" href="${styleUri}">
 </head>
 <body>
   ${content}

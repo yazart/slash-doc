@@ -13,7 +13,7 @@ import {
   writeMenu,
 } from './extension/pages';
 import { readSettings } from './extension/settings-store';
-import { exportPageContent } from './extension/document-export';
+import { savePageExport, type PageExportFormat } from './extension/page-export-file';
 import { ApiServerManager, migrateLegacyModules } from './extension/api-server';
 import { getWebviewHtml } from './extension/editor-webview';
 import {
@@ -34,7 +34,7 @@ type EditorMessage = {
   type?: string;
   data?: unknown;
   source?: 'auto' | 'manual';
-  format?: ExportFormat;
+  format?: PageExportFormat;
   requestId?: string;
   files?: UploadedProcessorFile[];
   script?: string;
@@ -47,8 +47,6 @@ type EditorMessage = {
   revision?: number;
   error?: string;
 };
-
-type ExportFormat = 'html' | 'md';
 
 let apiServerManager: ApiServerManager | undefined;
 let openPagePanel: OpenPagePanel | undefined;
@@ -197,18 +195,29 @@ export function activate(context: vscode.ExtensionContext) {
 
             if (message.type !== 'save') {
               if (message.type === 'export' && message.format) {
-                const content = await exportPageContent(
-                  message.data,
-                  message.format,
-                  settings,
-                  context.extensionUri,
-                  workspaceRoot,
-                );
-                const document = await vscode.workspace.openTextDocument({
-                  content,
-                  language: message.format === 'html' ? 'html' : 'markdown',
-                });
-                await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
+                if (!workspaceRoot) {
+                  void vscode.window.showErrorMessage('Slash Doc: для экспорта откройте папку проекта.');
+                  return;
+                }
+                try {
+                  const exported = await savePageExport(
+                    workspaceRoot,
+                    message.data,
+                    message.format,
+                    page?.title ?? panel.title,
+                    settings,
+                    context.extensionUri,
+                  );
+                  const document = await vscode.workspace.openTextDocument(exported.uri);
+                  await vscode.window.showTextDocument(document, vscode.ViewColumn.Beside);
+                  void vscode.window.showInformationMessage(
+                    `Slash Doc: файл ${exported.fileName} сохранён в корне проекта.`,
+                  );
+                } catch (error) {
+                  const detail = error instanceof Error ? error.message : String(error);
+                  console.error('Slash Doc: failed to export page', error);
+                  void vscode.window.showErrorMessage(`Slash Doc: не удалось экспортировать страницу. ${detail}`);
+                }
               }
 
               return;

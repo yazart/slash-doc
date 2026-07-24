@@ -1,6 +1,8 @@
 import { CODE_LANGUAGES, normalizeCodeLanguage, type CodeLanguage } from '../shared/syntax-highlighter';
 import { HighlightedCodeEditor } from './highlighted-code-editor';
 import { LUCIDE_ICONS } from './lucide-icons';
+import styles from './code-block-tool.shadow.css?raw';
+import { createToolSurface } from './tool-surface';
 
 export type CodeBlockData = {
   language: CodeLanguage;
@@ -27,6 +29,7 @@ export default class CodeBlockTool {
   }
 
   render(): HTMLElement {
+    const surface = createToolSurface(styles, 'slash-code-surface');
     const root = document.createElement('div');
     root.className = 'slash-code-tool';
     const toolbar = document.createElement('div');
@@ -52,7 +55,8 @@ export default class CodeBlockTool {
     });
     toolbar.append(title, language);
     root.append(toolbar, this.editor.root);
-    return root;
+    surface.content.append(root);
+    return surface;
   }
 
   save(): CodeBlockData {

@@ -1,4 +1,5 @@
 import { renderSafeMarkdown } from '../shared/markdown';
+import annotationExportStyles from './styles/image-annotation-export.embedded.css?raw';
 import { escapeAttribute, isRecord } from './utils';
 
 type ExportAnnotationImage = { dataUrl: string; width: number; height: number; name: string };
@@ -12,7 +13,12 @@ type ExportImageRegion = {
   description: string;
   zIndex: number;
 };
-type ExportImageAnnotation = { version: 1; image: ExportAnnotationImage | null; annotations: ExportImageRegion[] };
+type ExportImageAnnotation = {
+  version: 1;
+  image: ExportAnnotationImage | null;
+  annotations: ExportImageRegion[];
+  stretchToWidth: boolean;
+};
 
 export function exportImageAnnotationToHtml(data: Record<string, unknown>): string {
   const annotation = normalizeExportImageAnnotation(data);
@@ -31,10 +37,12 @@ export function exportImageAnnotationToHtml(data: Record<string, unknown>): stri
     )
     .join('');
   const rows = renderAnnotationHtmlRows(annotation.annotations);
+  const canvasClass = annotation.stretchToWidth ? 'stretched' : 'natural';
+  const canvasStyle = annotation.stretchToWidth
+    ? ''
+    : ` style="--slash-annotation-image-width:${annotation.image.width}px"`;
 
-  return `<style>
-    .slash-image-annotation-export{margin:1em 0}.slash-annotation-canvas{position:relative;max-width:100%;line-height:0}.slash-annotation-canvas>img{display:block;max-width:100%;height:auto}.slash-annotation-overlay,.slash-annotation-hotspots{position:absolute;inset:0;width:100%;height:100%}.slash-annotation-overlay{pointer-events:none}.slash-annotation-hotspots{pointer-events:none}.slash-annotation-hotspot{position:absolute;pointer-events:auto;outline:none}.slash-annotation-tooltip{position:absolute;z-index:3;left:50%;bottom:calc(100% + 8px);display:none;min-width:180px;max-width:320px;padding:8px 10px;color:#fff;border-radius:5px;background:#202124;box-shadow:0 4px 14px #0005;font:12px/1.4 sans-serif;transform:translateX(-50%);line-height:1.4}.slash-annotation-tooltip strong{display:inline-grid;place-items:center;width:20px;height:20px;margin-right:6px;color:#202124;border-radius:50%;background:#ffbc00}.slash-annotation-tooltip p{display:inline;margin:0}.slash-annotation-tooltip a{color:#8cc8ff}.slash-annotation-hotspot:hover .slash-annotation-tooltip,.slash-annotation-hotspot:focus .slash-annotation-tooltip{display:block}.slash-annotation-table{width:100%;margin-top:10px;border-collapse:collapse;font:13px/1.45 sans-serif}.slash-annotation-table th,.slash-annotation-table td{padding:7px 9px;border:1px solid #bbb;text-align:left;vertical-align:top}.slash-annotation-table th:first-child,.slash-annotation-table td:first-child{width:48px;text-align:center}
-  </style><figure class="slash-image-annotation-export"><div class="slash-annotation-canvas"><img src="${escapeAttribute(annotation.image.dataUrl)}" alt="${escapeAttribute(annotation.image.name)}" data-slash-doc-annotation="${encodedState}"><svg class="slash-annotation-overlay" viewBox="0 0 ${annotation.image.width} ${annotation.image.height}" preserveAspectRatio="none" aria-hidden="true">${overlay}</svg><div class="slash-annotation-hotspots">${hotspots}</div></div>${rows ? `<table class="slash-annotation-table"><thead><tr><th>#</th><th>Описание</th></tr></thead><tbody>${rows}</tbody></table>` : ''}<svg width="0" height="0" aria-hidden="true"><metadata id="slash-doc-image-annotation-data"><![CDATA[${metadata}]]></metadata></svg></figure>`;
+  return `<style>${annotationExportStyles}</style><figure class="slash-image-annotation-export"><div class="slash-annotation-canvas ${canvasClass}"${canvasStyle}><img src="${escapeAttribute(annotation.image.dataUrl)}" alt="${escapeAttribute(annotation.image.name)}" width="${annotation.image.width}" height="${annotation.image.height}" data-slash-doc-annotation="${encodedState}"><svg class="slash-annotation-overlay" viewBox="0 0 ${annotation.image.width} ${annotation.image.height}" preserveAspectRatio="none" aria-hidden="true">${overlay}</svg><div class="slash-annotation-hotspots">${hotspots}</div></div>${rows ? `<table class="slash-annotation-table"><thead><tr><th>#</th><th>Описание</th></tr></thead><tbody>${rows}</tbody></table>` : ''}<svg width="0" height="0" aria-hidden="true"><metadata id="slash-doc-image-annotation-data"><![CDATA[${metadata}]]></metadata></svg></figure>`;
 }
 
 export function exportImageAnnotationToMarkdown(data: Record<string, unknown>): string {
@@ -129,7 +137,7 @@ function normalizeExportImageAnnotation(data: Record<string, unknown>): ExportIm
         ];
       })
     : [];
-  return { version: 1, image, annotations };
+  return { version: 1, image, annotations, stretchToWidth: data.stretchToWidth !== false };
 }
 
 function clampUnit(value: unknown): number {

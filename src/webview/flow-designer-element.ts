@@ -1,6 +1,6 @@
-import { LitElement, html, svg } from 'lit';
+import { LitElement, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { FLOW_DESIGNER_STYLES } from './flow-designer-styles';
+import flowDesignerStyles from './flow-designer-styles.shadow.css?raw';
 import {
   createFlowDesignerData,
   type FlowDesignerData,
@@ -8,27 +8,12 @@ import {
   type WorkflowConnection,
   type WorkflowNode,
 } from './flow-designer-data';
+import { FLOW_NODE_TEMPLATES, renderFlowDesignerTemplate } from './flow-designer-template';
 
 export type { FlowDesignerData } from './flow-designer-data';
 export { createFlowDesignerData } from './flow-designer-data';
 
 type Point = { x: number; y: number };
-
-const templates: Record<NodeType, Pick<WorkflowNode, 'label' | 'inputs' | 'outputs'>> = {
-  trigger: { label: 'Триггер', inputs: [], outputs: ['out'] },
-  action: { label: 'Действие', inputs: ['in'], outputs: ['out'] },
-  condition: { label: 'Условие', inputs: ['in'], outputs: ['true', 'false'] },
-  transform: { label: 'Преобразование', inputs: ['in'], outputs: ['out'] },
-  output: { label: 'Результат', inputs: ['in'], outputs: [] },
-};
-
-const palette: Array<{ type: NodeType; description: string }> = [
-  { type: 'trigger', description: 'Запустить процесс' },
-  { type: 'action', description: 'Выполнить задачу' },
-  { type: 'condition', description: 'Разветвить логику' },
-  { type: 'transform', description: 'Изменить данные' },
-  { type: 'output', description: 'Отправить результат' },
-];
 
 @customElement('slash-flow-designer')
 export class FlowDesignerElement extends LitElement {
@@ -44,7 +29,7 @@ export class FlowDesignerElement extends LitElement {
   private panning?: Point;
   private connecting?: { nodeId: string; port: number; cursor: Point };
 
-  static styles = FLOW_DESIGNER_STYLES;
+  static styles = unsafeCSS(flowDesignerStyles);
 
   protected willUpdate(changes: Map<PropertyKey, unknown>) {
     if (changes.has('data') && !this.initialized) {
@@ -99,7 +84,7 @@ export class FlowDesignerElement extends LitElement {
   }
 
   private addNode(type: NodeType, point?: Point) {
-    const template = templates[type];
+    const template = FLOW_NODE_TEMPLATES[type];
     const node: WorkflowNode = {
       id: this.createId(),
       type,
@@ -223,120 +208,44 @@ export class FlowDesignerElement extends LitElement {
   }
 
   render() {
-    const selected = this.selected();
-    return html`<div class="editor">
-      <aside class="palette">
-        <h3 class="heading">Узлы</h3>
-        <div class="palette-list">
-          ${palette.map(
-            (item) =>
-              html`<button
-                type="button"
-                class="palette-item ${item.type} ${this.pendingType === item.type ? 'active' : ''}"
-                draggable="true"
-                @click=${() => {
-                  this.pendingType = item.type;
-                }}
-                @dragstart=${(event: DragEvent) => event.dataTransfer?.setData('application/node-type', item.type)}
-              >
-                <span class="dot"></span
-                ><span
-                  ><span class="palette-name">${item.type}</span
-                  ><span class="palette-desc">${item.description}</span></span
-                >
-              </button>`,
-          )}
-        </div>
-      </aside>
-      <section class="workspace">
-        <div
-          class="canvas ${this.pendingType ? 'pending' : ''}"
-          @mousedown=${this.onCanvasDown}
-          @dragover=${(event: DragEvent) => event.preventDefault()}
-          @drop=${(event: DragEvent) => {
-            event.preventDefault();
-            const type = event.dataTransfer?.getData('application/node-type') as NodeType;
-            if (templates[type]) this.addNode(type, this.point(event));
-          }}
-          @wheel=${(event: WheelEvent) => {
-            event.preventDefault();
-            this.zoom(event.deltaY > 0 ? -0.1 : 0.1);
-          }}
-        >
-          <svg class="connections">
-            ${this.connections.map((connection) => {
-              const from = this.nodes.find((node) => node.id === connection.fromNodeId);
-              const to = this.nodes.find((node) => node.id === connection.toNodeId);
-              return from && to
-                ? svg`<path d=${this.path(this.portPoint(from, connection.fromPort, true), this.portPoint(to, connection.toPort, false))} @click=${() => {
-                    this.connections = this.connections.filter((item) => item.id !== connection.id);
-                    this.emitChange();
-                  }}></path>`
-                : '';
-            })}
-            ${
-              this.connecting
-                ? (() => {
-                    const from = this.nodes.find((node) => node.id === this.connecting!.nodeId);
-                    return from
-                      ? svg`<path class="connecting" d=${this.path(this.portPoint(from, this.connecting!.port, true), this.connecting!.cursor)}></path>`
-                      : '';
-                  })()
-                : ''
-            }
-          </svg>
-          <div
-            class="scene"
-            style=${`transform: translate(${this.offset.x}px, ${this.offset.y}px) scale(${this.scale})`}
-          >
-            ${this.nodes.map(
-              (node) =>
-                html`<div
-                  class="node ${node.type} ${node.id === this.selectedId ? 'selected' : ''}"
-                  style=${`left:${node.x}px;top:${node.y}px`}
-                  @mousedown=${(event: MouseEvent) => this.onNodeDown(event, node)}
-                >
-                  <div class="node-title">${node.label}</div>
-                  ${node.description ? html`<div class="node-description">${node.description}</div>` : ''}${node.inputs.map((_, port) => html`<span class="port input" style=${`top:${31 + port * 16}px`} @mouseup=${(event: MouseEvent) => this.finishConnection(event, node, port)}></span>`)}${node.outputs.map((_, port) => html`<span class="port output" style=${`top:${31 + port * 16}px`} @mousedown=${(event: MouseEvent) => this.startConnection(event, node, port)}></span>`)}
-                </div>`,
-            )}
-          </div>
-        </div>
-        <div class="controls">
-          <button class="control" type="button" @click=${() => this.zoom(-0.1)}>−</button
-          ><span class="zoom">${Math.round(this.scale * 100)}%</span
-          ><button class="control" type="button" @click=${() => this.zoom(0.1)}>+</button>
-        </div>
-        ${
-          selected
-            ? html`<aside class="properties">
-                <div class="properties-header">
-                  <h3 class="properties-title">Свойства узла</h3>
-                  <button
-                    class="close"
-                    type="button"
-                    @click=${() => {
-                      this.selectedId = null;
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-                <label
-                  >Название<input
-                    .value=${selected.label}
-                    @input=${(event: Event) => this.updateSelected({ label: (event.target as HTMLInputElement).value })} /></label
-                ><label
-                  >Описание<textarea
-                    .value=${selected.description ?? ''}
-                    @input=${(event: Event) => this.updateSelected({ description: (event.target as HTMLTextAreaElement).value })}
-                  ></textarea></label
-                ><button class="delete" type="button" @click=${this.deleteSelected}>Удалить узел</button>
-              </aside>`
-            : ''
-        }
-      </section>
-    </div>`;
+    return renderFlowDesignerTemplate(
+      {
+        nodes: this.nodes,
+        connections: this.connections,
+        selected: this.selected(),
+        selectedId: this.selectedId,
+        pendingType: this.pendingType,
+        scale: this.scale,
+        offset: this.offset,
+        connecting: this.connecting,
+      },
+      {
+        setPendingType: (type) => {
+          this.pendingType = type;
+        },
+        onCanvasDown: (event) => this.onCanvasDown(event),
+        onDrop: (event) => {
+          event.preventDefault();
+          const type = event.dataTransfer?.getData('application/node-type') as NodeType;
+          if (FLOW_NODE_TEMPLATES[type]) this.addNode(type, this.point(event));
+        },
+        zoom: (delta) => this.zoom(delta),
+        removeConnection: (id) => {
+          this.connections = this.connections.filter((item) => item.id !== id);
+          this.emitChange();
+        },
+        path: (from, to) => this.path(from, to),
+        portPoint: (node, port, output) => this.portPoint(node, port, output),
+        onNodeDown: (event, node) => this.onNodeDown(event, node),
+        finishConnection: (event, node, port) => this.finishConnection(event, node, port),
+        startConnection: (event, node, port) => this.startConnection(event, node, port),
+        clearSelection: () => {
+          this.selectedId = null;
+        },
+        updateSelected: (updates) => this.updateSelected(updates),
+        deleteSelected: () => this.deleteSelected(),
+      },
+    );
   }
 }
 

@@ -186,6 +186,22 @@ export function readBpmnSvg(
   }
 }
 
+export function readMermaidSvg(svgHtml: string): Record<string, unknown> | undefined {
+  const encoded = getHtmlAttribute(svgHtml, 'data-slash-doc-mermaid-state');
+  if (!encoded) return undefined;
+  try {
+    const parsed = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+    if (!isRecord(parsed)) return undefined;
+    return {
+      code: typeof parsed.code === 'string' ? parsed.code : '',
+      caption: typeof parsed.caption === 'string' ? parsed.caption : '',
+      svg: svgHtml,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export function getHtmlAttribute(html: string, attribute: string): string {
   const pattern = new RegExp(`${attribute}\\s*=\\s*("([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i');
   const match = pattern.exec(html);

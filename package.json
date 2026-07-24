@@ -10,6 +10,7 @@
     "url": "https://github.com/yazart/slash-doc.git"
   },
   "engines": {
+    "node": ">=20.19.0",
     "vscode": "^1.90.0"
   },
   "categories": [
@@ -47,8 +48,8 @@
     ]
   },
   "scripts": {
-    "compile": "node esbuild.mjs",
-    "watch": "node esbuild.mjs --watch",
+    "compile": "node scripts/vite-build.mjs",
+    "watch": "node scripts/vite-build.mjs --watch",
     "vscode:prepublish": "npm run compile",
     "check:structure": "node scripts/check-source-structure.mjs",
     "check:types": "tsc --noEmit",
@@ -56,7 +57,10 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run check:structure && npm run lint && npm run check:types && npm run format:check",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check": "npm run check:structure && npm run lint && npm run check:types && npm run test && npm run format:check",
     "changelog": "conventional-changelog -p conventionalcommits -r 0 -o CHANGELOG.md",
     "changelog:update": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s",
     "version": "npm run changelog && git add CHANGELOG.md"
@@ -84,13 +88,15 @@
     "@types/vscode": "^1.90.0",
     "@typescript-eslint/eslint-plugin": "^8.64.0",
     "@typescript-eslint/parser": "^8.64.0",
+    "@vitest/coverage-v8": "^4.1.10",
     "conventional-changelog": "^8.1.0",
     "conventional-changelog-conventionalcommits": "^10.2.1",
-    "esbuild": "^0.21.5",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.5.0",
     "prettier": "^3.9.5",
-    "typescript": "5.1.6"
+    "typescript": "5.1.6",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.10"
   }
 }

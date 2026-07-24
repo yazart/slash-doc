@@ -1,3 +1,6 @@
+import './sidebar-base.css';
+import './sidebar-tree.css';
+import './sidebar-settings.css';
 import { collectSettings } from './settings-collector';
 import { setupPageTree } from './page-tree';
 import './styled-button';

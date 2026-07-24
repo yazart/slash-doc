@@ -1,0 +1,71 @@
+.service-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto;
+}
+
+.custom-addon-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) auto auto;
+}
+
+.api-settings-row {
+  grid-template-columns: minmax(0, 1fr) 72px;
+}
+
+.settings-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  padding: 2px 6px;
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  background: var(--vscode-input-background);
+  font: inherit;
+}
+
+.settings-input:focus {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
+.settings-open-button {
+  box-sizing: border-box;
+  height: 24px;
+  padding: 0 8px;
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-button-border, var(--vscode-input-border, transparent));
+  border-radius: 2px;
+  background: var(--vscode-button-secondaryBackground, var(--vscode-input-background));
+  font: inherit;
+  cursor: pointer;
+}
+
+.settings-open-button:hover {
+  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.service-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.service-actions slash-button {
+  flex: 0 1 auto;
+}
+
+slash-switch::part(base) {
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+slash-switch::part(control) {
+  border-color: var(--vscode-input-border, transparent);
+  background: var(--vscode-input-background);
+}
+
+slash-switch[checked]::part(control) {
+  border-color: var(--vscode-button-background);
+  background: var(--vscode-button-background);
+}

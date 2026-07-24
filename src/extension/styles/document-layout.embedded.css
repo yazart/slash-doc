@@ -1,0 +1,30 @@
+.slash-doc-export-block {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1860px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.slash-doc-export-block > * {
+  max-width: 100%;
+}
+
+.slash-bpmn-export {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 80px;
+  background: #fff;
+}
+
+.slash-user-mention {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  color: #0969da;
+  border-radius: 10px;
+  background: #ddf4ff;
+  text-decoration: none;
+  white-space: nowrap;
+}
