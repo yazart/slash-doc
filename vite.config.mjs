@@ -5,6 +5,7 @@ import { defineConfig } from 'vite';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const nodeBuiltins = new Set([...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
+const nodeOptionalModules = new Set(['bufferutil', 'utf-8-validate']);
 
 const targets = {
   extension: {
@@ -56,12 +57,6 @@ export function createSlashDocViteConfig(targetName, watch = false) {
           mainFields: ['module', 'main'],
         }
       : undefined,
-    ssr: isNode
-      ? {
-          external: ['vscode'],
-          noExternal: true,
-        }
-      : undefined,
     build: {
       target: isNode ? 'node20' : 'es2022',
       outDir: resolve(root, 'dist'),
@@ -72,18 +67,15 @@ export function createSlashDocViteConfig(targetName, watch = false) {
       cssCodeSplit: false,
       assetsDir: 'assets',
       watch: watch ? {} : null,
-      ssr: isNode ? resolve(root, target.entry) : false,
-      lib: isNode
-        ? undefined
-        : {
-            entry: resolve(root, target.entry),
-            formats: [target.format],
-            name: target.globalName,
-            fileName: () => target.fileName,
-            cssFileName: target.cssFileName,
-          },
+      lib: {
+        entry: resolve(root, target.entry),
+        formats: [target.format],
+        name: target.globalName,
+        fileName: () => target.fileName,
+        cssFileName: target.cssFileName,
+      },
       rollupOptions: {
-        external: isNode ? (id) => id === 'vscode' || nodeBuiltins.has(id) : [],
+        external: isNode ? (id) => id === 'vscode' || nodeBuiltins.has(id) || nodeOptionalModules.has(id) : [],
         output: {
           assetFileNames: (assetInfo) => {
             if (target.cssFileName && assetInfo.name?.endsWith('.css')) {
@@ -92,7 +84,6 @@ export function createSlashDocViteConfig(targetName, watch = false) {
             return 'assets/[name]-[hash][extname]';
           },
           exports: isNode ? 'auto' : undefined,
-          ...(isNode ? { entryFileNames: target.fileName, format: target.format } : {}),
           inlineDynamicImports: true,
         },
       },

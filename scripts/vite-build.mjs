@@ -31,4 +31,7 @@ async function validateBuildOutput() {
   if (extensionBundle.includes('__viteBrowserExternal')) {
     throw new Error('The extension host bundle contains a Vite browser external shim.');
   }
+  if (extensionBundle.includes('__viteOptionalPeerDep_bufferutil_ws')) {
+    throw new Error('The extension host bundle contains a broken Vite stub for the optional ws bufferutil module.');
+  }
 }
