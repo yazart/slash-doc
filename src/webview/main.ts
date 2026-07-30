@@ -10,6 +10,7 @@ import type { SlashDocWebviewSettings } from './editor-settings';
 import { protectCustomTool, type CustomAddonModule, type CustomBlockToolConstructor } from './custom-tool-protection';
 import { createPageSaveController, updatePageSaveStatus } from './page-save-controller';
 import { renderPendingMermaidDiagrams } from './mermaid-tool';
+import { createEditorUndoHistory } from './editor-undo-history';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
@@ -40,6 +41,9 @@ window.__SLASH_DOC_USER_DIRECTORY__ = userDirectory;
 let editor: EditorJS;
 const settings = window.__SLASH_DOC_SETTINGS__ ?? {};
 const { tools, inlineToolbarTools } = createEditorTools(settings, userDirectory);
+const editorHistory = createEditorUndoHistory<OutputData>(5);
+let historyCapture = Promise.resolve();
+let isRestoringHistory = false;
 const saveStatus = document.querySelector<HTMLElement>('#save-status');
 const pageSave = createPageSaveController({
   readData: readEditorData,
@@ -185,11 +189,21 @@ function requestFileProcessor<T>(type: string, payload: Record<string, unknown>)
 
 async function replaceEditorData(data: OutputData) {
   await editorInitialization;
-  await editor.render(normalizeEditorData(data));
+  await historyCapture;
+  const normalized = normalizeEditorData(data);
+  isRestoringHistory = true;
+  try {
+    await editor.render(normalized);
+    editorHistory.reset(normalized);
+  } finally {
+    isRestoringHistory = false;
+  }
 }
 
 async function initEditor() {
   await loadCustomTools();
+  const initialData = normalizeEditorData(window.__SLASH_DOC_INITIAL_DATA__);
+  editorHistory.reset(initialData);
 
   editor = new EditorJS({
     holder: 'editor',
@@ -281,15 +295,56 @@ async function initEditor() {
       },
     },
     tools,
-    data: normalizeEditorData(window.__SLASH_DOC_INITIAL_DATA__),
-    onChange: pageSave.schedule,
+    data: initialData,
+    onChange: handleEditorChange,
   });
 
   await editor.isReady;
   pageSave.installFallback(document.querySelector('#editor'));
+  installUndoShortcut();
   if (window.__SLASH_DOC_FOCUS_EDITOR__) {
     requestAnimationFrame(() => editor.caret.setToLastBlock('start'));
   }
+}
+
+function handleEditorChange(): void {
+  if (isRestoringHistory) return;
+  historyCapture = historyCapture
+    .then(async () => editorHistory.record(preserveInlineMarkup(await editor.save())))
+    .catch((error: unknown) => console.error('Slash Doc: не удалось записать шаг истории', error));
+  pageSave.schedule();
+}
+
+function installUndoShortcut(): void {
+  window.addEventListener(
+    'keydown',
+    (event) => {
+      const isUndoKey = event.code === 'KeyZ' || ['z', 'я'].includes(event.key.toLowerCase());
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || !isUndoKey) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void undoEditor().catch((error: unknown) => console.error('Slash Doc: не удалось отменить изменение', error));
+    },
+    true,
+  );
+}
+
+async function undoEditor(): Promise<void> {
+  await editorInitialization;
+  await historyCapture;
+  const current = preserveInlineMarkup(await editor.save());
+  const previous = editorHistory.undo(current);
+  if (!previous) return;
+  isRestoringHistory = true;
+  try {
+    await editor.render(previous);
+  } catch (error) {
+    editorHistory.record(current);
+    throw error;
+  } finally {
+    isRestoringHistory = false;
+  }
+  pageSave.schedule();
 }
 
 async function loadCustomTools() {

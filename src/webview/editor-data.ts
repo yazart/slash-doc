@@ -1,9 +1,10 @@
 import type { OutputData } from '@editorjs/editorjs';
+import { removePageTime } from '../shared/page-content';
 
 export function normalizeEditorData(value: unknown): OutputData {
   const source = isRecord(value) ? value : {};
   const blocks = Array.isArray(source.blocks) ? source.blocks : [];
-  return {
+  return removePageTime({
     ...source,
     blocks: blocks.filter(isRecord).map((block) =>
       block.type === 'table'
@@ -20,7 +21,7 @@ export function normalizeEditorData(value: unknown): OutputData {
           }
         : block,
     ),
-  } as unknown as OutputData;
+  }) as OutputData;
 }
 
 export function preserveInlineMarkup(data: OutputData): OutputData {
@@ -38,7 +39,7 @@ export function preserveInlineMarkup(data: OutputData): OutputData {
       if (items.length > 0) block.data.items = items;
     }
   });
-  return data;
+  return removePageTime(data) as OutputData;
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

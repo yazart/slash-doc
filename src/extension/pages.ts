@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { getMenuUri, getPageContentUri, pathExists, writeJson } from './filesystem';
 import type { DocumentationPageLink, PageMovePosition, SlashDocMenu, SlashDocMenuItem } from './types';
 import { createPageId, escapeAttribute, escapeHtml, isRecord, stripHtml } from './utils';
+import { removePageTime } from '../shared/page-content';
 
 export async function readMenu(workspaceRoot: vscode.Uri): Promise<SlashDocMenu> {
   const menuUri = getMenuUri(workspaceRoot);
@@ -31,12 +32,11 @@ export async function readPageContent(
   }
 
   const data = await vscode.workspace.fs.readFile(contentUri);
-  return JSON.parse(new TextDecoder().decode(data));
+  return removePageTime(JSON.parse(new TextDecoder().decode(data)));
 }
 
 export function createDefaultPageContent(title: string): unknown {
   return {
-    time: Date.now(),
     blocks: [{ type: 'header', data: { text: title, level: 2 } }],
     version: '2.30.8',
   };
@@ -44,7 +44,6 @@ export function createDefaultPageContent(title: string): unknown {
 
 export function createNewPageContent(title: string): unknown {
   return {
-    time: Date.now(),
     blocks: [
       { type: 'header', data: { text: escapeHtml(title), level: 2 } },
       { type: 'paragraph', data: { text: '' } },
@@ -67,7 +66,7 @@ export function updatePageContentTitle(data: unknown, title: string): unknown {
     blocks.unshift({ type: 'header', data: { text: escapeHtml(title), level: 2 } });
   }
 
-  return { ...data, time: Date.now(), blocks };
+  return removePageTime({ ...data, blocks });
 }
 
 export function normalizeMenuItems(items: unknown): SlashDocMenuItem[] {

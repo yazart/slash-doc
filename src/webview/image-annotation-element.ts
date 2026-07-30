@@ -2,6 +2,7 @@ import { LitElement, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import imageAnnotationStyles from './image-annotation-styles.shadow.css?raw';
 import { renderImageAnnotationTemplate } from './image-annotation-template';
+import { consumeClipboardImage, isolateEditorEvent } from './editor-event-isolation';
 
 export type AnnotationImage = { dataUrl: string; width: number; height: number; name: string };
 export type ImageRegion = {
@@ -79,18 +80,17 @@ export class ImageAnnotationElement extends LitElement {
     this.focus();
   }
   private dropFile(event: DragEvent) {
-    event.preventDefault();
+    isolateEditorEvent(event);
     this.isDraggingFile = false;
     const file = Array.from(event.dataTransfer?.files ?? []).find((item) => item.type.startsWith('image/'));
     if (file) void this.loadFile(file);
   }
   private onPaste = (event: ClipboardEvent) => {
-    const file = Array.from(event.clipboardData?.files ?? []).find((item) => item.type.startsWith('image/'));
-    if (file) {
-      event.preventDefault();
-      void this.loadFile(file);
-    }
+    consumeClipboardImage(event, (file) => this.pasteImage(file));
   };
+  pasteImage(file: File): void {
+    void this.loadFile(file);
+  }
   private point(event: PointerEvent): Point {
     const rect = this.renderRoot.querySelector('.overlay')!.getBoundingClientRect();
     return { x: clamp((event.clientX - rect.left) / rect.width), y: clamp((event.clientY - rect.top) / rect.height) };

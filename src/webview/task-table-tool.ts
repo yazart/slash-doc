@@ -2,6 +2,7 @@ import { LUCIDE_ICONS } from './lucide-icons';
 import styles from './task-table-tool.shadow.css?raw';
 import { createToolSurface } from './tool-surface';
 import { TASK_TABLE_TEMPLATE } from './task-table-template';
+import { beginTaskTableDrag, consumeTaskTableDragEvent, finishTaskTableDrag } from './task-table-drag';
 
 export type TaskCard = {
   id: string;
@@ -85,12 +86,12 @@ export default class TaskTableTool {
     head.className = 'tt-column-head';
     const dragHandle = this.dragHandle('Перетащить колонку');
     dragHandle.addEventListener('dragstart', (event) => {
+      beginTaskTableDrag(event, 'column', column.id);
       this.draggedColumnId = column.id;
       element.classList.add('dragging');
-      event.dataTransfer?.setData('text/plain', column.id);
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
     });
-    dragHandle.addEventListener('dragend', () => {
+    dragHandle.addEventListener('dragend', (event) => {
+      finishTaskTableDrag(event);
       element.classList.remove('dragging');
       this.wrapper?.querySelectorAll('.drag-over').forEach((item) => item.classList.remove('drag-over'));
       this.draggedColumnId = undefined;
@@ -126,14 +127,14 @@ export default class TaskTableTool {
     add.textContent = '＋ Добавить карточку';
     add.addEventListener('click', () => this.addCard(column.id));
     element.addEventListener('dragover', (event) => {
-      event.preventDefault();
+      consumeTaskTableDragEvent(event);
       element.classList.add('drag-over');
     });
     element.addEventListener('dragleave', (event) => {
       if (!element.contains(event.relatedTarget as Node | null)) element.classList.remove('drag-over');
     });
     element.addEventListener('drop', (event) => {
-      event.preventDefault();
+      consumeTaskTableDragEvent(event);
       element.classList.remove('drag-over');
       if (this.draggedColumnId) {
         this.moveDraggedColumn(column.id);
@@ -174,12 +175,12 @@ export default class TaskTableTool {
       this.changed();
     });
     dragHandle.addEventListener('dragstart', (event) => {
+      beginTaskTableDrag(event, 'card', card.id);
       this.dragged = { cardId: card.id, columnId: column.id };
       element.classList.add('dragging');
-      event.dataTransfer?.setData('text/plain', card.id);
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
     });
-    dragHandle.addEventListener('dragend', () => {
+    dragHandle.addEventListener('dragend', (event) => {
+      finishTaskTableDrag(event);
       element.classList.remove('dragging');
       this.wrapper?.querySelectorAll('.drag-over').forEach((item) => item.classList.remove('drag-over'));
       this.dragged = undefined;

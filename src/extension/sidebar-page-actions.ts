@@ -12,6 +12,7 @@ import {
 } from './pages';
 import type { SlashDocMenuItem } from './types';
 import { createPageId } from './utils';
+import { removePageTime } from '../shared/page-content';
 
 export type OpenPagePanel = {
   pageId?: string;
@@ -82,6 +83,6 @@ export async function createSidebarPageWithContent(
     await writeMenu(workspaceRoot, menu);
   }
   await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(getPagesRootUri(workspaceRoot), id));
-  await writeJson(getPageContentUri(workspaceRoot, id), content);
+  await writeJson(getPageContentUri(workspaceRoot, id), removePageTime(content));
   return id;
 }

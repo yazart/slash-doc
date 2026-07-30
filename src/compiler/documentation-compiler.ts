@@ -72,7 +72,6 @@ async function readPage(docsRoot: string, page: SlashDocMenuItem): Promise<unkno
   } catch (error) {
     if (isMissingFile(error)) {
       return {
-        time: Date.now(),
         blocks: [{ type: 'header', data: { text: page.title, level: 2 } }],
         version: '2.23.2',
       };

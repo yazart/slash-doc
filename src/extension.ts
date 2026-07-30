@@ -14,6 +14,7 @@ import {
 } from './extension/pages';
 import { readSettings } from './extension/settings-store';
 import { savePageExport, type PageExportFormat } from './extension/page-export-file';
+import { removePageTime } from './shared/page-content';
 import { ApiServerManager, migrateLegacyModules } from './extension/api-server';
 import { getWebviewHtml } from './extension/editor-webview';
 import {
@@ -240,8 +241,9 @@ export function activate(context: vscode.ExtensionContext) {
 
             saveQueue = saveQueue.then(async () => {
               try {
-                await writeJson(getPageContentUri(workspaceRoot, pageId), message.data);
-                const title = getFirstHeaderText(message.data);
+                const pageData = removePageTime(message.data);
+                await writeJson(getPageContentUri(workspaceRoot, pageId), pageData);
+                const title = getFirstHeaderText(pageData);
 
                 if (title) {
                   const menu = await readMenu(workspaceRoot);

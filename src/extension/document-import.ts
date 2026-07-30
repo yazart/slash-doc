@@ -32,7 +32,6 @@ export function importDocumentContent(text: string, source: vscode.Uri): Importe
   return {
     title,
     content: {
-      time: Date.now(),
       blocks: normalizedBlocks,
       version: '2.30.8',
     },

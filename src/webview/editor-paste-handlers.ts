@@ -1,3 +1,5 @@
+import { consumeClipboardImage } from './editor-event-isolation';
+
 type TablePasteElement = HTMLElement & {
   __slashDocPasteTable?: (text: string, html: string) => void;
 };
@@ -6,12 +8,18 @@ type TextPasteElement = HTMLElement & {
   __slashDocPasteText?: (text: string) => void;
 };
 
+type ImagePasteElement = HTMLElement & {
+  pasteImage?: (file: File) => void;
+};
+
 type PasteAction = (text: string, html: string) => void;
 
 export function installEditorPasteHandlers(readClipboard: () => Promise<string>): void {
   window.addEventListener(
     'paste',
     (event) => {
+      const imageTarget = findImageAnnotationTarget(event);
+      if (imageTarget?.pasteImage && consumeClipboardImage(event, imageTarget.pasteImage.bind(imageTarget))) return;
       const paste = findPasteAction(event);
       if (!paste) return;
       const text = event.clipboardData?.getData('text/plain') ?? '';
@@ -54,6 +62,17 @@ export function installEditorPasteHandlers(readClipboard: () => Promise<string>)
     },
     true,
   );
+}
+
+function findImageAnnotationTarget(event: Event): ImagePasteElement | undefined {
+  return event
+    .composedPath()
+    .find(
+      (item): item is ImagePasteElement =>
+        item instanceof HTMLElement &&
+        item.matches('slash-image-annotation') &&
+        typeof (item as ImagePasteElement).pasteImage === 'function',
+    );
 }
 
 function findPasteAction(event: Event): PasteAction | undefined {
