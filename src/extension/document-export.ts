@@ -1,7 +1,4 @@
-import * as vscode from 'vscode';
-import { pathToFileURL } from 'url';
 import { highlightSource, normalizeCodeLanguage } from '../shared/syntax-highlighter';
-import { getCustomAddonUri } from './filesystem';
 import type { SlashDocSettings } from './types';
 import { escapeAttribute, escapeHtml, isRecord, stripHtml } from './utils';
 import { createFlowDesignerDataUri, createNetworkCanvasDataUri } from './document-export-diagrams';
@@ -31,19 +28,21 @@ import {
   markdownCodeFence,
 } from './document-export-common';
 
-type ExportFormat = 'html' | 'md';
+export type ExportFormat = 'html' | 'md';
+export type CustomBlockExporter = (
+  block: Record<string, unknown>,
+  format: ExportFormat,
+  settings: SlashDocSettings,
+) => Promise<string | undefined>;
 
 export async function exportPageContent(
   data: unknown,
   format: ExportFormat,
   settings: SlashDocSettings,
-  extensionUri: vscode.Uri,
-  workspaceRoot: vscode.Uri | undefined,
+  customBlockExporter?: CustomBlockExporter,
 ): Promise<string> {
   const blocks = getEditorBlocks(data);
-  const rendered = await Promise.all(
-    blocks.map((block) => exportBlock(block, format, settings, extensionUri, workspaceRoot)),
-  );
+  const rendered = await Promise.all(blocks.map((block) => exportBlock(block, format, settings, customBlockExporter)));
 
   if (format === 'html') {
     return `<!DOCTYPE html>
@@ -68,13 +67,10 @@ async function exportBlock(
   block: Record<string, unknown>,
   format: ExportFormat,
   settings: SlashDocSettings,
-  extensionUri: vscode.Uri,
-  workspaceRoot: vscode.Uri | undefined,
+  customBlockExporter?: CustomBlockExporter,
 ): Promise<string> {
   const type = typeof block.type === 'string' ? block.type : '';
-  const custom = workspaceRoot
-    ? await exportCustomBlock(block, format, settings, extensionUri, workspaceRoot)
-    : undefined;
+  const custom = customBlockExporter ? await customBlockExporter(block, format, settings) : undefined;
 
   if (custom !== undefined) {
     return format === 'html' ? wrapHtmlExportBlock(type, custom) : custom;
@@ -93,35 +89,6 @@ function wrapHtmlExportBlock(type: string, html: string): string {
   if (!html) return '';
   const normalizedType = type.replaceAll(/[^a-zA-Z0-9_-]/g, '-');
   return `<div class="slash-doc-export-block slash-doc-export-block-${escapeAttribute(normalizedType)}" data-slash-doc-block-type="${escapeAttribute(type)}">${html}</div>`;
-}
-
-async function exportCustomBlock(
-  block: Record<string, unknown>,
-  format: ExportFormat,
-  settings: SlashDocSettings,
-  extensionUri: vscode.Uri,
-  workspaceRoot: vscode.Uri,
-): Promise<string | undefined> {
-  const type = typeof block.type === 'string' ? block.type : '';
-  const addon = settings.customEditorAddons.find((item) => item.enabled && item.toolName === type);
-
-  if (!addon) {
-    return undefined;
-  }
-
-  const moduleUrl = `${pathToFileURL(getCustomAddonUri(extensionUri, workspaceRoot, addon).fsPath).href}?v=${Date.now()}`;
-  const adapterModule = (await import(/* @vite-ignore */ moduleUrl)) as Record<string, unknown>;
-  const adapters = isRecord(adapterModule.adapters) ? adapterModule.adapters : {};
-  const adapter =
-    format === 'html'
-      ? (adapterModule.toHtml ?? adapters.html)
-      : (adapterModule.toMarkdown ?? adapters.md ?? adapters.markdown);
-
-  if (typeof adapter !== 'function') {
-    return undefined;
-  }
-
-  return String(await adapter(block.data, { block, settings, format }));
 }
 
 function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>): string {

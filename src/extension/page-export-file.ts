@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { SlashDocSettings } from './types';
 import { exportPageContent } from './document-export';
+import { createCustomBlockExporter } from './custom-block-exporter';
 import { createPageExportFileName, type PageExportFormat } from './page-export-name';
 import { getFirstHeaderText } from './pages';
 
@@ -20,7 +21,12 @@ export async function savePageExport(
   settings: SlashDocSettings,
   extensionUri: vscode.Uri,
 ): Promise<SavedPageExport> {
-  const content = await exportPageContent(data, format, settings, extensionUri, workspaceRoot);
+  const content = await exportPageContent(
+    data,
+    format,
+    settings,
+    createCustomBlockExporter(extensionUri, workspaceRoot),
+  );
   const fileName = createPageExportFileName(getFirstHeaderText(data) || fallbackTitle, format);
   const uri = vscode.Uri.joinPath(workspaceRoot, fileName);
   await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));

@@ -26,4 +26,13 @@ describe('Vite target configuration', () => {
     expect(config.ssr).toBeUndefined();
     expect(typeof library === 'object' && library.fileName()).toBe('webview.js');
   });
+
+  it('builds the standalone documentation compiler as a Node executable', () => {
+    const config = createSlashDocViteConfig('compiler');
+    const library = config.build?.lib;
+
+    expect(config.resolve).toMatchObject({ conditions: ['node'] });
+    expect(typeof library === 'object' && library.fileName()).toBe('slash-doc-compile.js');
+    expect(typeof library === 'object' && library.formats).toEqual(['cjs']);
+  });
 });

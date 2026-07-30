@@ -57,6 +57,28 @@ Slash Doc — расширение для Visual Studio Code, предназна
 - XML и SVG сохраняются в данных Editor.js; при HTML-экспорте оба блока становятся статическим SVG.
 - Водяной знак bpmn.io является обязательной частью `bpmn-js 9.0.0` и должен оставаться видимым.
 
+### Автономная сборка документации
+
+HTML-сайт можно собрать без VS Code и без запуска расширения. После `npm run compile` используйте
+переносимый Node.js-файл `dist/slash-doc-compile.js`:
+
+```sh
+node dist/slash-doc-compile.js /path/to/project
+node dist/slash-doc-compile.js /path/to/project --output /path/to/site
+```
+
+По умолчанию результат сохраняется в `<проект>/slash-doc-site`. Утилита читает
+`.slash-doc/docs/menu.json`, содержимое страниц и `.slash-doc/sdsettings.json`, затем создаёт
+`index.html` и каталог `pages/`. Для экспорта пользовательских аддонов передайте каталог с их
+модулями:
+
+```sh
+node dist/slash-doc-compile.js /path/to/project --addons /path/to/addons
+```
+
+Файл компилятора можно скопировать отдельно от расширения на машину с Node.js 20.19 или новее.
+После `npm link` та же команда доступна как `slash-doc-compile`.
+
 ## Разработка
 
 ```sh
@@ -64,24 +86,25 @@ npm install
 npm run compile
 ```
 
-Сборка выполняется Vite и формирует в `dist/` четыре точки входа: extension host, основной webview,
-sidebar и обработчик файлов. Откройте проект в VS Code, нажмите `F5` и запустите расширение в
-Extension Development Host.
+Сборка выполняется Vite и формирует в `dist/` пять точек входа: extension host, основной webview,
+sidebar, обработчик файлов и автономный компилятор документации. Откройте проект в VS Code, нажмите
+`F5` и запустите расширение в Extension Development Host.
 
 Основные команды:
 
-| Команда                    | Назначение                                                   |
-| -------------------------- | ------------------------------------------------------------ |
-| `npm run compile`          | Собрать extension host, webview, sidebar и обработчик файлов |
-| `npm run watch`            | Запустить Vite в режиме наблюдения                           |
-| `npm run test`             | Однократно выполнить тесты Vitest                            |
-| `npm run test:watch`       | Запустить Vitest в интерактивном режиме                      |
-| `npm run test:coverage`    | Выполнить тесты и сформировать отчёт покрытия                |
-| `npm run check`            | Выполнить ESLint, TypeScript, Vitest и Prettier              |
-| `npm run lint:fix`         | Исправить доступные ошибки ESLint                            |
-| `npm run format`           | Отформатировать проект с помощью Prettier                    |
-| `npm run changelog`        | Полностью пересоздать CHANGELOG из истории Git               |
-| `npm run changelog:update` | Добавить изменения после последнего Git-тега                 |
+| Команда                             | Назначение                                      |
+| ----------------------------------- | ----------------------------------------------- |
+| `npm run compile`                   | Собрать расширение и автономный компилятор      |
+| `npm run compile:docs -- <project>` | Собрать HTML-сайт указанного проекта            |
+| `npm run watch`                     | Запустить Vite в режиме наблюдения              |
+| `npm run test`                      | Однократно выполнить тесты Vitest               |
+| `npm run test:watch`                | Запустить Vitest в интерактивном режиме         |
+| `npm run test:coverage`             | Выполнить тесты и сформировать отчёт покрытия   |
+| `npm run check`                     | Выполнить ESLint, TypeScript, Vitest и Prettier |
+| `npm run lint:fix`                  | Исправить доступные ошибки ESLint               |
+| `npm run format`                    | Отформатировать проект с помощью Prettier       |
+| `npm run changelog`                 | Полностью пересоздать CHANGELOG из истории Git  |
+| `npm run changelog:update`          | Добавить изменения после последнего Git-тега    |
 
 ## CHANGELOG и релизы
 

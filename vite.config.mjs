@@ -40,6 +40,13 @@ const targets = {
     platform: 'node',
     sourcemap: false,
   },
+  compiler: {
+    entry: 'src/documentation-compiler-cli.ts',
+    fileName: 'slash-doc-compile.js',
+    format: 'cjs',
+    platform: 'node',
+    sourcemap: false,
+  },
 };
 
 export function createSlashDocViteConfig(targetName, watch = false) {

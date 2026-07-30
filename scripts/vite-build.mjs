@@ -1,15 +1,15 @@
-import { access, readFile, rm } from 'node:fs/promises';
+import { access, chmod, readFile, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { build } from 'vite';
 import { createSlashDocViteConfig } from '../vite.config.mjs';
 
 const watch = process.argv.includes('--watch');
-const targets = ['extension', 'webview', 'sidebar', 'runner'];
+const targets = ['extension', 'webview', 'sidebar', 'runner', 'compiler'];
 await rm(resolve('dist'), { recursive: true, force: true });
 
 if (watch) {
   await Promise.all(targets.map((target) => build(createSlashDocViteConfig(target, true))));
-  console.log('Vite watches extension, editor webview, sidebar, and file processor runner.');
+  console.log('Vite watches extension, editor webview, sidebar, file processor runner, and documentation compiler.');
 } else {
   for (const target of targets) {
     await build(createSlashDocViteConfig(target));
@@ -25,8 +25,10 @@ async function validateBuildOutput() {
     'sidebar.js',
     'sidebar.css',
     'file-processor-runner.js',
+    'slash-doc-compile.js',
   ];
   await Promise.all(expectedFiles.map((fileName) => access(resolve('dist', fileName))));
+  await chmod(resolve('dist', 'slash-doc-compile.js'), 0o755);
   const extensionBundle = await readFile(resolve('dist', 'extension.js'), 'utf8');
   if (extensionBundle.includes('__viteBrowserExternal')) {
     throw new Error('The extension host bundle contains a Vite browser external shim.');

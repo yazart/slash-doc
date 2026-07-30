@@ -21,6 +21,9 @@
     "onView:slashDoc.actions"
   ],
   "main": "./dist/extension.js",
+  "bin": {
+    "slash-doc-compile": "./dist/slash-doc-compile.js"
+  },
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -49,6 +52,7 @@
   },
   "scripts": {
     "compile": "node scripts/vite-build.mjs",
+    "compile:docs": "node dist/slash-doc-compile.js",
     "watch": "node scripts/vite-build.mjs --watch",
     "vscode:prepublish": "npm run compile",
     "check:structure": "node scripts/check-source-structure.mjs",
