@@ -10,7 +10,7 @@ import type { SlashDocWebviewSettings } from './editor-settings';
 import { protectCustomTool, type CustomAddonModule, type CustomBlockToolConstructor } from './custom-tool-protection';
 import { createPageSaveController, updatePageSaveStatus } from './page-save-controller';
 import { renderPendingMermaidDiagrams } from './mermaid-tool';
-import { createEditorUndoHistory } from './editor-undo-history';
+import { createEditorUndoHistory, installEditorHistoryListeners } from './editor-undo-history';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
@@ -300,7 +300,9 @@ async function initEditor() {
   });
 
   await editor.isReady;
-  pageSave.installFallback(document.querySelector('#editor'));
+  const holder = document.querySelector('#editor');
+  pageSave.installFallback(holder);
+  installEditorHistoryListeners(holder, handleEditorChange);
   installUndoShortcut();
   if (window.__SLASH_DOC_FOCUS_EDITOR__) {
     requestAnimationFrame(() => editor.caret.setToLastBlock('start'));

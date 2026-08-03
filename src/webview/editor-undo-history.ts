@@ -34,3 +34,8 @@ export function createEditorUndoHistory<T>(maxUndoSteps = 5): EditorUndoHistory<
     },
   };
 }
+
+export function installEditorHistoryListeners(target: EventTarget | null, recordChange: () => void): void {
+  target?.addEventListener('input', recordChange);
+  target?.addEventListener('change', recordChange);
+}

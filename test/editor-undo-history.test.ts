@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEditorUndoHistory } from '../src/webview/editor-undo-history';
+import { createEditorUndoHistory, installEditorHistoryListeners } from '../src/webview/editor-undo-history';
 
 type State = { blocks: Array<{ text: string }> };
 
@@ -38,6 +38,32 @@ describe('Editor undo history', () => {
     history.record(state('second'));
 
     expect(history.undo(state('second'))).toEqual(state('initial'));
+  });
+
+  it('keeps a Confluence Table block when undoing its latest cell edit', () => {
+    const history = createEditorUndoHistory<{ blocks: unknown[] }>(5);
+    const table = (value: string) => ({
+      blocks: [{ type: 'confluenceTable', data: { rows: [[value]], headerRow: false, headerColumn: false } }],
+    });
+    history.reset({ blocks: [] });
+    history.record(table(''));
+    history.record(table('first'));
+    history.record(table('second'));
+
+    expect(history.undo(table('second'))).toEqual(table('first'));
+  });
+
+  it('records input and change events emitted by custom blocks', () => {
+    const target = new EventTarget();
+    let changes = 0;
+    installEditorHistoryListeners(target, () => {
+      changes += 1;
+    });
+
+    target.dispatchEvent(new Event('input'));
+    target.dispatchEvent(new Event('change'));
+
+    expect(changes).toBe(2);
   });
 });
 
