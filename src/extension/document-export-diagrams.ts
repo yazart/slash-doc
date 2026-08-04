@@ -1,4 +1,12 @@
 import { networkIconContent, type NetworkIconName } from '../webview/network-icons';
+import { getFlowNodeExportHeight, wrapFlowDescription } from '../shared/flow-description-layout';
+import {
+  FLOW_DESCRIPTION_BASELINE,
+  FLOW_DESCRIPTION_LINE_HEIGHT,
+  FLOW_NODE_WIDTH,
+  FLOW_PORT_GAP,
+  FLOW_PORT_TOP,
+} from '../shared/flow-designer-layout';
 import { escapeAttribute, escapeHtml, isRecord } from './utils';
 import flowExportStyles from './styles/flow-export.embedded.css?raw';
 import networkExportStyles from './styles/network-export.embedded.css?raw';
@@ -29,13 +37,12 @@ export function createFlowDesignerDataUri(data: Record<string, unknown>): string
 function renderFlowDesignerSvg(data: Record<string, unknown>): string {
   const nodes = normalizeExportFlowNodes(data.nodes);
   const connections = normalizeExportFlowConnections(data.connections);
-  const nodeWidth = 180;
-  const nodeHeight = 76;
   const padding = 32;
   const minX = nodes.length > 0 ? Math.min(...nodes.map((node) => node.x)) : 0;
   const minY = nodes.length > 0 ? Math.min(...nodes.map((node) => node.y)) : 0;
-  const maxX = nodes.length > 0 ? Math.max(...nodes.map((node) => node.x + nodeWidth)) : 360;
-  const maxY = nodes.length > 0 ? Math.max(...nodes.map((node) => node.y + nodeHeight)) : 180;
+  const maxX = nodes.length > 0 ? Math.max(...nodes.map((node) => node.x + FLOW_NODE_WIDTH)) : 360;
+  const maxY =
+    nodes.length > 0 ? Math.max(...nodes.map((node) => node.y + getFlowNodeExportHeight(node.description))) : 180;
   const width = Math.max(360, maxX - minX + padding * 2);
   const height = Math.max(180, maxY - minY + padding * 2);
   const offsetX = padding - minX;
@@ -61,10 +68,10 @@ function renderFlowDesignerSvg(data: Record<string, unknown>): string {
         return '';
       }
 
-      const startX = from.x + offsetX + nodeWidth;
-      const startY = from.y + offsetY + nodeHeight / 2 + connection.fromPort * 12;
+      const startX = from.x + offsetX + FLOW_NODE_WIDTH;
+      const startY = from.y + offsetY + FLOW_PORT_TOP + connection.fromPort * FLOW_PORT_GAP;
       const endX = to.x + offsetX;
-      const endY = to.y + offsetY + nodeHeight / 2 + connection.toPort * 12;
+      const endY = to.y + offsetY + FLOW_PORT_TOP + connection.toPort * FLOW_PORT_GAP;
       const bend = Math.max(42, Math.abs(endX - startX) / 2);
       return `<path d="M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}"/>`;
     })
@@ -75,23 +82,30 @@ function renderFlowDesignerSvg(data: Record<string, unknown>): string {
       const y = node.y + offsetY;
       const color = getFlowNodeColor(node.type);
       const label = escapeHtml(node.label || getFlowNodeLabel(node.type));
-      const description = node.description
-        ? `<text class="description" x="${x + 14}" y="${y + 49}">${escapeHtml(node.description)}</text>`
+      const descriptionLines = wrapFlowDescription(node.description);
+      const description = descriptionLines.length
+        ? `<text class="description">${descriptionLines
+            .map(
+              (line, index) =>
+                `<tspan x="${x + 14}" y="${y + FLOW_DESCRIPTION_BASELINE + index * FLOW_DESCRIPTION_LINE_HEIGHT}">${line ? escapeHtml(line) : '&#160;'}</tspan>`,
+            )
+            .join('')}</text>`
         : '';
+      const nodeHeight = getFlowNodeExportHeight(node.description);
       const inputPorts = node.inputs
         .map(
           (_, index) =>
-            `<circle cx="${x}" cy="${y + nodeHeight / 2 + index * 12}" r="5" fill="#ffffff" stroke="${color}"/>`,
+            `<circle cx="${x}" cy="${y + FLOW_PORT_TOP + index * FLOW_PORT_GAP}" r="5" fill="#ffffff" stroke="${color}"/>`,
         )
         .join('');
       const outputPorts = node.outputs
         .map(
           (_, index) =>
-            `<circle cx="${x + nodeWidth}" cy="${y + nodeHeight / 2 + index * 12}" r="5" fill="#ffffff" stroke="${color}"/>`,
+            `<circle cx="${x + FLOW_NODE_WIDTH}" cy="${y + FLOW_PORT_TOP + index * FLOW_PORT_GAP}" r="5" fill="#ffffff" stroke="${color}"/>`,
         )
         .join('');
 
-      return `<g class="node node-${escapeAttribute(node.type)}"><rect x="${x}" y="${y}" width="${nodeWidth}" height="${nodeHeight}" rx="8" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="2"/><text class="label" x="${x + 14}" y="${y + 29}">${label}</text>${description}${inputPorts}${outputPorts}</g>`;
+      return `<g class="node node-${escapeAttribute(node.type)}"><rect x="${x}" y="${y}" width="${FLOW_NODE_WIDTH}" height="${nodeHeight}" rx="8" fill="${color}" fill-opacity="0.12" stroke="${color}" stroke-width="2"/><text class="label" x="${x + 14}" y="${y + 25}">${label}</text>${description}${inputPorts}${outputPorts}</g>`;
     })
     .join('');
 

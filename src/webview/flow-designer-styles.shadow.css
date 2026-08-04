@@ -148,6 +148,8 @@ path.connecting {
   margin-top: 5px;
   color: var(--fd-muted);
   font-size: 10px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 .port {
   position: absolute;

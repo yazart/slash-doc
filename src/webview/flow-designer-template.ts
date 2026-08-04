@@ -1,4 +1,5 @@
 import { html, svg, type TemplateResult } from 'lit';
+import { FLOW_PORT_GAP, FLOW_PORT_TOP } from '../shared/flow-designer-layout';
 import type { NodeType, WorkflowConnection, WorkflowNode } from './flow-designer-data';
 
 type Point = { x: number; y: number };
@@ -145,14 +146,14 @@ function renderNode(
       (_, port) =>
         html`<span
           class="port input"
-          style=${`top:${31 + port * 16}px`}
+          style=${`top:${FLOW_PORT_TOP + port * FLOW_PORT_GAP}px`}
           @mouseup=${(event: MouseEvent) => actions.finishConnection(event, node, port)}
         ></span>`,
     )}${node.outputs.map(
       (_, port) =>
         html`<span
           class="port output"
-          style=${`top:${31 + port * 16}px`}
+          style=${`top:${FLOW_PORT_TOP + port * FLOW_PORT_GAP}px`}
           @mousedown=${(event: MouseEvent) => actions.startConnection(event, node, port)}
         ></span>`,
     )}

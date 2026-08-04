@@ -1,6 +1,7 @@
 import { LitElement, unsafeCSS } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import flowDesignerStyles from './flow-designer-styles.shadow.css?raw';
+import { FLOW_NODE_WIDTH, FLOW_PORT_GAP, FLOW_PORT_TOP } from '../shared/flow-designer-layout';
 import {
   createFlowDesignerData,
   type FlowDesignerData,
@@ -177,8 +178,8 @@ export class FlowDesignerElement extends LitElement {
 
   private portPoint(node: WorkflowNode, port: number, output: boolean): Point {
     return {
-      x: (node.x + (output ? 130 : 0)) * this.scale + this.offset.x,
-      y: (node.y + 31 + port * 16) * this.scale + this.offset.y,
+      x: (node.x + (output ? FLOW_NODE_WIDTH : 0)) * this.scale + this.offset.x,
+      y: (node.y + FLOW_PORT_TOP + port * FLOW_PORT_GAP) * this.scale + this.offset.y,
     };
   }
 
