@@ -10,6 +10,10 @@ export function outlineSvgPrimitives(content: string): string {
 }
 
 export const LUCIDE_ICONS = {
+  bold: lucideIcon('<path d="M14 12a4 4 0 0 0 0-8H6v8"/><path d="M15 20a4 4 0 0 0 0-8H6v8Z"/>'),
+  italic: lucideIcon(
+    '<line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/>',
+  ),
   pilcrow: lucideIcon('<path d="M13 4v16"/><path d="M17 4v16"/><path d="M19 4H9.5a4.5 4.5 0 0 0 0 9H13"/>'),
   heading: lucideIcon('<path d="M6 12h12"/><path d="M6 20V4"/><path d="M18 20V4"/>'),
   list: lucideIcon(

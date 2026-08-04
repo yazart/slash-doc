@@ -1,3 +1,4 @@
+import { sanitizeTableCellHtml } from '../shared/table-cell-html';
 import { getTableRows } from './document-export-common';
 import { escapeHtml } from './utils';
 
@@ -20,7 +21,9 @@ export function exportTableToHtml(type: string, data: Record<string, unknown>): 
             typeof columnWidths[columnIndex] === 'number' && columnWidths[columnIndex] > 0
               ? ` style="width:${columnWidths[columnIndex]}px"`
               : '';
-          return `<${tag}${width}>${escapeHtml(String(cell ?? ''))}</${tag}>`;
+          const content =
+            type === 'confluenceTable' ? sanitizeTableCellHtml(String(cell ?? '')) : escapeHtml(String(cell ?? ''));
+          return `<${tag}${width}>${content}</${tag}>`;
         })
         .join('')}</tr>`;
     })

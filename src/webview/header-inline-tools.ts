@@ -1,6 +1,7 @@
 import type { DocumentationPageLink } from './page-link-tool';
 import { LUCIDE_ICONS } from './lucide-icons';
 import { preventDefault as preventSelectionLoss } from './event-utils';
+import { isNodeInsideSelector } from './shadow-dom';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
 
@@ -363,9 +364,7 @@ function dispatchEditorInput(node: Node): void {
 }
 
 function isEditorRange(range: Range): boolean {
-  const node = range.commonAncestorContainer;
-  const element = node instanceof Element ? node : node.parentElement;
-  return Boolean(element?.closest('#editor [contenteditable="true"]'));
+  return isNodeInsideSelector(range.commonAncestorContainer, '#editor [contenteditable="true"]');
 }
 
 function findParentPageLink(node: Node | undefined): HTMLAnchorElement | null {

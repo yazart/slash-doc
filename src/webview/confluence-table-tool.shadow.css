@@ -7,6 +7,65 @@
 .slash-confluence-table-tool * {
   box-sizing: border-box;
 }
+.ct-inline-toolbar {
+  display: flex;
+  width: fit-content;
+  margin: 0 0 6px;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 5px;
+  background: var(--vscode-editorWidget-background);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.ct-inline-toolbar[hidden] {
+  display: none;
+}
+.ct-inline-toolbar button,
+.ct-inline-toolbar input {
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+.ct-inline-toolbar button:hover,
+.ct-inline-toolbar input:hover {
+  color: var(--vscode-toolbar-hoverForeground, var(--vscode-foreground));
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+.ct-inline-toolbar svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+}
+.ct-cell code,
+.ct-cell .inline-code {
+  padding: 0.12em 0.3em;
+  border-radius: 3px;
+  background: var(--vscode-textCodeBlock-background);
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+.ct-cell mark {
+  color: inherit;
+  background: color-mix(in srgb, #facc15 48%, transparent);
+}
+.ct-cell a {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: underline;
+}
+.ct-cell .slash-user-mention {
+  display: inline-flex;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--vscode-textLink-foreground) 15%, transparent);
+  text-decoration: none;
+  white-space: nowrap;
+}
 .ct-shell {
   overflow: hidden;
   border: 1px solid var(--vscode-panel-border);

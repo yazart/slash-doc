@@ -1,3 +1,4 @@
+import { sanitizeTableCellHtml } from '../shared/table-cell-html';
 import type { ConfluenceTableData } from './confluence-table-data';
 
 export function startTableCellSelection(
@@ -43,6 +44,26 @@ export function startTableCellSelection(
   document.addEventListener('pointermove', move, { capture: true, passive: false });
   document.addEventListener('pointerup', finish, true);
   document.addEventListener('pointercancel', finish, true);
+}
+
+export function isPointerOverTableText(editor: HTMLElement, event: PointerEvent): boolean {
+  const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (!node.textContent) continue;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    for (const rect of Array.from(range.getClientRects())) {
+      if (
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom
+      )
+        return true;
+    }
+  }
+  return false;
 }
 
 export function clearTableCellRange(wrapper: HTMLElement | undefined): void {
@@ -148,7 +169,7 @@ export function insertTableData(
   while (data.columnWidths.length < requiredColumns) data.columnWidths.push(0);
   pasted.forEach((row, rowOffset) =>
     row.forEach((value, columnOffset) => {
-      data.rows[startRow + rowOffset][startColumn + columnOffset] = value;
+      data.rows[startRow + rowOffset][startColumn + columnOffset] = sanitizeTableCellHtml(value);
     }),
   );
 }

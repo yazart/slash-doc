@@ -35,4 +35,19 @@ describe('Confluence table HTML export', () => {
     expect(html).toContain('<th>Name</th>');
     expect(html).toContain('&lt;unsafe&gt;');
   });
+
+  it('exports safe inline formatting from Confluence cells', () => {
+    const html = exportTableToHtml('confluenceTable', {
+      rows: [
+        [
+          '<strong>Важно</strong> <span class="slash-text-color" data-slash-text-color="#ef4444">красное</span>',
+          '<a href="https://example.com">ссылка</a>',
+        ],
+      ],
+    });
+
+    expect(html).toContain('<strong>Важно</strong>');
+    expect(html).toContain('style="color:#ef4444"');
+    expect(html).toContain('target="_blank"');
+  });
 });

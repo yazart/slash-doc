@@ -1,3 +1,5 @@
+import { sanitizeTableCellHtml } from '../shared/table-cell-html';
+import { createTableInlineToolbar } from './confluence-table-inline-toolbar';
 import { LUCIDE_ICONS } from './lucide-icons';
 import { CONFLUENCE_TABLE_TEMPLATE } from './confluence-table-template';
 import {
@@ -5,12 +7,12 @@ import {
   getSelectedTableCellData,
   installTablePasteTargetCleanup,
   insertTableData,
+  isPointerOverTableText,
   openTableContextMenu,
   startTableCellSelection,
   trackTableResize,
 } from './confluence-table-interactions';
 import {
-  escapeClipboardHtml,
   insertTableColumn,
   insertTextAtSelection,
   insertTableRow,
@@ -32,6 +34,7 @@ export default class ConfluenceTableTool {
   private selectedColumn = 0;
   private suppressNextClick = false;
   private removePasteTargetCleanup?: () => void;
+  private readonly inlineToolbar = createTableInlineToolbar();
   static get toolbox() {
     return { title: 'Таблица Confluence', icon: LUCIDE_ICONS.table };
   }
@@ -44,6 +47,7 @@ export default class ConfluenceTableTool {
     const wrapper = document.createElement('div');
     wrapper.className = 'slash-confluence-table-tool';
     wrapper.innerHTML = CONFLUENCE_TABLE_TEMPLATE;
+    wrapper.prepend(this.inlineToolbar.element);
     this.wrapper = wrapper;
     wrapper.querySelector('.ct-menu')?.addEventListener('click', (event) => this.handleMenuAction(event));
     wrapper.addEventListener('keydown', (event) => {
@@ -116,7 +120,7 @@ export default class ConfluenceTableTool {
         editor.contentEditable = 'true';
         editor.tabIndex = 0;
         editor.spellcheck = true;
-        editor.textContent = value;
+        editor.innerHTML = sanitizeTableCellHtml(value);
         const fixedWidth = this.data.columnWidths[columnIndex] ?? 0;
         if (fixedWidth > 0) {
           editor.style.width = `${fixedWidth}px`;
@@ -136,9 +140,10 @@ export default class ConfluenceTableTool {
           event.stopPropagation();
           editor.focus();
           this.selectCell(rowIndex, columnIndex, editor, paste);
-          this.startCellSelection(event, rowIndex, columnIndex);
+          if (!isPointerOverTableText(editor, event)) this.startCellSelection(event, rowIndex, columnIndex);
         });
         editor.addEventListener('focus', () => this.selectCell(rowIndex, columnIndex, editor, paste));
+        this.inlineToolbar.bindCell(editor);
         editor.addEventListener('click', (event) => {
           event.stopPropagation();
           if (this.suppressNextClick) {
@@ -148,7 +153,7 @@ export default class ConfluenceTableTool {
           this.selectCell(rowIndex, columnIndex, editor, paste);
         });
         editor.addEventListener('input', () => {
-          this.data.rows[rowIndex][columnIndex] = editor.textContent ?? '';
+          this.data.rows[rowIndex][columnIndex] = sanitizeTableCellHtml(editor.innerHTML);
           this.changed();
         });
         editor.addEventListener('contextmenu', (event) => {
@@ -226,7 +231,7 @@ export default class ConfluenceTableTool {
 
     const text = serializeClipboardText(values);
     const html = `<table><tbody>${values
-      .map((row) => `<tr>${row.map((value) => `<td>${escapeClipboardHtml(value)}</td>`).join('')}</tr>`)
+      .map((row) => `<tr>${row.map((value) => `<td>${sanitizeTableCellHtml(value)}</td>`).join('')}</tr>`)
       .join('')}</tbody></table>`;
 
     event.clipboardData.setData('text/plain', text);
@@ -376,7 +381,7 @@ export default class ConfluenceTableTool {
     }
     editor.focus();
     insertTextAtSelection(editor, text);
-    this.data.rows[row][column] = editor.textContent ?? '';
+    this.data.rows[row][column] = sanitizeTableCellHtml(editor.innerHTML);
     this.changed();
   }
 

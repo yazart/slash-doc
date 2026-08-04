@@ -1,3 +1,5 @@
+import { sanitizeTableCellHtml, tableCellHtmlToText } from '../shared/table-cell-html';
+
 export type ConfluenceTableData = {
   rows: string[][];
   headerRow: boolean;
@@ -30,7 +32,9 @@ export function normalizeTable(
   const rowsValue = value?.rows;
   const contentValue = value?.content;
   const sourceRows = Array.isArray(rowsValue) ? rowsValue : Array.isArray(contentValue) ? contentValue : [];
-  const rows = sourceRows.filter(Array.isArray).map((row) => row.map((cell) => String(cell ?? '')));
+  const rows = sourceRows
+    .filter(Array.isArray)
+    .map((row) => row.map((cell) => sanitizeTableCellHtml(String(cell ?? ''))));
   const columns = Math.max(1, ...rows.map((row) => row.length));
   const normalizedRows = (
     rows.length > 0
@@ -83,7 +87,7 @@ export function readClipboardTable(text: string, html: string): string[][] | und
       .map((row) =>
         Array.from(row.children)
           .filter((cell) => cell.tagName === 'TH' || cell.tagName === 'TD')
-          .map((cell) => cell.textContent ?? ''),
+          .map((cell) => sanitizeTableCellHtml(cell.innerHTML)),
       )
       .filter((row) => row.length > 0);
     if (rows.length > 0) return rows;
@@ -116,7 +120,7 @@ export function insertTextAtSelection(editor: HTMLElement, text: string): void {
 }
 
 export function normalizeClipboardText(value: string): string {
-  return value.replaceAll('\t', ' ').replaceAll(/\r?\n/g, ' ');
+  return tableCellHtmlToText(value).replaceAll('\t', ' ').replaceAll(/\r?\n/g, ' ');
 }
 
 export function serializeClipboardText(values: string[][]): string {
