@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { findPasteActionInPath } from '../src/webview/editor-paste-handlers';
+import { findPasteActionInPath, insertTextIntoControl } from '../src/webview/editor-paste-handlers';
 
 describe('Editor paste routing', () => {
-  it('does not intercept paste in a regular Editor.js list item', () => {
+  it('routes paste to a regular Editor.js list item', () => {
     const listItem = elementMatching('.cdx-list__item');
 
-    expect(findPasteActionInPath([listItem])).toBeUndefined();
+    expect(findPasteActionInPath([listItem])).toBeTypeOf('function');
   });
 
   it('routes paste only when the event path contains a Confluence Table cell', () => {
@@ -15,6 +15,32 @@ describe('Editor paste routing', () => {
 
     action?.('one\ttwo', '');
     expect(paste).toHaveBeenCalledWith('one\ttwo', '');
+  });
+
+  it('routes text paste to a textarea inside Image Annotation', () => {
+    const textarea = Object.assign(elementMatching('textarea'), { selectionStart: 1, selectionEnd: 2 });
+    const annotation = elementMatching('slash-image-annotation');
+
+    expect(findPasteActionInPath([textarea, annotation])).toBeTypeOf('function');
+  });
+
+  it('replaces the selected textarea range and emits an input event', () => {
+    const events: Event[] = [];
+    const textarea = {
+      selectionStart: 1,
+      selectionEnd: 3,
+      focus: vi.fn(),
+      setRangeText: vi.fn(),
+      dispatchEvent: (event: Event) => {
+        events.push(event);
+        return true;
+      },
+    } as unknown as HTMLTextAreaElement;
+
+    insertTextIntoControl(textarea, 'new');
+
+    expect(textarea.setRangeText).toHaveBeenCalledWith('new', 1, 3, 'end');
+    expect(events[0]).toMatchObject({ type: 'input', bubbles: true, composed: true });
   });
 });
 

@@ -80,6 +80,14 @@ function findPasteAction(event: Event): PasteAction | undefined {
 }
 
 export function findPasteActionInPath(path: EventTarget[]): PasteAction | undefined {
+  const annotationTextarea = path.find(
+    (item): item is HTMLTextAreaElement => matchesElement(item, 'textarea') && hasNumericSelection(item),
+  );
+  const isImageAnnotation = path.some((item) => matchesElement(item, 'slash-image-annotation'));
+  if (annotationTextarea && isImageAnnotation) {
+    return (text) => insertTextIntoControl(annotationTextarea, text);
+  }
+
   const textTarget = path.find(
     (item): item is TextPasteElement =>
       matchesElement(item, '.slash-bpmn-xml') && typeof (item as TextPasteElement).__slashDocPasteText === 'function',
@@ -87,6 +95,8 @@ export function findPasteActionInPath(path: EventTarget[]): PasteAction | undefi
   if (textTarget?.__slashDocPasteText) {
     return (text) => textTarget.__slashDocPasteText?.(text);
   }
+  const listItem = path.find((item): item is HTMLElement => matchesElement(item, '.cdx-list__item'));
+  if (listItem) return (text) => insertTextIntoContentEditable(listItem, text);
   const tableTarget = path.find(
     (item): item is TablePasteElement =>
       matchesElement(item, '.ct-cell') && typeof (item as TablePasteElement).__slashDocPasteTable === 'function',
@@ -97,4 +107,33 @@ export function findPasteActionInPath(path: EventTarget[]): PasteAction | undefi
 function matchesElement(target: EventTarget, selector: string): target is HTMLElement {
   const candidate = target as EventTarget & { matches?: (value: string) => boolean };
   return typeof candidate.matches === 'function' && candidate.matches(selector);
+}
+
+function hasNumericSelection(target: EventTarget): target is HTMLTextAreaElement {
+  const candidate = target as EventTarget & { selectionStart?: unknown; selectionEnd?: unknown };
+  return typeof candidate.selectionStart === 'number' && typeof candidate.selectionEnd === 'number';
+}
+
+export function insertTextIntoControl(target: HTMLTextAreaElement, text: string): void {
+  target.focus();
+  target.setRangeText(text, target.selectionStart, target.selectionEnd, 'end');
+  target.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+}
+
+export function insertTextIntoContentEditable(target: HTMLElement, text: string): void {
+  target.focus();
+  const selection = window.getSelection();
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+  if (!selection || !range || !target.contains(range.commonAncestorContainer)) {
+    target.append(document.createTextNode(text));
+  } else {
+    range.deleteContents();
+    const node = document.createTextNode(text);
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  target.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
 }
