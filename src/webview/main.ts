@@ -207,6 +207,7 @@ async function initEditor() {
 
   editor = new EditorJS({
     holder: 'editor',
+    defaultBlock: 'paragraph',
     autofocus: true,
     placeholder: 'Начните писать в Editor.js…',
     inlineToolbar: inlineToolbarTools,

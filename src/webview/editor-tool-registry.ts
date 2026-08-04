@@ -22,6 +22,7 @@ import LucideUnderline from './lucide-underline';
 import MermaidTool from './mermaid-tool';
 import NetworkCanvasTool from './network-canvas-tool';
 import PageLinkTool from './page-link-tool';
+import PersistentParagraphTool from './persistent-paragraph-tool';
 import TaskTableTool from './task-table-tool';
 import TextColorTool from './text-color-tool';
 import { setupUserMentions, type UserDirectoryBridge } from './user-directory';
@@ -35,6 +36,7 @@ export function createEditorTools(
   initializeMermaid();
   const tools: EditorTools = {};
   const addons = settings.editorAddons;
+  tools.paragraph = { class: PersistentParagraphTool as unknown as ToolConstructable, inlineToolbar: true };
   if (addons?.header !== false) {
     tools.header = {
       class: Header as unknown as ToolConstructable,

@@ -12,7 +12,7 @@ type ImagePasteElement = HTMLElement & {
   pasteImage?: (file: File) => void;
 };
 
-type PasteAction = (text: string, html: string) => void;
+export type PasteAction = (text: string, html: string) => void;
 
 export function installEditorPasteHandlers(readClipboard: () => Promise<string>): void {
   window.addEventListener(
@@ -76,21 +76,25 @@ function findImageAnnotationTarget(event: Event): ImagePasteElement | undefined 
 }
 
 function findPasteAction(event: Event): PasteAction | undefined {
-  const path = event.composedPath();
+  return findPasteActionInPath(event.composedPath());
+}
+
+export function findPasteActionInPath(path: EventTarget[]): PasteAction | undefined {
   const textTarget = path.find(
     (item): item is TextPasteElement =>
-      item instanceof HTMLElement &&
-      item.matches('.slash-bpmn-xml') &&
-      typeof (item as TextPasteElement).__slashDocPasteText === 'function',
+      matchesElement(item, '.slash-bpmn-xml') && typeof (item as TextPasteElement).__slashDocPasteText === 'function',
   );
   if (textTarget?.__slashDocPasteText) {
     return (text) => textTarget.__slashDocPasteText?.(text);
   }
   const tableTarget = path.find(
     (item): item is TablePasteElement =>
-      item instanceof HTMLElement &&
-      item.matches('.ct-cell') &&
-      typeof (item as TablePasteElement).__slashDocPasteTable === 'function',
+      matchesElement(item, '.ct-cell') && typeof (item as TablePasteElement).__slashDocPasteTable === 'function',
   );
-  return tableTarget?.__slashDocPasteTable ?? window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
+  return tableTarget?.__slashDocPasteTable;
+}
+
+function matchesElement(target: EventTarget, selector: string): target is HTMLElement {
+  const candidate = target as EventTarget & { matches?: (value: string) => boolean };
+  return typeof candidate.matches === 'function' && candidate.matches(selector);
 }

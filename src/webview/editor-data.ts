@@ -1,5 +1,6 @@
 import type { OutputData } from '@editorjs/editorjs';
 import { removePageTime } from '../shared/page-content';
+import { normalizeParagraphText } from './persistent-paragraph-tool';
 
 export function normalizeEditorData(value: unknown): OutputData {
   const source = isRecord(value) ? value : {};
@@ -31,7 +32,9 @@ export function preserveInlineMarkup(data: OutputData): OutputData {
     if (!element || !isRecord(block.data)) return;
     if (block.type === 'paragraph' || block.type === 'header') {
       const editable = element.querySelector<HTMLElement>('.ce-paragraph, .ce-header, [contenteditable="true"]');
-      if (editable) block.data.text = editable.innerHTML;
+      if (editable) {
+        block.data.text = block.type === 'paragraph' ? normalizeParagraphText(editable.innerHTML) : editable.innerHTML;
+      }
       return;
     }
     if (block.type === 'list') {
