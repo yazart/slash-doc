@@ -1,4 +1,5 @@
 import type { OutputData } from '@editorjs/editorjs';
+import { migrateApprovalTableData } from '../shared/approval-table-migration';
 import { removePageTime } from '../shared/page-content';
 import { normalizeParagraphText } from './persistent-paragraph-tool';
 
@@ -7,22 +8,26 @@ export function normalizeEditorData(value: unknown): OutputData {
   const blocks = Array.isArray(source.blocks) ? source.blocks : [];
   return removePageTime({
     ...source,
-    blocks: blocks.filter(isRecord).map((block) =>
-      block.type === 'table'
-        ? {
-            ...block,
-            type: 'confluenceTable',
-            data: isRecord(block.data)
-              ? {
-                  rows: Array.isArray(block.data.content) ? block.data.content : [],
-                  headerRow: block.data.withHeadings === true,
-                  headerColumn: false,
-                }
-              : { rows: [['']], headerRow: false, headerColumn: false },
-          }
-        : block,
-    ),
+    blocks: blocks.filter(isRecord).map(migrateTableBlock),
   }) as OutputData;
+}
+
+function migrateTableBlock(block: Record<string, unknown>): Record<string, unknown> {
+  if (block.type === 'approvalTable') {
+    return { ...block, type: 'confluenceTable', data: migrateApprovalTableData(block.data) };
+  }
+  if (block.type !== 'table') return block;
+  return {
+    ...block,
+    type: 'confluenceTable',
+    data: isRecord(block.data)
+      ? {
+          rows: Array.isArray(block.data.content) ? block.data.content : [],
+          headerRow: block.data.withHeadings === true,
+          headerColumn: false,
+        }
+      : { rows: [['']], headerRow: false, headerColumn: false },
+  };
 }
 
 export function preserveInlineMarkup(data: OutputData): OutputData {

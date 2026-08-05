@@ -35,6 +35,71 @@ describe('standalone documentation compiler', () => {
     expect(result.outputRoot).toBe(join(projectRoot, 'slash-doc-site'));
     expect(missingPage).toContain('<h2>Details</h2>');
   });
+
+  it('builds a hierarchical Markdown tree and extracts page images', async () => {
+    const projectRoot = await createProject();
+    const outputRoot = join(projectRoot, 'markdown-docs');
+    const docsRoot = join(projectRoot, '.slash-doc', 'docs');
+    await writeFile(
+      join(docsRoot, 'menu.json'),
+      JSON.stringify({
+        items: [
+          {
+            id: 'start',
+            title: 'Start page',
+            file: 'start/content.json',
+            children: [{ id: 'details', title: 'Child page', file: 'details/content.json', children: [] }],
+          },
+        ],
+      }),
+    );
+    await writeFile(
+      join(projectRoot, '.slash-doc', 'sdsettings.json'),
+      JSON.stringify({ exportOptions: { extractImages: true } }),
+    );
+    const startContentPath = join(docsRoot, 'pages', 'start', 'content.json');
+    const startContent = JSON.parse(await readFile(startContentPath, 'utf8')) as { blocks: unknown[] };
+    startContent.blocks.push({
+      type: 'image',
+      data: { file: { url: 'data:image/png;base64,aGVsbG8=' }, caption: 'Picture' },
+    });
+    await writeFile(startContentPath, JSON.stringify(startContent));
+
+    const result = await compileDocumentation({ projectRoot, outputRoot, format: 'md' });
+    const contents = await readFile(join(outputRoot, 'contents.md'), 'utf8');
+    const parent = await readFile(join(outputRoot, 'Start page', 'content.md'), 'utf8');
+    const child = await readFile(join(outputRoot, 'Start page', 'Child page', 'content.md'), 'utf8');
+    const image = await readFile(join(outputRoot, 'Start page', 'image-1.png'));
+
+    expect(result.indexPath).toBe(join(outputRoot, 'contents.md'));
+    expect(contents).toContain('- [Start page](Start%20page/content.md)');
+    expect(contents).toContain('  - [Child page](Start%20page/Child%20page/content.md)');
+    expect(parent).toContain('[inside](Child%20page/content.md#section)');
+    expect(parent).toContain('![Picture](image-1.png)');
+    expect(child).toContain('## Details');
+    expect(image.toString('utf8')).toBe('hello');
+  });
+
+  it('uses the image extraction setting for HTML site compilation', async () => {
+    const projectRoot = await createProject();
+    const outputRoot = join(projectRoot, 'html-docs');
+    await writeFile(
+      join(projectRoot, '.slash-doc', 'sdsettings.json'),
+      JSON.stringify({ exportOptions: { extractImages: true } }),
+    );
+    const contentPath = join(projectRoot, '.slash-doc', 'docs', 'pages', 'start', 'content.json');
+    const content = JSON.parse(await readFile(contentPath, 'utf8')) as { blocks: unknown[] };
+    content.blocks.push({ type: 'image', data: { file: { url: 'data:image/png;base64,aGVsbG8=' } } });
+    await writeFile(contentPath, JSON.stringify(content));
+
+    await compileDocumentation({ projectRoot, outputRoot });
+    const page = await readFile(join(outputRoot, 'pages', 'start.html'), 'utf8');
+    const image = await readFile(join(outputRoot, 'pages', 'start-image-1.png'));
+
+    expect(page).toContain('src="start-image-1.png"');
+    expect(page).not.toContain('data:image/png;base64');
+    expect(image.toString('utf8')).toBe('hello');
+  });
 });
 
 async function createProject(includeSecondPage = true): Promise<string> {

@@ -5,6 +5,7 @@ import {
   markdownInlineToHtml,
   markdownTableToRows,
 } from './document-import-common';
+import { migrateApprovalTableData } from '../shared/approval-table-migration';
 import {
   importedCodeLanguage,
   readApiEndpointHtml,
@@ -68,7 +69,7 @@ export function importMarkdownBlocks(markdown: string): Record<string, unknown>[
     if (trimmed.includes('data-slash-doc-approval-table=')) {
       flushParagraph();
       const approvalTable = readApprovalTableHtml(trimmed);
-      if (approvalTable) blocks.push(createEditorBlock('approvalTable', approvalTable));
+      if (approvalTable) blocks.push(createEditorBlock('confluenceTable', migrateApprovalTableData(approvalTable)));
       continue;
     }
 

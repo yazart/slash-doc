@@ -119,6 +119,10 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
         await compileDocumentation(this.extensionUri, this.saveOpenPage);
       }
 
+      if (message.type === 'compileMarkdownDocumentation') {
+        await compileDocumentation(this.extensionUri, this.saveOpenPage, 'md');
+      }
+
       if (message.type === 'updateSettings' && message.settings) {
         await this.updateSettings(message.settings);
       }
@@ -175,7 +179,9 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    await writeSettings(workspaceRoot, normalizeSettings(settings));
+    const normalized = normalizeSettings(settings);
+    await writeSettings(workspaceRoot, normalized);
+    void this.getOpenPagePanel()?.panel.webview.postMessage({ type: 'settingsUpdated', autoSave: normalized.autoSave });
     await this.apiServerManager.reload();
   }
 

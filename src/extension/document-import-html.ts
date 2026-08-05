@@ -1,4 +1,5 @@
 import { stripHtml } from './utils';
+import { migrateApprovalTableData } from '../shared/approval-table-migration';
 import { createEditorBlock } from './document-import-common';
 import {
   decodeHtmlEntities,
@@ -106,7 +107,7 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
     if (tag === 'table') {
       const approvalTable = readApprovalTableHtml(outer);
       if (approvalTable) {
-        blocks.push(createEditorBlock('approvalTable', approvalTable));
+        blocks.push(createEditorBlock('confluenceTable', migrateApprovalTableData(approvalTable)));
         continue;
       }
       const htmlRows = inner.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi) ?? [];

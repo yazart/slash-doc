@@ -1,5 +1,11 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
+import {
+  createDocumentationTree,
+  renderMarkdownContents,
+  rewriteMarkdownPageLinks,
+} from '../shared/documentation-tree';
+import { extractEmbeddedImages } from '../shared/embedded-images';
 import { createFileSystemCustomBlockExporter } from './custom-addon-exporter';
 import { exportPageContent, type CustomBlockExporter } from '../extension/document-export';
 import { getDocumentationSearchText } from '../extension/documentation-search-text';
@@ -13,6 +19,7 @@ export type DocumentationCompilerOptions = {
   outputRoot?: string;
   addonsRoot?: string;
   projectName?: string;
+  format?: 'html' | 'md';
 };
 
 export type DocumentationCompilerResult = {
@@ -25,16 +32,22 @@ export async function compileDocumentation(
   options: DocumentationCompilerOptions,
 ): Promise<DocumentationCompilerResult> {
   const projectRoot = resolve(options.projectRoot);
-  const outputRoot = resolve(options.outputRoot ?? resolve(projectRoot, 'slash-doc-site'));
+  const format = options.format ?? 'html';
+  const defaultDirectory = format === 'html' ? 'slash-doc-site' : 'slash-doc-markdown';
+  const outputRoot = resolve(options.outputRoot ?? resolve(projectRoot, defaultDirectory));
   const docsRoot = resolve(projectRoot, '.slash-doc', 'docs');
   const menu = await readJson(resolve(docsRoot, 'menu.json'), 'Не найдено меню Slash Doc');
   const items = normalizeMenuItems(isRecord(menu) ? menu.items : undefined);
   const pages = flattenPages(items);
-  const pageIds = new Set(pages.map((page) => page.id));
   const settings = await readCompilerSettings(projectRoot);
   const customExporter = options.addonsRoot
     ? createFileSystemCustomBlockExporter(resolve(options.addonsRoot))
     : undefined;
+  if (format === 'md') {
+    return compileMarkdownDocumentation(outputRoot, docsRoot, items, settings, customExporter);
+  }
+
+  const pageIds = new Set(pages.map((page) => page.id));
   const searchIndex: Array<{ pageId: string; title: string; text: string }> = [];
   const pagesOutputRoot = resolve(outputRoot, 'pages');
 
@@ -62,7 +75,43 @@ async function writeCompiledPage(
 ): Promise<void> {
   const exported = await exportPageContent(data, 'html', settings, customExporter);
   const outputPath = resolveInside(resolve(outputRoot, 'pages'), `${page.id}.html`);
-  await writeFile(outputPath, prepareCompiledPage(exported, page.id, pageIds), 'utf8');
+  const html = prepareCompiledPage(exported, page.id, pageIds);
+  const result = settings.exportOptions.extractImages
+    ? extractEmbeddedImages(html, `${page.id}-image`)
+    : { content: html, images: [] };
+  await writeFile(outputPath, result.content, 'utf8');
+  await Promise.all(
+    result.images.map((image) => writeFile(resolveInside(resolve(outputRoot, 'pages'), image.fileName), image.data)),
+  );
+}
+
+async function compileMarkdownDocumentation(
+  outputRoot: string,
+  docsRoot: string,
+  items: SlashDocMenuItem[],
+  settings: ReturnType<typeof getDefaultSettings>,
+  customExporter: CustomBlockExporter | undefined,
+): Promise<DocumentationCompilerResult> {
+  const pages = createDocumentationTree(items);
+  await mkdir(outputRoot, { recursive: true });
+  for (const current of pages) {
+    const pageRoot = resolveInside(outputRoot, current.directories.join('/'));
+    await mkdir(pageRoot, { recursive: true });
+    const data = await readPage(docsRoot, current.page);
+    const markdown = rewriteMarkdownPageLinks(
+      await exportPageContent(data, 'md', settings, customExporter),
+      current,
+      pages,
+    );
+    const result = settings.exportOptions.extractImages
+      ? extractEmbeddedImages(markdown)
+      : { content: markdown, images: [] };
+    await writeFile(resolve(pageRoot, 'content.md'), result.content, 'utf8');
+    await Promise.all(result.images.map((image) => writeFile(resolve(pageRoot, image.fileName), image.data)));
+  }
+  const indexPath = resolve(outputRoot, 'contents.md');
+  await writeFile(indexPath, renderMarkdownContents(items, pages), 'utf8');
+  return { indexPath, outputRoot, pageCount: pages.length };
 }
 
 async function readPage(docsRoot: string, page: SlashDocMenuItem): Promise<unknown> {

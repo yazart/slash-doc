@@ -38,6 +38,10 @@ export type SettingsVariable = {
 
 export type SlashDocSettings = {
   version: 1;
+  autoSave: AutoSaveSettings;
+  exportOptions: {
+    extractImages: boolean;
+  };
   editorAddons: {
     header: boolean;
     list: boolean;
@@ -59,7 +63,6 @@ export type SlashDocSettings = {
     bpmnModeler: boolean;
     bpmnPreview: boolean;
     userMention: boolean;
-    approvalTable: boolean;
   };
   customEditorAddons: CustomEditorAddon[];
   apiPrefix: string;
@@ -84,3 +87,4 @@ export type CustomAddonWebviewModule = {
   toolName: string;
   uri: string;
 };
+import type { AutoSaveSettings } from '../shared/autosave';

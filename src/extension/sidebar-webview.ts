@@ -44,6 +44,14 @@ export async function getSidebarHtml(
                   </svg>
                 </slash-button>
               </slash-tooltip>
+              <slash-tooltip class="compile-tooltip" content="Собрать Markdown">
+                <slash-button id="compile-markdown" size="small" variant="default" aria-label="Собрать Markdown">
+                  <svg class="compile-icon" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M5 2.75h6.5L15 6.25v11H5zM11.5 2.75v3.5H15" />
+                    <path d="M7 13V9l2 2 2-2v4m1.5 0h1a1.5 1.5 0 0 0 0-3h-1z" />
+                  </svg>
+                </slash-button>
+              </slash-tooltip>
             </div>
             <div class="documentation-search">
               <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg>

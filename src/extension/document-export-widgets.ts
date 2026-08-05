@@ -1,8 +1,7 @@
 import { createApiEndpointData, generateApiHtmlPreview, type ApiEndpointData } from '../shared/api-endpoint';
 import apiExportStyles from './styles/api-export.embedded.css?raw';
-import approvalTableExportStyles from './styles/approval-table-export.embedded.css?raw';
 import taskTableExportStyles from './styles/task-table-export.embedded.css?raw';
-import { escapeAttribute, escapeHtml, isRecord } from './utils';
+import { escapeHtml, isRecord } from './utils';
 
 export function exportApiEndpointToHtml(data: Record<string, unknown>): string {
   const endpoint = createApiEndpointData(data as Partial<ApiEndpointData>);
@@ -37,55 +36,4 @@ export function exportTaskTableToHtml(data: Record<string, unknown>): string {
     })
     .join('');
   return `<style>${taskTableExportStyles}</style><section class="task-table-export" data-slash-doc-task-table="${state}"><h2>${escapeHtml(title)}</h2><div class="task-table-board">${renderedColumns}</div></section>`;
-}
-
-export function exportApprovalTableToHtml(data: Record<string, unknown>): string {
-  const rows = getApprovalRows(data);
-  const state = Buffer.from(JSON.stringify({ rows }), 'utf8').toString('base64');
-  const body = rows
-    .map((row) => {
-      const responsibles = Array.isArray(row.responsibles) ? row.responsibles.filter(isRecord) : [];
-      const users = responsibles
-        .map((user) => {
-          const name = String(user.fullName ?? '');
-          const email = String(user.email ?? '');
-          const photo = String(user.photo ?? '');
-          const link = String(user.link ?? '');
-          const label = `<span><strong>${escapeHtml(name)}</strong>${email ? `<small>${escapeHtml(email)}</small>` : ''}</span>`;
-          const content = `${photo ? `<img src="${escapeAttribute(photo)}" alt="">` : ''}${label}`;
-          return link
-            ? `<a class="slash-approval-person" href="${escapeAttribute(link)}" target="_blank" rel="noopener noreferrer">${content}</a>`
-            : `<span class="slash-approval-person">${content}</span>`;
-        })
-        .join('');
-      return `<tr><td>${escapeHtml(String(row.stage ?? ''))}</td><td><div class="slash-approval-people">${users}</div></td><td>${escapeHtml(String(row.result ?? ''))}</td></tr>`;
-    })
-    .join('');
-  return `<style>${approvalTableExportStyles}</style><table class="slash-approval-export" data-slash-doc-approval-table="${state}"><thead><tr><th>Этап</th><th>Ответственные</th><th>Результат</th></tr></thead><tbody>${body}</tbody></table>`;
-}
-
-export function exportApprovalTableToMarkdown(data: Record<string, unknown>): string {
-  const rows = getApprovalRows(data).map((row) => {
-    const users = Array.isArray(row.responsibles)
-      ? row.responsibles
-          .filter(isRecord)
-          .map((user) => String(user.fullName ?? ''))
-          .filter(Boolean)
-          .join(', ')
-      : '';
-    return [row.stage, users, row.result].map((value) => escapeMarkdownTableCell(String(value ?? '')));
-  });
-  return [
-    '| Этап | Ответственные | Результат |',
-    '| --- | --- | --- |',
-    ...rows.map((row) => `| ${row.join(' | ')} |`),
-  ].join('\n');
-}
-
-function getApprovalRows(data: Record<string, unknown>): Record<string, unknown>[] {
-  return Array.isArray(data.rows) ? data.rows.filter(isRecord) : [];
-}
-
-function escapeMarkdownTableCell(value: string): string {
-  return value.replaceAll('\\', '\\\\').replaceAll('|', '\\|').replaceAll('\r', '').replaceAll('\n', '<br>');
 }

@@ -53,6 +53,7 @@
   "scripts": {
     "compile": "node scripts/vite-build.mjs",
     "compile:docs": "node dist/slash-doc-compile.js",
+    "compile:docs:md": "node dist/slash-doc-compile.js --format md",
     "watch": "node scripts/vite-build.mjs --watch",
     "vscode:prepublish": "npm run compile",
     "check:structure": "node scripts/check-source-structure.mjs",

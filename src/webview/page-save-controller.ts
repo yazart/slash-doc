@@ -1,9 +1,11 @@
 import type { OutputData } from '@editorjs/editorjs';
+import { normalizeAutoSaveSettings, type AutoSaveSettings } from '../shared/autosave';
 
 export type PageSaveSource = 'auto' | 'manual';
 export type PageSaveStatus = 'dirty' | 'saving' | 'saved' | 'error';
 
 type PageSaveControllerOptions = {
+  autoSave?: Partial<AutoSaveSettings>;
   readData(): Promise<OutputData>;
   postMessage(message: unknown): void;
   reportError(error: unknown, requestId?: string): void;
@@ -23,6 +25,24 @@ export function createPageSaveController(options: PageSaveControllerOptions): Pa
   let activeSave: Promise<void> | undefined;
   let revision = 0;
   let latestSentRevision = 0;
+  let changeRevision = 0;
+  let latestSentChangeRevision = 0;
+  let dirty = false;
+  let autoSave = normalizeAutoSaveSettings(options.autoSave);
+
+  const clearTimer = () => {
+    if (timer) clearTimeout(timer);
+    timer = undefined;
+  };
+
+  const scheduleAutoSave = () => {
+    clearTimer();
+    if (!autoSave.enabled || !dirty) return;
+    timer = setTimeout(() => {
+      timer = undefined;
+      void saveNow('auto');
+    }, autoSave.intervalSeconds * 1000);
+  };
 
   const drainQueue = async (): Promise<void> => {
     while (queuedSave) {
@@ -31,6 +51,7 @@ export function createPageSaveController(options: PageSaveControllerOptions): Pa
 
       try {
         const data = await options.readData();
+        latestSentChangeRevision = changeRevision;
         latestSentRevision = ++revision;
         options.setStatus('saving');
         options.postMessage({ type: 'save', source, revision: latestSentRevision, requestId, data });
@@ -42,10 +63,8 @@ export function createPageSaveController(options: PageSaveControllerOptions): Pa
   };
 
   const saveNow = (source: PageSaveSource, requestId?: string): Promise<void> => {
-    if (timer) {
-      clearTimeout(timer);
-      timer = undefined;
-    }
+    clearTimer();
+    if (source === 'auto' && !dirty) return Promise.resolve();
     queuedSave = { source, requestId };
     activeSave ??= drainQueue().finally(() => {
       activeSave = undefined;
@@ -60,10 +79,10 @@ export function createPageSaveController(options: PageSaveControllerOptions): Pa
       holder.addEventListener('input', this.schedule, true);
       holder.addEventListener('change', this.schedule, true);
       holder.addEventListener('click', this.schedule, true);
-      window.addEventListener('pagehide', () => void this.saveNow('auto'));
-      window.addEventListener('blur', () => void this.saveNow('auto'));
+      window.addEventListener('pagehide', () => autoSave.enabled && void this.saveNow('auto'));
+      window.addEventListener('blur', () => autoSave.enabled && void this.saveNow('auto'));
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') void this.saveNow('auto');
+        if (autoSave.enabled && document.visibilityState === 'hidden') void this.saveNow('auto');
       });
       window.addEventListener('keydown', (event) => {
         if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return;
@@ -77,21 +96,25 @@ export function createPageSaveController(options: PageSaveControllerOptions): Pa
         void this.saveNow('manual', message.requestId);
         return true;
       }
+      if (message.type === 'settingsUpdated' && 'autoSave' in message) {
+        autoSave = normalizeAutoSaveSettings(message.autoSave);
+        scheduleAutoSave();
+        return true;
+      }
       if (message.type !== 'saveResult') return false;
       const savedRevision =
         'revision' in message && typeof message.revision === 'number' ? message.revision : undefined;
       const ok = 'ok' in message && message.ok === true;
       if (typeof savedRevision === 'number' && savedRevision < latestSentRevision) return true;
-      options.setStatus(ok ? 'saved' : 'error');
+      if (ok && latestSentChangeRevision === changeRevision) dirty = false;
+      options.setStatus(ok ? (dirty ? 'dirty' : 'saved') : 'error');
       return true;
     },
     schedule() {
+      dirty = true;
+      changeRevision += 1;
       options.setStatus('dirty');
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = undefined;
-        void saveNow('auto');
-      }, 300);
+      scheduleAutoSave();
     },
     saveNow,
   };

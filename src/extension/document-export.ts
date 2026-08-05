@@ -1,4 +1,5 @@
 import { highlightSource, normalizeCodeLanguage } from '../shared/syntax-highlighter';
+import { migrateApprovalTableData } from '../shared/approval-table-migration';
 import type { SlashDocSettings } from './types';
 import { escapeAttribute, escapeHtml, isRecord, stripHtml } from './utils';
 import { createFlowDesignerDataUri, createNetworkCanvasDataUri } from './document-export-diagrams';
@@ -11,8 +12,6 @@ import exportLayoutStyles from './styles/document-layout.embedded.css?raw';
 import {
   exportApiEndpointToHtml,
   exportApiEndpointToMarkdown,
-  exportApprovalTableToHtml,
-  exportApprovalTableToMarkdown,
   exportFileProcessorToHtml,
   exportFileProcessorToMarkdown,
   exportTaskTableToHtml,
@@ -69,14 +68,19 @@ async function exportBlock(
   settings: SlashDocSettings,
   customBlockExporter?: CustomBlockExporter,
 ): Promise<string> {
-  const type = typeof block.type === 'string' ? block.type : '';
-  const custom = customBlockExporter ? await customBlockExporter(block, format, settings) : undefined;
+  const sourceType = typeof block.type === 'string' ? block.type : '';
+  const normalizedBlock =
+    sourceType === 'approvalTable'
+      ? { ...block, type: 'confluenceTable', data: migrateApprovalTableData(block.data) }
+      : block;
+  const type = typeof normalizedBlock.type === 'string' ? normalizedBlock.type : '';
+  const custom = customBlockExporter ? await customBlockExporter(normalizedBlock, format, settings) : undefined;
 
   if (custom !== undefined) {
     return format === 'html' ? wrapHtmlExportBlock(type, custom) : custom;
   }
 
-  const data = isRecord(block.data) ? block.data : {};
+  const data = isRecord(normalizedBlock.data) ? normalizedBlock.data : {};
 
   if (format === 'html') {
     return wrapHtmlExportBlock(type, exportBuiltInBlockToHtml(type, data));
@@ -146,10 +150,6 @@ function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>): 
 
   if (type === 'taskTable') {
     return exportTaskTableToHtml(data);
-  }
-
-  if (type === 'approvalTable') {
-    return exportApprovalTableToHtml(data);
   }
 
   if (type === 'codeBlock') {
@@ -237,10 +237,6 @@ function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown
 
   if (type === 'taskTable') {
     return exportTaskTableToHtml(data);
-  }
-
-  if (type === 'approvalTable') {
-    return exportApprovalTableToMarkdown(data);
   }
 
   if (type === 'codeBlock') {

@@ -7,6 +7,7 @@ type CliOptions = {
   outputRoot?: string;
   addonsRoot?: string;
   projectName?: string;
+  format?: 'html' | 'md';
   help: boolean;
 };
 
@@ -24,6 +25,10 @@ export function parseCompilerArguments(args: string[], currentDirectory = proces
       options.addonsRoot = readOptionValue(args, ++index, argument);
     } else if (argument === '--name') {
       options.projectName = readOptionValue(args, ++index, argument);
+    } else if (argument === '--format') {
+      const format = readOptionValue(args, ++index, argument);
+      if (format !== 'html' && format !== 'md') throw new Error(`Неизвестный формат: ${format}`);
+      options.format = format;
     } else if (argument.startsWith('-')) {
       throw new Error(`Неизвестный параметр: ${argument}`);
     } else if (!projectWasSet) {
@@ -47,15 +52,16 @@ function readOptionValue(args: string[], index: number, option: string): string 
 }
 
 export function getCompilerHelp(): string {
-  return `Slash Doc — автономная сборка HTML-документации
+  return `Slash Doc — автономная сборка документации
 
 Использование:
   slash-doc-compile [проект] [параметры]
 
 Параметры:
-  -o, --output <папка>  Папка результата (по умолчанию <проект>/slash-doc-site)
+  -o, --output <папка>  Папка результата (slash-doc-site или slash-doc-markdown)
       --addons <папка>  Каталог модулей пользовательских Editor.js-виджетов
       --name <название> Название документации в сайдбаре
+      --format <html|md> Формат сборки (по умолчанию html)
   -h, --help            Показать справку
 `;
 }

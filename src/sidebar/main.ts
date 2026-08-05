@@ -13,6 +13,8 @@ type VSCodeApi = {
   setState(state: unknown): void;
 };
 
+type SwitchElement = HTMLElement & { checked?: boolean };
+
 declare const acquireVsCodeApi: () => VSCodeApi;
 
 const vscode = acquireVsCodeApi();
@@ -58,6 +60,10 @@ document.querySelector('#open-settings')?.addEventListener('click', () => {
 
 document.querySelector('#compile-site')?.addEventListener('click', () => {
   vscode.postMessage({ type: 'compileDocumentation' });
+});
+
+document.querySelector('#compile-markdown')?.addEventListener('click', () => {
+  vscode.postMessage({ type: 'compileMarkdownDocumentation' });
 });
 
 document.querySelector('#back-to-menu')?.addEventListener('click', () => {
@@ -140,6 +146,7 @@ document.querySelector('#add-variable')?.addEventListener('click', () => {
 });
 
 bindSettingsInputs();
+bindAutoSaveSettings();
 bindServiceOpenButtons();
 bindAddonOpenButtons();
 
@@ -239,6 +246,7 @@ function saveSidebarState() {
 }
 
 function bindSettingsInputs() {
+  document.querySelector('#extract-images')?.addEventListener('change', scheduleSettingsSave);
   document.querySelectorAll<HTMLElement>('[data-addon]').forEach((element) => {
     element.addEventListener('change', scheduleSettingsSave);
   });
@@ -253,6 +261,16 @@ function bindSettingsInputs() {
 
   document.querySelectorAll<HTMLSelectElement>('select.settings-input').forEach((select) => {
     select.onchange = scheduleSettingsSave;
+  });
+}
+
+function bindAutoSaveSettings() {
+  const toggle = document.querySelector<SwitchElement>('#auto-save-enabled');
+  const interval = document.querySelector<HTMLInputElement>('#auto-save-interval');
+  if (!toggle || !interval) return;
+  toggle.addEventListener('change', () => {
+    interval.disabled = !(toggle.checked ?? toggle.hasAttribute('checked'));
+    scheduleSettingsSave();
   });
 }
 

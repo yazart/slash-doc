@@ -1,9 +1,12 @@
 import type { ApiService, CustomEditorAddon, SettingsVariable, SlashDocSettings } from './types';
+import { DEFAULT_AUTO_SAVE_SETTINGS, normalizeAutoSaveSettings } from '../shared/autosave';
 import { createSettingsId, escapeJavaScriptString, isRecord } from './utils';
 
 export function getDefaultSettings(): SlashDocSettings {
   return {
     version: 1,
+    autoSave: { ...DEFAULT_AUTO_SAVE_SETTINGS },
+    exportOptions: { extractImages: false },
     editorAddons: {
       header: true,
       list: true,
@@ -25,7 +28,6 @@ export function getDefaultSettings(): SlashDocSettings {
       bpmnModeler: true,
       bpmnPreview: true,
       userMention: true,
-      approvalTable: true,
     },
     customEditorAddons: [],
     apiPrefix: '/api',
@@ -44,6 +46,10 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
 
   return {
     version: 1,
+    autoSave: normalizeAutoSaveSettings(value.autoSave),
+    exportOptions: {
+      extractImages: getBooleanSetting(value.exportOptions, 'extractImages', defaults.exportOptions.extractImages),
+    },
     editorAddons: {
       header: getBooleanSetting(value.editorAddons, 'header', defaults.editorAddons.header),
       list: getBooleanSetting(value.editorAddons, 'list', defaults.editorAddons.list),
@@ -69,7 +75,6 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
       bpmnModeler: getBooleanSetting(value.editorAddons, 'bpmnModeler', defaults.editorAddons.bpmnModeler),
       bpmnPreview: getBooleanSetting(value.editorAddons, 'bpmnPreview', defaults.editorAddons.bpmnPreview),
       userMention: getBooleanSetting(value.editorAddons, 'userMention', defaults.editorAddons.userMention),
-      approvalTable: getBooleanSetting(value.editorAddons, 'approvalTable', defaults.editorAddons.approvalTable),
     },
     customEditorAddons: normalizeCustomEditorAddons(value.customEditorAddons),
     apiPrefix: typeof value.apiPrefix === 'string' ? normalizeApiPrefix(value.apiPrefix) : defaults.apiPrefix,

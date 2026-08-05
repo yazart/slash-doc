@@ -9,6 +9,24 @@ export function renderSettingsPanel(settings: SlashDocSettings): string {
     </header>
     <section class="settings-panel" aria-label="Настройки">
       <div class="settings-group">
+        <div class="settings-group-title">Сохранение</div>
+        <label class="settings-row">
+          <span>Автосохранение</span>
+          <slash-switch id="auto-save-enabled" ${settings.autoSave.enabled ? 'checked' : ''}></slash-switch>
+        </label>
+        <label class="settings-row">
+          <span>Интервал(сек.) &nbsp; &nbsp; &nbsp; &nbsp;</span>
+          <input class="settings-input" id="auto-save-interval" type="number" min="0.3" max="1800" step="0.1" value="${settings.autoSave.intervalSeconds}" ${settings.autoSave.enabled ? '' : 'disabled'}>
+        </label>
+      </div>
+      <div class="settings-group">
+        <div class="settings-group-title">Экспорт документации</div>
+        <label class="settings-row">
+          <span>Извлекать изображения в файлы</span>
+          <slash-switch id="extract-images" ${settings.exportOptions.extractImages ? 'checked' : ''}></slash-switch>
+        </label>
+      </div>
+      <div class="settings-group">
         <div class="settings-group-title">Свои Editor.js аддоны</div>
         <div id="custom-addons-list" class="settings-list">${settings.customEditorAddons.map(renderCustomAddonRow).join('')}</div>
         <div class="service-actions"><slash-button id="add-addon" size="small" variant="default">Добавить модуль</slash-button></div>

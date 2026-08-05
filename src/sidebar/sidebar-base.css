@@ -176,13 +176,15 @@ body {
 }
 
 .import-tooltip #import-page,
-.compile-tooltip #compile-site {
+.compile-tooltip #compile-site,
+.compile-tooltip #compile-markdown {
   width: 100%;
   min-width: 28px;
 }
 
 .import-tooltip #import-page::part(base),
-.compile-tooltip #compile-site::part(base) {
+.compile-tooltip #compile-site::part(base),
+.compile-tooltip #compile-markdown::part(base) {
   justify-content: center;
   padding: 4px;
 }

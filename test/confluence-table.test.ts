@@ -64,6 +64,7 @@ describe('Confluence table structure operations', () => {
     const data = normalizeTable({ rows: [[mention]] });
 
     expect(data.rows[0][0]).toContain('class="slash-user-mention"');
+    expect(data.rows[0][0]).toContain('contenteditable="false"');
     expect(data.rows[0][0]).toContain('data-user-id="42"');
     expect(data.rows[0][0]).toContain('target="_blank"');
   });

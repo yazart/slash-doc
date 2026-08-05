@@ -65,12 +65,15 @@ HTML-сайт можно собрать без VS Code и без запуска 
 ```sh
 node dist/slash-doc-compile.js /path/to/project
 node dist/slash-doc-compile.js /path/to/project --output /path/to/site
+node dist/slash-doc-compile.js /path/to/project --format md --output /path/to/markdown
 ```
 
-По умолчанию результат сохраняется в `<проект>/slash-doc-site`. Утилита читает
-`.slash-doc/docs/menu.json`, содержимое страниц и `.slash-doc/sdsettings.json`, затем создаёт
-`index.html` и каталог `pages/`. Для экспорта пользовательских аддонов передайте каталог с их
-модулями:
+По умолчанию HTML сохраняется в `<проект>/slash-doc-site`. В режиме `--format md` результат
+сохраняется в `<проект>/slash-doc-markdown`: в корне создаётся `contents.md`, а страницы получают
+иерархические каталоги `<Название страницы>/content.md`, повторяющие меню. Утилита читает
+`.slash-doc/docs/menu.json`, содержимое страниц и `.slash-doc/sdsettings.json`. Настройка
+«Извлекать изображения в файлы» действует для HTML и Markdown; изображения сохраняются рядом с
+экспортируемой страницей. Для экспорта пользовательских аддонов передайте каталог с их модулями:
 
 ```sh
 node dist/slash-doc-compile.js /path/to/project --addons /path/to/addons
@@ -92,19 +95,20 @@ sidebar, обработчик файлов и автономный компил�
 
 Основные команды:
 
-| Команда                             | Назначение                                      |
-| ----------------------------------- | ----------------------------------------------- |
-| `npm run compile`                   | Собрать расширение и автономный компилятор      |
-| `npm run compile:docs -- <project>` | Собрать HTML-сайт указанного проекта            |
-| `npm run watch`                     | Запустить Vite в режиме наблюдения              |
-| `npm run test`                      | Однократно выполнить тесты Vitest               |
-| `npm run test:watch`                | Запустить Vitest в интерактивном режиме         |
-| `npm run test:coverage`             | Выполнить тесты и сформировать отчёт покрытия   |
-| `npm run check`                     | Выполнить ESLint, TypeScript, Vitest и Prettier |
-| `npm run lint:fix`                  | Исправить доступные ошибки ESLint               |
-| `npm run format`                    | Отформатировать проект с помощью Prettier       |
-| `npm run changelog`                 | Полностью пересоздать CHANGELOG из истории Git  |
-| `npm run changelog:update`          | Добавить изменения после последнего Git-тега    |
+| Команда                                | Назначение                                      |
+| -------------------------------------- | ----------------------------------------------- |
+| `npm run compile`                      | Собрать расширение и автономный компилятор      |
+| `npm run compile:docs -- <project>`    | Собрать HTML-сайт указанного проекта            |
+| `npm run compile:docs:md -- <project>` | Собрать Markdown указанного проекта             |
+| `npm run watch`                        | Запустить Vite в режиме наблюдения              |
+| `npm run test`                         | Однократно выполнить тесты Vitest               |
+| `npm run test:watch`                   | Запустить Vitest в интерактивном режиме         |
+| `npm run test:coverage`                | Выполнить тесты и сформировать отчёт покрытия   |
+| `npm run check`                        | Выполнить ESLint, TypeScript, Vitest и Prettier |
+| `npm run lint:fix`                     | Исправить доступные ошибки ESLint               |
+| `npm run format`                       | Отформатировать проект с помощью Prettier       |
+| `npm run changelog`                    | Полностью пересоздать CHANGELOG из истории Git  |
+| `npm run changelog:update`             | Добавить изменения после последнего Git-тега    |
 
 ## CHANGELOG и релизы
 

@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { extractEmbeddedImages } from '../shared/embedded-images';
 import { createCustomBlockExporter } from './custom-block-exporter';
 import { exportPageContent } from './document-export';
 import { getDocumentationSearchText } from './documentation-search-text';
@@ -29,8 +30,20 @@ export async function compileDocumentationSite(
   for (const page of pages) {
     const data = await readPageContent(workspaceRoot, page.id, page.title);
     searchIndex.push({ pageId: page.id, title: page.title, text: getDocumentationSearchText(data) });
-    const exported = await exportPageContent(data, 'html', settings, customExporter);
-    await writeText(vscode.Uri.joinPath(pagesRoot, `${page.id}.html`), prepareCompiledPage(exported, page.id, pageIds));
+    const exported = prepareCompiledPage(
+      await exportPageContent(data, 'html', settings, customExporter),
+      page.id,
+      pageIds,
+    );
+    const result = settings.exportOptions.extractImages
+      ? extractEmbeddedImages(exported, `${page.id}-image`)
+      : { content: exported, images: [] };
+    await writeText(vscode.Uri.joinPath(pagesRoot, `${page.id}.html`), result.content);
+    await Promise.all(
+      result.images.map((image) =>
+        vscode.workspace.fs.writeFile(vscode.Uri.joinPath(pagesRoot, image.fileName), image.data),
+      ),
+    );
   }
 
   const projectName = workspaceRoot.path.split('/').filter(Boolean).at(-1) ?? 'Документация';

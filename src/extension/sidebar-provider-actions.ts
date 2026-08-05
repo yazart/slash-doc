@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { compileDocumentationSite } from './site-compiler';
+import { compileMarkdownDocumentation } from './markdown-site-compiler';
 import { getGlobalAddonRootUri, getGlobalApiRootUri, getWorkspaceRoot, writeJsonIfMissing } from './filesystem';
 import { getDefaultSettings } from './settings';
 
@@ -22,6 +23,7 @@ export async function initializeDocumentation(extensionUri: vscode.Uri, silent =
 export async function compileDocumentation(
   extensionUri: vscode.Uri,
   saveOpenPage?: () => Promise<boolean>,
+  format: 'html' | 'md' = 'html',
 ): Promise<void> {
   const workspaceRoot = getWorkspaceRoot();
   if (!workspaceRoot) {
@@ -34,7 +36,7 @@ export async function compileDocumentation(
     canSelectMany: false,
     defaultUri: workspaceRoot,
     openLabel: 'Собрать документацию сюда',
-    title: 'Папка для HTML-документации',
+    title: `Папка для ${format === 'html' ? 'HTML' : 'Markdown'}-документации`,
   });
   const outputRoot = folders?.[0];
   if (!outputRoot) return;
@@ -43,15 +45,30 @@ export async function compileDocumentation(
     return;
   }
   try {
-    const result = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: 'Сборка Slash Doc в HTML…' },
-      () => compileDocumentationSite(extensionUri, workspaceRoot, outputRoot),
+    const result = await vscode.window.withProgress<{
+      pageCount: number;
+      indexUri?: vscode.Uri;
+      contentsUri?: vscode.Uri;
+    }>(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Сборка Slash Doc в ${format === 'html' ? 'HTML' : 'Markdown'}…`,
+      },
+      async () =>
+        format === 'html'
+          ? await compileDocumentationSite(extensionUri, workspaceRoot, outputRoot)
+          : await compileMarkdownDocumentation(extensionUri, workspaceRoot, outputRoot),
     );
     const action = await vscode.window.showInformationMessage(
       `Собрано страниц: ${result.pageCount}.`,
-      'Открыть документацию',
+      format === 'html' ? 'Открыть документацию' : 'Открыть содержание',
     );
-    if (action === 'Открыть документацию') await vscode.env.openExternal(result.indexUri);
+    if (format === 'html' && action === 'Открыть документацию' && result.indexUri) {
+      await vscode.env.openExternal(result.indexUri);
+    }
+    if (format === 'md' && action === 'Открыть содержание' && result.contentsUri) {
+      await vscode.commands.executeCommand('vscode.open', result.contentsUri);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     void vscode.window.showErrorMessage(`Не удалось собрать документацию: ${message}`);

@@ -59,7 +59,7 @@ function sanitizeAnchor(tag: string): string | undefined {
         return value ? ` data-user-${name}="${escapeAttribute(value)}"` : '';
       })
       .join('');
-    return `<a class="slash-user-mention" href="${escapeAttribute(href)}"${attributes} target="_blank" rel="noopener noreferrer">`;
+    return `<a class="slash-user-mention" contenteditable="false" href="${escapeAttribute(href)}"${attributes} target="_blank" rel="noopener noreferrer">`;
   }
   if (/^slash-doc:/i.test(href)) {
     const data = pageId ? ` data-page-id="${escapeAttribute(pageId)}"` : '';

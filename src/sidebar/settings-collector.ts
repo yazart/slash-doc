@@ -3,6 +3,11 @@ type SwitchElement = HTMLElement & { checked?: boolean };
 export function collectSettings() {
   return {
     version: 1,
+    autoSave: {
+      enabled: isSwitchEnabled('auto-save-enabled', true),
+      intervalSeconds: Number(document.querySelector<HTMLInputElement>('#auto-save-interval')?.value ?? '1'),
+    },
+    exportOptions: { extractImages: isSwitchEnabled('extract-images', false) },
     editorAddons: {
       header: isAddonEnabled('header'),
       list: isAddonEnabled('list'),
@@ -24,7 +29,6 @@ export function collectSettings() {
       bpmnModeler: isAddonEnabled('bpmnModeler'),
       bpmnPreview: isAddonEnabled('bpmnPreview'),
       userMention: isAddonEnabled('userMention'),
-      approvalTable: isAddonEnabled('approvalTable'),
     },
     customEditorAddons: Array.from(document.querySelectorAll<HTMLElement>('[data-custom-addon-id]')).map((row) => ({
       id: row.dataset.customAddonId ?? createId('addon'),
@@ -50,6 +54,11 @@ export function collectSettings() {
 function isAddonEnabled(addon: string): boolean {
   const element = document.querySelector<SwitchElement>(`[data-addon="${addon}"]`);
   return element?.checked ?? element?.hasAttribute('checked') ?? true;
+}
+
+function isSwitchEnabled(id: string, fallback: boolean): boolean {
+  const element = document.querySelector<SwitchElement>(`#${id}`);
+  return element ? (element.checked ?? element.hasAttribute('checked')) : fallback;
 }
 
 function isCustomAddonEnabled(addonId: string | undefined): boolean {

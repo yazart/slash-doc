@@ -1,4 +1,7 @@
+import type { AutoSaveSettings } from '../shared/autosave';
+
 export type SlashDocWebviewSettings = {
+  autoSave?: Partial<AutoSaveSettings>;
   editorAddons?: {
     header?: boolean;
     list?: boolean;
@@ -20,6 +23,5 @@ export type SlashDocWebviewSettings = {
     bpmnModeler?: boolean;
     bpmnPreview?: boolean;
     userMention?: boolean;
-    approvalTable?: boolean;
   };
 };

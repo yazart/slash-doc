@@ -184,7 +184,7 @@ function readMentionContext(editable: HTMLElement): { query: string; range: Rang
   const selection = root.getSelection?.() ?? window.getSelection();
   if (!selection?.rangeCount || !selection.isCollapsed) return undefined;
   const caret = selection.getRangeAt(0);
-  if (!editable.contains(caret.startContainer) || editable.closest('.slash-approval-table-tool')) return undefined;
+  if (!editable.contains(caret.startContainer)) return undefined;
   const before = document.createRange();
   before.selectNodeContents(editable);
   before.setEnd(caret.startContainer, caret.startOffset);

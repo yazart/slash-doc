@@ -1,5 +1,4 @@
-import EditorJS from '@editorjs/editorjs';
-import type { OutputData } from '@editorjs/editorjs';
+import EditorJS, { type OutputData } from '@editorjs/editorjs';
 import type { FileProcessorBridge } from './file-processor-tool';
 import type { DocumentationPageLink } from './page-link-tool';
 import { createUserDirectoryBridge } from './user-directory';
@@ -46,6 +45,7 @@ let historyCapture = Promise.resolve();
 let isRestoringHistory = false;
 const saveStatus = document.querySelector<HTMLElement>('#save-status');
 const pageSave = createPageSaveController({
+  autoSave: settings.autoSave,
   readData: readEditorData,
   postMessage: (message) => vscode.postMessage(message),
   setStatus: (status) => updatePageSaveStatus(saveStatus, status),
@@ -256,7 +256,6 @@ async function initEditor() {
           Diff: 'Diff',
           'BPMN Modeler': 'BPMN-редактор',
           'BPMN Preview': 'Предпросмотр BPMN',
-          'Approval Table': 'Таблица согласования',
         },
         tools: {
           header: {

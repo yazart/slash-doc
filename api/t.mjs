@@ -1,7 +1,7 @@
 export default async function register(router, context) {
   const brw = await context.puppeteer?.launch({
     executablePath: '/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome',
-    headless: false,
+    headless: true,
   });
 
   router.get('/t', (_request, response) => {

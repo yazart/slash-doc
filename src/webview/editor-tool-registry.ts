@@ -5,7 +5,6 @@ import ImageTool from '@editorjs/image';
 import List from '@editorjs/list';
 import mermaid from 'mermaid';
 import ApiEndpointTool from './api-endpoint-tool';
-import ApprovalTableTool from './approval-table-tool';
 import { BpmnModelerTool, BpmnPreviewTool } from './bpmn-tools';
 import CodeBlockTool from './code-block-tool';
 import ConfluenceTableTool from './confluence-table-tool';
@@ -66,7 +65,6 @@ export function createEditorTools(
     tools.underline = { class: LucideUnderline, toolbox: { title: 'Подчёркивание' } };
   }
   if (addons?.textColor !== false) tools.textColor = TextColorTool as unknown as InlineToolConstructable;
-  if (addons?.approvalTable !== false) tools.approvalTable = ApprovalTableTool;
   tools.pageLink = {
     class: PageLinkTool as unknown as InlineToolConstructable,
     config: {
