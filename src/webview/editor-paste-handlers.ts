@@ -95,8 +95,16 @@ export function findPasteActionInPath(path: EventTarget[]): PasteAction | undefi
   if (textTarget?.__slashDocPasteText) {
     return (text) => textTarget.__slashDocPasteText?.(text);
   }
+  const mermaidCode = path.find(
+    (item): item is HTMLTextAreaElement => matchesElement(item, '.slash-mermaid-code') && hasNumericSelection(item),
+  );
+  if (mermaidCode) return (text) => insertTextIntoControl(mermaidCode, text);
   const listItem = path.find((item): item is HTMLElement => matchesElement(item, '.cdx-list__item'));
   if (listItem) return (text) => insertTextIntoContentEditable(listItem, text);
+  const editorText = path.find(
+    (item): item is HTMLElement => matchesElement(item, '.ce-paragraph') || matchesElement(item, '.ce-header'),
+  );
+  if (editorText) return (text) => insertTextIntoContentEditable(editorText, text);
   const tableTarget = path.find(
     (item): item is TablePasteElement =>
       matchesElement(item, '.ct-cell') && typeof (item as TablePasteElement).__slashDocPasteTable === 'function',
@@ -125,15 +133,29 @@ export function insertTextIntoContentEditable(target: HTMLElement, text: string)
   const selection = window.getSelection();
   const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
   if (!selection || !range || !target.contains(range.commonAncestorContainer)) {
-    target.append(document.createTextNode(text));
+    target.append(createTextFragment(text));
   } else {
     range.deleteContents();
-    const node = document.createTextNode(text);
-    range.insertNode(node);
-    range.setStartAfter(node);
+    const fragment = createTextFragment(text);
+    const lastNode = fragment.lastChild;
+    range.insertNode(fragment);
+    if (lastNode) range.setStartAfter(lastNode);
     range.collapse(true);
     selection.removeAllRanges();
     selection.addRange(range);
   }
   target.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+}
+
+function createTextFragment(text: string): DocumentFragment {
+  const fragment = document.createDocumentFragment();
+  text
+    .replaceAll('\r\n', '\n')
+    .replaceAll('\r', '\n')
+    .split('\n')
+    .forEach((line, index) => {
+      if (index > 0) fragment.append(document.createElement('br'));
+      fragment.append(document.createTextNode(line));
+    });
+  return fragment;
 }

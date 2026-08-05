@@ -8,6 +8,16 @@ describe('Editor paste routing', () => {
     expect(findPasteActionInPath([listItem])).toBeTypeOf('function');
   });
 
+  it.each(['.ce-paragraph', '.ce-header'])('routes paste to Editor.js text element %s', (selector) => {
+    expect(findPasteActionInPath([elementMatching(selector)])).toBeTypeOf('function');
+  });
+
+  it('routes paste to the Mermaid source textarea', () => {
+    const textarea = Object.assign(elementMatching('.slash-mermaid-code'), { selectionStart: 2, selectionEnd: 4 });
+
+    expect(findPasteActionInPath([textarea])).toBeTypeOf('function');
+  });
+
   it('routes paste only when the event path contains a Confluence Table cell', () => {
     const paste = vi.fn();
     const tableCell = Object.assign(elementMatching('.ct-cell'), { __slashDocPasteTable: paste });
