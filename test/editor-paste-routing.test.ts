@@ -18,6 +18,12 @@ describe('Editor paste routing', () => {
     expect(findPasteActionInPath([textarea])).toBeTypeOf('function');
   });
 
+  it('routes paste to the highlighted Code and Diff textarea', () => {
+    const textarea = Object.assign(elementMatching('.slash-highlight-input'), { selectionStart: 2, selectionEnd: 4 });
+
+    expect(findPasteActionInPath([textarea])).toBeTypeOf('function');
+  });
+
   it('routes paste only when the event path contains a Confluence Table cell', () => {
     const paste = vi.fn();
     const tableCell = Object.assign(elementMatching('.ct-cell'), { __slashDocPasteTable: paste });

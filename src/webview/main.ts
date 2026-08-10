@@ -10,6 +10,7 @@ import { protectCustomTool, type CustomAddonModule, type CustomBlockToolConstruc
 import { createPageSaveController, updatePageSaveStatus } from './page-save-controller';
 import { renderPendingMermaidDiagrams } from './mermaid-tool';
 import { createEditorUndoHistory, installEditorHistoryListeners } from './editor-undo-history';
+import { installListExitHandler } from './list-exit-handler';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
@@ -18,9 +19,7 @@ import './editor-layout.css';
 import './editor-components.css';
 import './editor-editorjs.css';
 
-type VSCodeApi = {
-  postMessage(message: unknown): void;
-};
+type VSCodeApi = { postMessage(message: unknown): void };
 
 declare const acquireVsCodeApi: () => VSCodeApi;
 declare global {
@@ -303,6 +302,7 @@ async function initEditor() {
   const holder = document.querySelector('#editor');
   pageSave.installFallback(holder);
   installEditorHistoryListeners(holder, handleEditorChange);
+  if (holder) installListExitHandler(holder, editor.blocks);
   installUndoShortcut();
   if (window.__SLASH_DOC_FOCUS_EDITOR__) {
     requestAnimationFrame(() => editor.caret.setToLastBlock('start'));

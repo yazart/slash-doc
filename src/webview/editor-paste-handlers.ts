@@ -99,6 +99,10 @@ export function findPasteActionInPath(path: EventTarget[]): PasteAction | undefi
     (item): item is HTMLTextAreaElement => matchesElement(item, '.slash-mermaid-code') && hasNumericSelection(item),
   );
   if (mermaidCode) return (text) => insertTextIntoControl(mermaidCode, text);
+  const highlightedCode = path.find(
+    (item): item is HTMLTextAreaElement => matchesElement(item, '.slash-highlight-input') && hasNumericSelection(item),
+  );
+  if (highlightedCode) return (text) => insertTextIntoControl(highlightedCode, text);
   const listItem = path.find((item): item is HTMLElement => matchesElement(item, '.cdx-list__item'));
   if (listItem) return (text) => insertTextIntoContentEditable(listItem, text);
   const editorText = path.find(
