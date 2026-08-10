@@ -302,7 +302,7 @@ async function initEditor() {
   const holder = document.querySelector('#editor');
   pageSave.installFallback(holder);
   installEditorHistoryListeners(holder, handleEditorChange);
-  if (holder) installListExitHandler(holder, editor.blocks);
+  if (holder) installListExitHandler(holder, editor.blocks, editor.caret);
   installUndoShortcut();
   if (window.__SLASH_DOC_FOCUS_EDITOR__) {
     requestAnimationFrame(() => editor.caret.setToLastBlock('start'));

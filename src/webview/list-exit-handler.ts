@@ -9,7 +9,11 @@ type ListBlocksApi = {
   ): unknown;
 };
 
-export function installListExitHandler(holder: Element, blocks: ListBlocksApi): void {
+type CaretApi = {
+  setToBlock(index: number, position?: 'end'|'start'|'default', offset?: number): boolean;
+};
+
+export function installListExitHandler(holder: Element, blocks: ListBlocksApi, caret: CaretApi): void {
   holder.addEventListener(
     'keydown',
     (event) => {
@@ -24,6 +28,7 @@ export function installListExitHandler(holder: Element, blocks: ListBlocksApi): 
       event.stopImmediatePropagation();
       item.remove();
       blocks.insert('paragraph', { text: '' }, undefined, blockIndex + 1, true);
+      caret.setToBlock(blockIndex + 1, 'start');
     },
     true,
   );

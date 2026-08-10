@@ -164,7 +164,7 @@ body {
 .export-button {
   box-sizing: border-box;
   height: 24px;
-  padding: 0 10px;
+  padding: 0;
   color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
   border: 1px solid var(--vscode-button-border, var(--vscode-input-border, transparent));
   border-radius: 2px;
@@ -183,15 +183,15 @@ body {
 }
 
 #editor {
-  box-sizing: border-box;
-  width: calc(100% - 24px);
+  box-sizing: content-box;
+  width: calc(100% - 82px);
   min-width: 960px;
   min-height: calc(100vh - 72px);
-  margin: 48px 12px 24px;
-  padding: 20px 12px 48px;
+  margin: 12px;
+  padding: 28px 0px 0px 64px;
   border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--vscode-editorWidget-background) 35%, var(--vscode-editor-background));
+  background: color-mix(in srgb, var(--vscode-editorWidget-background) 35%, var(--vscode-editor-background) #1f1f1f);
 }
 
 .ce-block__content,
