@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { getDefaultSettings, normalizeSettings } from '../src/extension/settings';
 
 describe('export settings', () => {
-  it('keeps embedded images by default for backward compatibility', () => {
-    expect(getDefaultSettings().exportOptions.extractImages).toBe(false);
-    expect(normalizeSettings({ version: 1 }).exportOptions.extractImages).toBe(false);
+  it('keeps document files embedded by default', () => {
+    expect(getDefaultSettings().exportOptions.separateFiles).toBe(false);
+    expect(normalizeSettings({ version: 1 }).exportOptions.separateFiles).toBe(false);
   });
 
-  it('enables image extraction from persisted settings', () => {
-    expect(normalizeSettings({ exportOptions: { extractImages: true } }).exportOptions.extractImages).toBe(true);
+  it('enables file separation and migrates the legacy image setting', () => {
+    expect(normalizeSettings({ exportOptions: { separateFiles: true } }).exportOptions.separateFiles).toBe(true);
+    expect(normalizeSettings({ exportOptions: { extractImages: true } }).exportOptions.separateFiles).toBe(true);
   });
 });
 

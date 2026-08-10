@@ -38,17 +38,37 @@ export async function getSidebarHtml(
               </slash-tooltip>
               <slash-tooltip class="compile-tooltip" content="Собрать HTML">
                 <slash-button id="compile-site" size="small" variant="default" aria-label="Собрать HTML">
-                  <svg class="compile-icon" viewBox="0 0 20 20" aria-hidden="true">
-                    <path d="M5 2.75h6.5L15 6.25v11H5zM11.5 2.75v3.5H15" />
-                    <path d="m9 9-2 2 2 2m2-4 2 2-2 2" />
+                  <svg class="compile-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <g transform="translate(0 .5)">
+                      <path d="M22 9.5V8c0-1.097-.903-2-2-2h-7.9a2.02 2.02 0 0 1-1.69-.9L9.6 3.9A1.998 1.998 0 0 0 7.93 3H4c-1.097 0-2 .903-2 2v13c0 1.097.903 2 2 2" stroke-width="2" />
+                    </g>
+                    <g transform="matrix(.78858 0 0 1.27743 -272.657 -186.835)">
+                      <path d="M354 158v4.207-2.103h3V158v4.207" stroke-width="1.15" />
+                    </g>
+                    <g transform="matrix(.78858 0 0 1.27743 -271.299 -186.791)">
+                      <path d="M357.701 158.069h3.458-1.729v4.138" stroke-width="1.15" />
+                    </g>
+                    <g transform="matrix(1.1121 0 0 1.27743 -387.041 -186.791)">
+                      <path d="M362 158.069v4.138m0-4.138 1.574 3.931 1.426-3.931v4.138" stroke-width="1.03" />
+                    </g>
+                    <g transform="matrix(.78858 0 0 1.27743 -267.986 -186.791)">
+                      <path d="M367 158v4.207h2" stroke-width="1.15" />
+                    </g>
                   </svg>
                 </slash-button>
               </slash-tooltip>
               <slash-tooltip class="compile-tooltip" content="Собрать Markdown">
                 <slash-button id="compile-markdown" size="small" variant="default" aria-label="Собрать Markdown">
-                  <svg class="compile-icon" viewBox="0 0 20 20" aria-hidden="true">
-                    <path d="M5 2.75h6.5L15 6.25v11H5zM11.5 2.75v3.5H15" />
-                    <path d="M7 13V9l2 2 2-2v4m1.5 0h1a1.5 1.5 0 0 0 0-3h-1z" />
+                  <svg class="compile-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <g transform="translate(0 .5)">
+                      <path d="M22 10.333V8c0-1.097-.903-2-2-2h-7.9a2.02 2.02 0 0 1-1.69-.9L9.6 3.9A1.998 1.998 0 0 0 7.93 3H4c-1.097 0-2 .903-2 2v13c0 1.097.903 2 2 2" stroke-width="2" />
+                    </g>
+                    <g transform="matrix(1.83728 0 0 1.51114 -657.294 -224.618)">
+                      <path d="M362 158.069v4.138m0-4.138 1.574 3.931 1.426-3.931v4.138" stroke-width="1" />
+                    </g>
+                    <g transform="matrix(1.60344 0 0 1.85986 -6.86192 -10.0358)">
+                      <path d="m14 14.737 2 1.681 2-1.681M16 16.418V13" stroke-width=".97" />
+                    </g>
                   </svg>
                 </slash-button>
               </slash-tooltip>

@@ -6,7 +6,7 @@ export function getDefaultSettings(): SlashDocSettings {
   return {
     version: 1,
     autoSave: { ...DEFAULT_AUTO_SAVE_SETTINGS },
-    exportOptions: { extractImages: false },
+    exportOptions: { separateFiles: false },
     editorAddons: {
       header: true,
       list: true,
@@ -48,7 +48,11 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
     version: 1,
     autoSave: normalizeAutoSaveSettings(value.autoSave),
     exportOptions: {
-      extractImages: getBooleanSetting(value.exportOptions, 'extractImages', defaults.exportOptions.extractImages),
+      separateFiles: getBooleanSetting(
+        value.exportOptions,
+        'separateFiles',
+        getBooleanSetting(value.exportOptions, 'extractImages', defaults.exportOptions.separateFiles),
+      ),
     },
     editorAddons: {
       header: getBooleanSetting(value.editorAddons, 'header', defaults.editorAddons.header),

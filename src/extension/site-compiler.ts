@@ -35,7 +35,7 @@ export async function compileDocumentationSite(
       page.id,
       pageIds,
     );
-    const result = settings.exportOptions.extractImages
+    const result = settings.exportOptions.separateFiles
       ? extractEmbeddedImages(exported, `${page.id}-image`)
       : { content: exported, images: [] };
     await writeText(vscode.Uri.joinPath(pagesRoot, `${page.id}.html`), result.content);

@@ -86,6 +86,14 @@ export function getPagesRootUri(workspaceRoot: vscode.Uri): vscode.Uri {
   return vscode.Uri.joinPath(workspaceRoot, '.slash-doc', 'docs', 'pages');
 }
 
+export function getPageRootUri(workspaceRoot: vscode.Uri, pageId: string): vscode.Uri {
+  return vscode.Uri.joinPath(getPagesRootUri(workspaceRoot), pageId);
+}
+
 export function getPageContentUri(workspaceRoot: vscode.Uri, pageId: string): vscode.Uri {
-  return vscode.Uri.joinPath(getPagesRootUri(workspaceRoot), pageId, 'content.json');
+  return vscode.Uri.joinPath(getPageRootUri(workspaceRoot, pageId), 'content.yaml');
+}
+
+export function getLegacyPageContentUri(workspaceRoot: vscode.Uri, pageId: string): vscode.Uri {
+  return vscode.Uri.joinPath(getPageRootUri(workspaceRoot, pageId), 'content.json');
 }

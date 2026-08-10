@@ -6,6 +6,7 @@ import {
   rewriteMarkdownPageLinks,
 } from '../shared/documentation-tree';
 import { extractEmbeddedImages } from '../shared/embedded-images';
+import { decodeStoredPage } from '../shared/page-storage-format';
 import { createFileSystemCustomBlockExporter } from './custom-addon-exporter';
 import { exportPageContent, type CustomBlockExporter } from '../extension/document-export';
 import { getDocumentationSearchText } from '../extension/documentation-search-text';
@@ -76,7 +77,7 @@ async function writeCompiledPage(
   const exported = await exportPageContent(data, 'html', settings, customExporter);
   const outputPath = resolveInside(resolve(outputRoot, 'pages'), `${page.id}.html`);
   const html = prepareCompiledPage(exported, page.id, pageIds);
-  const result = settings.exportOptions.extractImages
+  const result = settings.exportOptions.separateFiles
     ? extractEmbeddedImages(html, `${page.id}-image`)
     : { content: html, images: [] };
   await writeFile(outputPath, result.content, 'utf8');
@@ -103,7 +104,7 @@ async function compileMarkdownDocumentation(
       current,
       pages,
     );
-    const result = settings.exportOptions.extractImages
+    const result = settings.exportOptions.separateFiles
       ? extractEmbeddedImages(markdown)
       : { content: markdown, images: [] };
     await writeFile(resolve(pageRoot, 'content.md'), result.content, 'utf8');
@@ -115,17 +116,26 @@ async function compileMarkdownDocumentation(
 }
 
 async function readPage(docsRoot: string, page: SlashDocMenuItem): Promise<unknown> {
-  const contentPath = resolveInside(resolve(docsRoot, 'pages'), page.file);
+  const pagesRoot = resolve(docsRoot, 'pages');
+  const pageRoot = resolveInside(pagesRoot, page.id);
+  let storageError: unknown;
   try {
-    return JSON.parse(await readFile(contentPath, 'utf8')) as unknown;
+    return await decodeStoredPage(await readFile(resolveInside(pageRoot, 'content.yaml'), 'utf8'), (fileName) =>
+      readFile(resolveInside(pageRoot, fileName)),
+    );
   } catch (error) {
-    if (isMissingFile(error)) {
-      return {
-        blocks: [{ type: 'header', data: { text: page.title, level: 2 } }],
-        version: '2.23.2',
-      };
-    }
-    throw error;
+    storageError = error;
+  }
+  const legacyFile = page.file.endsWith('.json') ? page.file : `${page.id}/content.json`;
+  try {
+    return JSON.parse(await readFile(resolveInside(pagesRoot, legacyFile), 'utf8')) as unknown;
+  } catch (legacyError) {
+    if (!isMissingFile(legacyError)) throw legacyError;
+    if (!isMissingFile(storageError)) throw storageError;
+    return {
+      blocks: [{ type: 'header', data: { text: page.title, level: 2 } }],
+      version: '2.23.2',
+    };
   }
 }
 
@@ -155,7 +165,7 @@ function normalizeMenuItems(value: unknown): SlashDocMenuItem[] {
     return {
       id,
       title: typeof item.title === 'string' ? item.title : 'Без названия',
-      file: typeof item.file === 'string' ? item.file : `${id}/content.json`,
+      file: typeof item.file === 'string' ? item.file : `${id}/content.yaml`,
       children: normalizeMenuItems(item.children),
     };
   });

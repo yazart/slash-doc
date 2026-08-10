@@ -20,7 +20,23 @@ export function extractEmbeddedImages(
       return fileName;
     },
   );
-  return { content: transformed, images };
+  const isHtml = /<!doctype html|<html\b/i.test(content);
+  const withSvgFiles = transformed.replaceAll(
+    /<svg\b(?=[^>]*data-slash-doc-(?:bpmn|mermaid)[^=\s>]*=)[\s\S]*?<\/svg>/gi,
+    (source: string) => {
+      const existing = names.get(source);
+      if (existing) return svgReference(existing, isHtml);
+      const fileName = `${filePrefix}-${images.length + 1}.svg`;
+      names.set(source, fileName);
+      images.push({ fileName, data: Buffer.from(source, 'utf8') });
+      return svgReference(fileName, isHtml);
+    },
+  );
+  return { content: withSvgFiles, images };
+}
+
+function svgReference(fileName: string, html: boolean): string {
+  return html ? `<img src="${fileName}" alt="SVG diagram">` : `![SVG diagram](${fileName})`;
 }
 
 function imageExtension(mimeSubtype: string): string {

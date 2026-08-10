@@ -35,7 +35,7 @@ export async function compileMarkdownDocumentation(
       current,
       pages,
     );
-    const result = settings.exportOptions.extractImages
+    const result = settings.exportOptions.separateFiles
       ? extractEmbeddedImages(markdown)
       : { content: markdown, images: [] };
     await writeText(vscode.Uri.joinPath(pageRoot, 'content.md'), result.content);

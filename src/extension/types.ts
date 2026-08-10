@@ -40,7 +40,7 @@ export type SlashDocSettings = {
   version: 1;
   autoSave: AutoSaveSettings;
   exportOptions: {
-    extractImages: boolean;
+    separateFiles: boolean;
   };
   editorAddons: {
     header: boolean;

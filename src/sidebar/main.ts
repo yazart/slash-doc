@@ -246,7 +246,7 @@ function saveSidebarState() {
 }
 
 function bindSettingsInputs() {
-  document.querySelector('#extract-images')?.addEventListener('change', scheduleSettingsSave);
+  document.querySelector('#separate-files')?.addEventListener('change', scheduleSettingsSave);
   document.querySelectorAll<HTMLElement>('[data-addon]').forEach((element) => {
     element.addEventListener('change', scheduleSettingsSave);
   });

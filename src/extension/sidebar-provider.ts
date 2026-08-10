@@ -7,16 +7,14 @@ import {
   getCustomAddonUri,
   getGlobalAddonRootUri,
   getGlobalApiRootUri,
-  getPageContentUri,
-  getPagesRootUri,
   getWorkspaceRoot,
-  writeJsonIfMissing,
   writeTextIfMissing,
 } from './filesystem';
 import { addChildToMenu, createNewPageContent, moveMenuItem, readMenu, writeMenu } from './pages';
 import { readSettings, writeSettings } from './settings-store';
 import { importDocumentContent } from './document-import';
 import { searchDocumentation } from './documentation-search';
+import { saveStoredPageContent } from './page-storage';
 import { getSidebarHtml } from './sidebar-webview';
 import type { ApiServerManager } from './api-server';
 import { compileDocumentation, initializeDocumentation } from './sidebar-provider-actions';
@@ -320,7 +318,7 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
 
     const menu = await readMenu(workspaceRoot);
     const id = createPageId();
-    const file = `${id}/content.json`;
+    const file = `${id}/content.yaml`;
     const item: SlashDocMenuItem = {
       id,
       title,
@@ -335,8 +333,7 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       await writeMenu(workspaceRoot, menu);
     }
 
-    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(getPagesRootUri(workspaceRoot), id));
-    await writeJsonIfMissing(getPageContentUri(workspaceRoot, id), createNewPageContent(title));
+    await saveStoredPageContent(workspaceRoot, id, createNewPageContent(title));
 
     return id;
   }

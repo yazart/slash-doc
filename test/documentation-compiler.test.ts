@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { compileDocumentation } from '../src/compiler/documentation-compiler';
+import { encodeStoredPage } from '../src/shared/page-storage-format';
 
 const temporaryDirectories: string[] = [];
 
@@ -36,6 +37,26 @@ describe('standalone documentation compiler', () => {
     expect(missingPage).toContain('<h2>Details</h2>');
   });
 
+  it('loads YAML page state with adjacent resources before legacy JSON', async () => {
+    const projectRoot = await createProject();
+    const pageRoot = join(projectRoot, '.slash-doc', 'docs', 'pages', 'start');
+    const stored = encodeStoredPage({
+      blocks: [
+        { type: 'header', data: { text: 'YAML page', level: 1 } },
+        { type: 'image', data: { file: { url: 'data:image/png;base64,aGVsbG8=' } } },
+      ],
+    });
+    await writeFile(join(pageRoot, 'content.yaml'), stored.yaml);
+    await Promise.all(stored.resources.map((resource) => writeFile(join(pageRoot, resource.fileName), resource.data)));
+
+    const result = await compileDocumentation({ projectRoot });
+    const page = await readFile(join(result.outputRoot, 'pages', 'start.html'), 'utf8');
+
+    expect(page).toContain('<h1>YAML page</h1>');
+    expect(page).toContain('data:image/png;base64,aGVsbG8=');
+    expect(page).not.toContain('<h1>Start</h1>');
+  });
+
   it('builds a hierarchical Markdown tree and extracts page images', async () => {
     const projectRoot = await createProject();
     const outputRoot = join(projectRoot, 'markdown-docs');
@@ -55,7 +76,7 @@ describe('standalone documentation compiler', () => {
     );
     await writeFile(
       join(projectRoot, '.slash-doc', 'sdsettings.json'),
-      JSON.stringify({ exportOptions: { extractImages: true } }),
+      JSON.stringify({ exportOptions: { separateFiles: true } }),
     );
     const startContentPath = join(docsRoot, 'pages', 'start', 'content.json');
     const startContent = JSON.parse(await readFile(startContentPath, 'utf8')) as { blocks: unknown[] };

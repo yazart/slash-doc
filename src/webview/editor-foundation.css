@@ -82,6 +82,18 @@ body {
   place-items: center;
 }
 
+.export-icon-button {
+  display: inline-grid;
+  width: 24px;
+  padding: 0;
+  place-items: center;
+}
+
+.export-icon-button svg {
+  fill: none;
+  stroke: currentColor;
+}
+
 .header-inline-tools {
   display: flex;
   align-items: center;

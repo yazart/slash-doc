@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getPageContentUri, getPagesRootUri, getWorkspaceRoot, writeJson } from './filesystem';
+import { getPagesRootUri, getWorkspaceRoot } from './filesystem';
 import {
   addChildToMenu,
   collectMenuItemIds,
@@ -13,6 +13,7 @@ import {
 import type { SlashDocMenuItem } from './types';
 import { createPageId } from './utils';
 import { removePageTime } from '../shared/page-content';
+import { saveStoredPageContent } from './page-storage';
 
 export type OpenPagePanel = {
   pageId?: string;
@@ -60,7 +61,7 @@ export async function renameSidebarPage(pageId: string, openPagePanel: OpenPageP
   await writeMenu(workspaceRoot, menu);
   const content = await readPageContent(workspaceRoot, pageId, normalizedTitle);
   const updatedContent = updatePageContentTitle(content, normalizedTitle);
-  await writeJson(getPageContentUri(workspaceRoot, pageId), updatedContent);
+  await saveStoredPageContent(workspaceRoot, pageId, updatedContent);
   if (openPagePanel?.pageId === pageId) {
     openPagePanel.panel.title = normalizedTitle;
     void openPagePanel.panel.webview.postMessage({ type: 'replaceData', data: updatedContent });
@@ -76,13 +77,13 @@ export async function createSidebarPageWithContent(
   if (!workspaceRoot) throw new Error('Для создания страницы Slash Doc требуется папка рабочей области.');
   const menu = await readMenu(workspaceRoot);
   const id = createPageId();
-  const item: SlashDocMenuItem = { id, title, file: `${id}/content.json`, children: [] };
+  const item: SlashDocMenuItem = { id, title, file: `${id}/content.yaml`, children: [] };
   if (parentId && addChildToMenu(menu.items, parentId, item)) await writeMenu(workspaceRoot, menu);
   else {
     menu.items.push(item);
     await writeMenu(workspaceRoot, menu);
   }
   await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(getPagesRootUri(workspaceRoot), id));
-  await writeJson(getPageContentUri(workspaceRoot, id), removePageTime(content));
+  await saveStoredPageContent(workspaceRoot, id, removePageTime(content));
   return id;
 }

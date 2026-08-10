@@ -22,8 +22,8 @@ export function renderSettingsPanel(settings: SlashDocSettings): string {
       <div class="settings-group">
         <div class="settings-group-title">Экспорт документации</div>
         <label class="settings-row">
-          <span>Извлекать изображения в файлы</span>
-          <slash-switch id="extract-images" ${settings.exportOptions.extractImages ? 'checked' : ''}></slash-switch>
+          <span>Сохранять файлы документа отдельно</span>
+          <slash-switch id="separate-files" ${settings.exportOptions.separateFiles ? 'checked' : ''}></slash-switch>
         </label>
       </div>
       <div class="settings-group">

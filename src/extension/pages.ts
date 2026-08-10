@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { getMenuUri, getPageContentUri, pathExists, writeJson } from './filesystem';
+import { getMenuUri, pathExists, writeJson } from './filesystem';
+import { readStoredPageContent } from './page-storage';
 import type { DocumentationPageLink, PageMovePosition, SlashDocMenu, SlashDocMenuItem } from './types';
 import { createPageId, escapeAttribute, escapeHtml, isRecord, stripHtml } from './utils';
 import { removePageTime } from '../shared/page-content';
@@ -25,14 +26,7 @@ export async function readPageContent(
   pageId: string,
   fallbackTitle: string,
 ): Promise<unknown> {
-  const contentUri = getPageContentUri(workspaceRoot, pageId);
-
-  if (!(await pathExists(contentUri))) {
-    return createDefaultPageContent(fallbackTitle);
-  }
-
-  const data = await vscode.workspace.fs.readFile(contentUri);
-  return removePageTime(JSON.parse(new TextDecoder().decode(data)));
+  return (await readStoredPageContent(workspaceRoot, pageId)) ?? createDefaultPageContent(fallbackTitle);
 }
 
 export function createDefaultPageContent(title: string): unknown {
@@ -79,7 +73,7 @@ export function normalizeMenuItems(items: unknown): SlashDocMenuItem[] {
     return {
       id,
       title: typeof item.title === 'string' ? item.title : 'Без названия',
-      file: `${id}/content.json`,
+      file: `${id}/content.yaml`,
       children: normalizeMenuItems(item.children),
     };
   });

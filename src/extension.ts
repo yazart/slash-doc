@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { SlashDocSettings } from './extension/types';
 import { getDefaultSettings } from './extension/settings';
-import { getGlobalAddonRootUri, getPageContentUri, getWorkspaceRoot, writeJson } from './extension/filesystem';
+import { getGlobalAddonRootUri, getWorkspaceRoot } from './extension/filesystem';
 import {
   createDefaultPageContent,
   findMenuItem,
@@ -14,6 +14,7 @@ import {
 } from './extension/pages';
 import { readSettings } from './extension/settings-store';
 import { savePageExport, type PageExportFormat } from './extension/page-export-file';
+import { saveStoredPageContent } from './extension/page-storage';
 import { removePageTime } from './shared/page-content';
 import { ApiServerManager, migrateLegacyModules } from './extension/api-server';
 import { getWebviewHtml } from './extension/editor-webview';
@@ -242,7 +243,7 @@ export function activate(context: vscode.ExtensionContext) {
             saveQueue = saveQueue.then(async () => {
               try {
                 const pageData = removePageTime(message.data);
-                await writeJson(getPageContentUri(workspaceRoot, pageId), pageData);
+                await saveStoredPageContent(workspaceRoot, pageId, pageData);
                 const title = getFirstHeaderText(pageData);
 
                 if (title) {

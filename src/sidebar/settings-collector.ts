@@ -7,7 +7,7 @@ export function collectSettings() {
       enabled: isSwitchEnabled('auto-save-enabled', true),
       intervalSeconds: Number(document.querySelector<HTMLInputElement>('#auto-save-interval')?.value ?? '1'),
     },
-    exportOptions: { extractImages: isSwitchEnabled('extract-images', false) },
+    exportOptions: { separateFiles: isSwitchEnabled('separate-files', false) },
     editorAddons: {
       header: isAddonEnabled('header'),
       list: isAddonEnabled('list'),

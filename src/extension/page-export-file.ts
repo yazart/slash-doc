@@ -30,7 +30,7 @@ export async function savePageExport(
   );
   const fileName = createPageExportFileName(getFirstHeaderText(data) || fallbackTitle, format);
   const prefix = `${fileName.replace(/\.(?:html|md)$/i, '')}-image`;
-  const result = settings.exportOptions.extractImages
+  const result = settings.exportOptions.separateFiles
     ? extractEmbeddedImages(exported, prefix)
     : { content: exported, images: [] };
   const uri = vscode.Uri.joinPath(workspaceRoot, fileName);
