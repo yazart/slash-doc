@@ -1,5 +1,7 @@
 .slash-page-link-option,
 .slash-page-link-remove {
+  flex: 0 0 auto;
+  min-height: 30px;
   overflow: hidden;
   padding: 6px 8px;
   color: var(--vscode-foreground);

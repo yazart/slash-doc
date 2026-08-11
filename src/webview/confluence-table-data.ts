@@ -13,7 +13,13 @@ type LegacyTableData = {
   withHeadings?: unknown;
 };
 
-export type ToolArgs = { data?: Partial<ConfluenceTableData> & LegacyTableData };
+export type ToolArgs = {
+  data?: Partial<ConfluenceTableData> & LegacyTableData;
+  config?: {
+    currentPageId?: string;
+    pages?: Array<{ depth: number; id: string; title: string }>;
+  };
+};
 
 declare global {
   interface Window {

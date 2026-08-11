@@ -68,4 +68,11 @@ export const LUCIDE_ICONS = {
   externalLink: lucideIcon(
     '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   ),
+  check: lucideIcon('<path d="M20 6 9 17l-5-5"/>'),
+  clipboardPaste: lucideIcon(
+    '<path d="M11 14h10"/><path d="m17 10 4 4-4 4"/><path d="M16 4h2a2 2 0 0 1 2 2v1.5"/><path d="M13 2h-2a2 2 0 0 0-2 2"/><path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/><rect x="9" y="2" width="6" height="4" rx="1"/>',
+  ),
+  unlink: lucideIcon(
+    '<path d="m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="8" x2="8" y1="2" y2="5"/><line x1="2" x2="5" y1="8" y2="8"/><line x1="16" x2="16" y1="19" y2="22"/><line x1="19" x2="22" y1="16" y2="16"/>',
+  ),
 } as const;

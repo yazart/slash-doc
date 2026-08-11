@@ -35,17 +35,30 @@ export function createEditorTools(
   initializeMermaid();
   const tools: EditorTools = {};
   const addons = settings.editorAddons;
-  tools.paragraph = { class: PersistentParagraphTool as unknown as ToolConstructable, inlineToolbar: true };
+  tools.paragraph = { class: PersistentParagraphTool as unknown as ToolConstructable, inlineToolbar: false };
   if (addons?.header !== false) {
     tools.header = {
       class: Header as unknown as ToolConstructable,
+      inlineToolbar: false,
       toolbox: { title: 'Заголовок', icon: LUCIDE_ICONS.heading },
     };
   }
   if (addons?.list !== false) {
-    tools.list = { class: List as unknown as ToolConstructable, toolbox: { title: 'Список', icon: LUCIDE_ICONS.list } };
+    tools.list = {
+      class: List as unknown as ToolConstructable,
+      inlineToolbar: false,
+      toolbox: { title: 'Список', icon: LUCIDE_ICONS.list },
+    };
   }
-  if (addons?.confluenceTable !== false) tools.confluenceTable = ConfluenceTableTool;
+  if (addons?.confluenceTable !== false) {
+    tools.confluenceTable = {
+      class: ConfluenceTableTool,
+      config: {
+        pages: window.__SLASH_DOC_PAGES__ ?? [],
+        currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
+      },
+    };
+  }
   if (addons?.image !== false) {
     tools.image = {
       class: ImageTool as unknown as ToolConstructable,

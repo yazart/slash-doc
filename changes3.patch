@@ -1,0 +1,2737 @@
+diff --git a/changes3.patch b/changes3.patch
+new file mode 100644
+index 0000000..5d324cf
+--- /dev/null
++++ b/changes3.patch
+@@ -0,0 +1,1320 @@
++diff --git a/src/extension/bpmn-export-dimensions.ts b/src/extension/bpmn-export-dimensions.ts
++new file mode 100644
++index 0000000..4466352
++--- /dev/null
+++++ b/src/extension/bpmn-export-dimensions.ts
++@@ -0,0 +1,93 @@
+++export type BpmnSvgDimensions = {
+++  width: number;
+++  height: number;
+++  viewBox: string;
+++};
+++
+++type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
+++
+++const FALLBACK_DIMENSIONS: BpmnSvgDimensions = { width: 640, height: 120, viewBox: '0 0 640 120' };
+++const DIAGRAM_PADDING = 24;
+++
+++export function resolveBpmnSvgDimensions(attributes: string, xml: string): BpmnSvgDimensions {
+++  const viewBox = parseViewBox(readAttribute(attributes, 'viewBox'));
+++  if (viewBox) {
+++    return {
+++      width: positiveLength(readAttribute(attributes, 'width')) ?? viewBox.width,
+++      height: positiveLength(readAttribute(attributes, 'height')) ?? viewBox.height,
+++      viewBox: `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`,
+++    };
+++  }
+++  const width = positiveLength(readAttribute(attributes, 'width'));
+++  const height = positiveLength(readAttribute(attributes, 'height'));
+++  if (width && height) return { width, height, viewBox: `0 0 ${width} ${height}` };
+++  return readDiagramBounds(xml) ?? FALLBACK_DIMENSIONS;
+++}
+++
+++function readDiagramBounds(xml: string): BpmnSvgDimensions | undefined {
+++  let bounds: Bounds | undefined;
+++  for (const match of xml.matchAll(/<(?:[a-z_][\w.-]*:)?Bounds\b([^>]*)>/gi)) {
+++    const x = finiteAttribute(match[1], 'x');
+++    const y = finiteAttribute(match[1], 'y');
+++    const width = finiteAttribute(match[1], 'width');
+++    const height = finiteAttribute(match[1], 'height');
+++    if (x === undefined || y === undefined || width === undefined || height === undefined || width < 0 || height < 0) {
+++      continue;
+++    }
+++    bounds = includeRectangle(bounds, x, y, width, height);
+++  }
+++  for (const match of xml.matchAll(/<(?:[a-z_][\w.-]*:)?waypoint\b([^>]*)>/gi)) {
+++    const x = finiteAttribute(match[1], 'x');
+++    const y = finiteAttribute(match[1], 'y');
+++    if (x !== undefined && y !== undefined) bounds = includePoint(bounds, x, y);
+++  }
+++  if (!bounds) return undefined;
+++  const x = bounds.minX - DIAGRAM_PADDING;
+++  const y = bounds.minY - DIAGRAM_PADDING;
+++  const width = Math.max(1, bounds.maxX - bounds.minX + DIAGRAM_PADDING * 2);
+++  const height = Math.max(1, bounds.maxY - bounds.minY + DIAGRAM_PADDING * 2);
+++  return { width, height, viewBox: `${x} ${y} ${width} ${height}` };
+++}
+++
+++function includeRectangle(bounds: Bounds | undefined, x: number, y: number, width: number, height: number): Bounds {
+++  return includePoint(includePoint(bounds, x, y), x + width, y + height);
+++}
+++
+++function includePoint(bounds: Bounds | undefined, x: number, y: number): Bounds {
+++  if (!bounds) return { minX: x, minY: y, maxX: x, maxY: y };
+++  return {
+++    minX: Math.min(bounds.minX, x),
+++    minY: Math.min(bounds.minY, y),
+++    maxX: Math.max(bounds.maxX, x),
+++    maxY: Math.max(bounds.maxY, y),
+++  };
+++}
+++
+++function parseViewBox(value: string): { x: number; y: number; width: number; height: number } | undefined {
+++  const values = value
+++    .trim()
+++    .split(/[\s,]+/)
+++    .map(Number);
+++  if (values.length !== 4 || values.some((item) => !Number.isFinite(item)) || values[2] <= 0 || values[3] <= 0) {
+++    return undefined;
+++  }
+++  return { x: values[0], y: values[1], width: values[2], height: values[3] };
+++}
+++
+++function positiveLength(value: string): number | undefined {
+++  const match = /^\s*(\d+(?:\.\d+)?)\s*(?:px)?\s*$/i.exec(value);
+++  const number = match ? Number(match[1]) : 0;
+++  return Number.isFinite(number) && number > 0 ? number : undefined;
+++}
+++
+++function finiteAttribute(attributes: string, name: string): number | undefined {
+++  const source = readAttribute(attributes, name).trim();
+++  if (!source) return undefined;
+++  const value = Number(source);
+++  return Number.isFinite(value) ? value : undefined;
+++}
+++
+++function readAttribute(attributes: string, name: string): string {
+++  const match = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(attributes);
+++  return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
+++}
++diff --git a/src/extension/document-export-common.ts b/src/extension/document-export-common.ts
++index 1beb9da..60c736f 100644
++--- a/src/extension/document-export-common.ts
+++++ b/src/extension/document-export-common.ts
++@@ -1,4 +1,5 @@
++ import { escapeAttribute, isRecord, stripHtml } from './utils';
+++import { resolveBpmnSvgDimensions } from './bpmn-export-dimensions';
++ 
++ export function markdownCodeFence(language: string, source: string): string {
++   const longestFence = Math.max(0, ...(source.match(/`+/g) ?? []).map((match) => match.length));
++@@ -19,18 +20,19 @@ export function exportBpmnSvg(type: string, data: Record<string, unknown>): stri
++     .replace(/\sdata-slash-doc-bpmn=("[^"]*"|'[^']*')/gi, '')
++     .replace(/\sdata-slash-doc-bpmn-state=("[^"]*"|'[^']*')/gi, '');
++   return cleanSvg.replace(/<svg\b([^>]*)>/i, (_opening, attributes: string) =>
++-    renderBpmnSvgOpening(attributes, kind, state),
+++    renderBpmnSvgOpening(attributes, kind, state, xml),
++   );
++ }
++ 
++-function renderBpmnSvgOpening(attributes: string, kind: string, state: string): string {
+++function renderBpmnSvgOpening(attributes: string, kind: string, state: string, xml: string): string {
++   const existingClass = readSvgAttribute(attributes, 'class');
++   const className = [...new Set([...existingClass.split(/\s+/), 'slash-bpmn-export'].filter(Boolean))].join(' ');
++-  const cleanedAttributes = ['class', 'role', 'preserveAspectRatio'].reduce(
+++  const dimensions = resolveBpmnSvgDimensions(attributes, xml);
+++  const cleanedAttributes = ['class', 'role', 'preserveAspectRatio', 'width', 'height', 'viewBox'].reduce(
++     (value, name) => removeSvgAttribute(value, name),
++     attributes,
++   );
++-  return `<svg${cleanedAttributes} class="${escapeAttribute(className)}" role="img" preserveAspectRatio="xMidYMid meet" data-slash-doc-bpmn="${kind}" data-slash-doc-bpmn-state="${escapeAttribute(state)}">`;
+++  return `<svg${cleanedAttributes} width="${dimensions.width}" height="${dimensions.height}" viewBox="${dimensions.viewBox}" class="${escapeAttribute(className)}" role="img" preserveAspectRatio="xMidYMid meet" data-slash-doc-bpmn="${kind}" data-slash-doc-bpmn-state="${escapeAttribute(state)}">`;
++ }
++ 
++ function readSvgAttribute(attributes: string, name: string): string {
++diff --git a/src/webview/confluence-table-data.ts b/src/webview/confluence-table-data.ts
++index c03ec7a..6f37ad8 100644
++--- a/src/webview/confluence-table-data.ts
+++++ b/src/webview/confluence-table-data.ts
++@@ -13,7 +13,13 @@ type LegacyTableData = {
++   withHeadings?: unknown;
++ };
++ 
++-export type ToolArgs = { data?: Partial<ConfluenceTableData> & LegacyTableData };
+++export type ToolArgs = {
+++  data?: Partial<ConfluenceTableData> & LegacyTableData;
+++  config?: {
+++    currentPageId?: string;
+++    pages?: Array<{ depth: number; id: string; title: string }>;
+++  };
+++};
++ 
++ declare global {
++   interface Window {
++diff --git a/src/webview/confluence-table-inline-toolbar.ts b/src/webview/confluence-table-inline-toolbar.ts
++index 537499d..5b095b3 100644
++--- a/src/webview/confluence-table-inline-toolbar.ts
+++++ b/src/webview/confluence-table-inline-toolbar.ts
++@@ -1,18 +1,26 @@
++ import { LUCIDE_ICONS } from './lucide-icons';
+++import { readActiveEditorRange, selectionForNode } from './editor-selection';
+++import type { DocumentationPageLink } from './page-link-tool';
++ 
++ type SelectionRoot = ShadowRoot & { getSelection?: () => Selection | null };
++ 
++-export type TableInlineToolbar = {
+++export type TextInlineToolbar = {
++   element: HTMLElement;
++   bindCell(cell: HTMLElement): void;
++ };
++ 
++-export function createTableInlineToolbar(): TableInlineToolbar {
+++export type TextInlineToolbarConfig = {
+++  pages?: DocumentationPageLink[];
+++  currentPageId?: string;
+++};
+++
+++export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): TextInlineToolbar {
++   const element = document.createElement('div');
++-  element.className = 'ct-inline-toolbar';
+++  element.className = 'slash-text-inline-toolbar';
++   element.hidden = true;
++   let range: Range | undefined;
++   let cell: HTMLElement | undefined;
+++  let captureFrame: number | undefined;
++ 
++   const apply = (tag: keyof HTMLElementTagNameMap, className?: string, configure?: (wrapper: HTMLElement) => void) => {
++     if (!range || range.collapsed || !cell?.contains(range.commonAncestorContainer)) return;
++@@ -31,7 +39,6 @@ export function createTableInlineToolbar(): TableInlineToolbar {
++     { title: 'Подчёркивание', icon: LUCIDE_ICONS.underline, action: () => apply('u') },
++     { title: 'Маркер', icon: LUCIDE_ICONS.highlighter, action: () => apply('mark') },
++     { title: 'Встроенный код', icon: LUCIDE_ICONS.code, action: () => apply('code') },
++-    { title: 'Внешняя ссылка', icon: LUCIDE_ICONS.externalLink, action: () => applyExternalLink() },
++   ];
++ 
++   for (const tool of tools) {
++@@ -45,6 +52,63 @@ export function createTableInlineToolbar(): TableInlineToolbar {
++     element.append(button);
++   }
++ 
+++  const pageLink = createButton('Ссылка на страницу', LUCIDE_ICONS.link);
+++  const pageSelect = document.createElement('select');
+++  pageSelect.className = 'slash-text-inline-link-select';
+++  pageSelect.title = 'Выберите страницу';
+++  pageSelect.setAttribute('aria-label', 'Выберите страницу');
+++  pageSelect.hidden = true;
+++  populatePageOptions(pageSelect, config.pages ?? [], config.currentPageId);
+++  pageLink.addEventListener('click', () => togglePanel(pageSelect));
+++  pageSelect.addEventListener('change', () => {
+++    const page = (config.pages ?? []).find((item) => item.id === pageSelect.value);
+++    if (page) applyPageLink(page);
+++  });
+++  element.append(pageLink, pageSelect);
+++
+++  const externalLink = createButton('Внешняя ссылка', LUCIDE_ICONS.externalLink);
+++  const externalPanel = document.createElement('span');
+++  externalPanel.className = 'slash-text-inline-link-panel';
+++  externalPanel.hidden = true;
+++  const externalInput = document.createElement('input');
+++  externalInput.type = 'url';
+++  externalInput.placeholder = 'https://example.com';
+++  externalInput.setAttribute('aria-label', 'Внешний адрес');
+++  externalInput.setAttribute('style', 'width: 128px;');
+++  const externalPaste = createButton('Вставить из буфера обмена', LUCIDE_ICONS.clipboardPaste);
+++  const externalSave = createButton('Сохранить ссылку', LUCIDE_ICONS.check);
+++  const saveExternalLink = () => {
+++    const href = normalizeExternalUrl(externalInput.value);
+++    if (!href) {
+++      externalInput.setCustomValidity('Введите корректный адрес http:// или https://');
+++      externalInput.reportValidity();
+++      return;
+++    }
+++    externalInput.setCustomValidity('');
+++    applyLink(href, 'slash-external-link', { target: '_blank', rel: 'noopener noreferrer' });
+++  };
+++  externalLink.addEventListener('click', () => {
+++    togglePanel(externalPanel);
+++    if (!externalPanel.hidden) queueMicrotask(() => externalInput.focus());
+++  });
+++  externalInput.addEventListener('input', () => externalInput.setCustomValidity(''));
+++  externalInput.addEventListener('paste', (event) => event.stopPropagation());
+++  externalInput.addEventListener('keydown', (event) => {
+++    event.stopPropagation();
+++    if (event.key !== 'Enter') return;
+++    event.preventDefault();
+++    saveExternalLink();
+++  });
+++  externalPaste.addEventListener('click', () => void pasteExternalLink());
+++  externalSave.addEventListener('click', saveExternalLink);
+++  externalPanel.append(externalInput, externalPaste, externalSave);
+++  element.append(externalLink, externalPanel);
+++
+++  const unlink = createButton('Удалить ссылку', LUCIDE_ICONS.unlink);
+++  unlink.disabled = true;
+++  unlink.addEventListener('click', removeSelectedLinks);
+++  element.append(unlink);
+++
++   const color = document.createElement('input');
++   color.type = 'color';
++   color.value = '#3b82f6';
++@@ -52,17 +116,32 @@ export function createTableInlineToolbar(): TableInlineToolbar {
++   color.setAttribute('aria-label', 'Цвет текста');
++   color.addEventListener('change', () => applyColor(color.value));
++   element.append(color);
+++  element.addEventListener('pointerdown', (event) => event.stopPropagation());
+++  element.addEventListener('click', (event) => event.stopPropagation());
++ 
++   function capture(current: HTMLElement): void {
++-    const selection = getSelection(current);
++-    const selected = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
++-    if (!selected || selected.collapsed || !current.contains(selected.commonAncestorContainer)) {
+++    const selected = selectContainedRange(current, [
+++      readSelectionRange(selectionForNode(current)),
+++      readActiveEditorRange(),
+++      readSelectionRange(window.getSelection()),
+++    ]);
+++    if (!selected) {
++       element.hidden = true;
++       return;
++     }
++     cell = current;
++     range = selected.cloneRange();
+++    unlink.disabled = findSelectedLinks(current, selected).length === 0;
++     element.hidden = false;
+++    positionToolbar(element, selected);
+++  }
+++
+++  function scheduleCapture(current: HTMLElement): void {
+++    if (captureFrame !== undefined) window.cancelAnimationFrame(captureFrame);
+++    captureFrame = window.requestAnimationFrame(() => {
+++      captureFrame = undefined;
+++      capture(current);
+++    });
++   }
++ 
++   function applyColor(value: string): void {
++@@ -73,36 +152,182 @@ export function createTableInlineToolbar(): TableInlineToolbar {
++     });
++   }
++ 
++-  function applyExternalLink(): void {
++-    if (!range || range.collapsed || !cell) return;
++-    const input = window.prompt('Внешний адрес', 'https://');
++-    if (!input) return;
++-    const href = normalizeExternalUrl(input);
++-    if (!href) return;
++-    const anchor = document.createElement('a');
++-    anchor.className = 'slash-external-link';
++-    anchor.href = href;
++-    anchor.target = '_blank';
++-    anchor.rel = 'noopener noreferrer';
++-    anchor.append(range.extractContents());
++-    range.insertNode(anchor);
+++  function applyPageLink(page: DocumentationPageLink): void {
+++    applyLink(`slash-doc://page/${encodeURIComponent(page.id)}`, 'slash-page-link', { pageId: page.id });
+++  }
+++
+++  function applyLink(
+++    href: string,
+++    className: 'slash-page-link' | 'slash-external-link',
+++    attributes: { pageId?: string; rel?: string; target?: string },
+++  ): void {
+++    if (!range || range.collapsed || !cell?.contains(range.commonAncestorContainer)) return;
+++    const selectedLinks = findSelectedLinks(cell, range);
+++    const existing = selectedLinks.find((candidate) => isRangeInside(range as Range, candidate));
+++    const anchor = existing ?? document.createElement('a');
+++    configureLink(anchor, href, className, attributes);
+++    if (!existing) {
+++      const contents = range.extractContents();
+++      for (const nested of Array.from(contents.querySelectorAll<HTMLAnchorElement>('a[href]'))) unwrapAnchor(nested);
+++      anchor.append(contents);
+++      range.insertNode(anchor);
+++    }
++     selectNode(anchor);
++-    cell.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+++    finishCellChange();
+++  }
+++
+++  function removeSelectedLinks(): void {
+++    if (!range || !cell) return;
+++    const links = findSelectedLinks(cell, range);
+++    if (links.length === 0) return;
+++    for (const anchor of links) unwrapAnchor(anchor);
+++    finishCellChange();
+++  }
+++
+++  async function pasteExternalLink(): Promise<void> {
+++    try {
+++      const text = await readClipboardText();
+++      if (!text) return;
+++      externalInput.value = text.trim();
+++      externalInput.setCustomValidity('');
+++      externalInput.focus();
+++      externalInput.select();
+++    } catch {
+++      externalInput.setCustomValidity('Не удалось прочитать буфер обмена');
+++      externalInput.reportValidity();
+++    }
+++  }
+++
+++  function finishCellChange(): void {
+++    cell?.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+++    closePanels();
+++    range = undefined;
+++    element.hidden = true;
+++  }
+++
+++  function togglePanel(panel: HTMLElement): void {
+++    const open = panel.hidden;
+++    closePanels();
+++    panel.hidden = !open;
+++    if (open && range) positionToolbar(element, range);
+++  }
+++
+++  function closePanels(): void {
+++    pageSelect.hidden = true;
+++    externalPanel.hidden = true;
+++    pageSelect.value = '';
++   }
++ 
++   return {
++     element,
++     bindCell(current) {
++-      current.addEventListener('mouseup', () => capture(current));
++-      current.addEventListener('keyup', () => capture(current));
+++      current.addEventListener('mouseup', () => scheduleCapture(current));
+++      current.addEventListener('keyup', () => scheduleCapture(current));
++       current.addEventListener('focus', () => capture(current));
++     },
++   };
++ }
++ 
++-function getSelection(cell: HTMLElement): Selection | null {
++-  const root = cell.getRootNode() as SelectionRoot;
++-  return root.getSelection?.() ?? window.getSelection();
+++function configureLink(
+++  anchor: HTMLAnchorElement,
+++  href: string,
+++  className: 'slash-page-link' | 'slash-external-link',
+++  attributes: { pageId?: string; rel?: string; target?: string },
+++): void {
+++  anchor.classList.remove('slash-page-link', 'slash-external-link');
+++  anchor.classList.add(className);
+++  anchor.href = href;
+++  if (attributes.pageId) anchor.dataset.pageId = attributes.pageId;
+++  else delete anchor.dataset.pageId;
+++  if (attributes.target) anchor.target = attributes.target;
+++  else anchor.removeAttribute('target');
+++  if (attributes.rel) anchor.rel = attributes.rel;
+++  else anchor.removeAttribute('rel');
+++}
+++
+++function findSelectedLinks(cell: HTMLElement, range: Range): HTMLAnchorElement[] {
+++  return Array.from(cell.querySelectorAll<HTMLAnchorElement>('a[href]')).filter((anchor) =>
+++    range.intersectsNode(anchor),
+++  );
+++}
+++
+++function isRangeInside(range: Range, element: HTMLElement): boolean {
+++  return element.contains(range.startContainer) && element.contains(range.endContainer);
+++}
+++
+++function unwrapAnchor(anchor: HTMLAnchorElement): void {
+++  const parent = anchor.parentNode;
+++  if (!parent) return;
+++  while (anchor.firstChild) parent.insertBefore(anchor.firstChild, anchor);
+++  anchor.remove();
+++}
+++
+++async function readClipboardText(): Promise<string> {
+++  if (window.__SLASH_DOC_READ_CLIPBOARD__) return window.__SLASH_DOC_READ_CLIPBOARD__();
+++  return navigator.clipboard.readText();
+++}
+++
+++function createButton(title: string, icon: string): HTMLButtonElement {
+++  const button = document.createElement('button');
+++  button.type = 'button';
+++  button.title = title;
+++  button.setAttribute('aria-label', title);
+++  button.innerHTML = icon;
+++  button.addEventListener('pointerdown', (event) => event.preventDefault());
+++  return button;
+++}
+++
+++function populatePageOptions(
+++  select: HTMLSelectElement,
+++  pages: DocumentationPageLink[],
+++  currentPageId: string | undefined,
+++): void {
+++  const placeholder = document.createElement('option');
+++  placeholder.value = '';
+++  placeholder.textContent = pages.length > 0 ? 'Выберите страницу…' : 'Нет доступных страниц';
+++  select.append(placeholder);
+++  for (const page of pages) {
+++    const option = document.createElement('option');
+++    option.value = page.id;
+++    option.textContent = `${'\u00a0'.repeat(page.depth * 2)}${page.title}${page.id === currentPageId ? ' (текущая)' : ''}`;
+++    select.append(option);
+++  }
+++}
+++
+++export function calculateToolbarPosition(
+++  selection: Pick<DOMRect, 'bottom' | 'left' | 'top' | 'width'>,
+++  toolbar: Pick<DOMRect, 'height' | 'width'>,
+++  viewport: { height: number; width: number },
+++): { left: number; top: number } {
+++  const gap = 8;
+++  const left = Math.max(
+++    gap,
+++    Math.min(selection.left + selection.width / 2 - toolbar.width / 2, viewport.width - toolbar.width - gap),
+++  );
+++  const above = selection.top - toolbar.height - gap;
+++  const top = above >= gap ? above : Math.min(selection.bottom + gap, viewport.height - toolbar.height - gap);
+++  return { left, top: Math.max(gap, top) };
+++}
+++
+++function positionToolbar(toolbar: HTMLElement, range: Range): void {
+++  const selectionRect = range.getBoundingClientRect();
+++  const toolbarRect = toolbar.getBoundingClientRect();
+++  const position = calculateToolbarPosition(selectionRect, toolbarRect, {
+++    width: window.innerWidth,
+++    height: window.innerHeight,
+++  });
+++  toolbar.style.left = `${position.left}px`;
+++  toolbar.style.top = `${position.top}px`;
+++}
+++
+++export function selectContainedRange(container: Node, candidates: Array<Range | undefined>): Range | undefined {
+++  return candidates.find((candidate): candidate is Range =>
+++    Boolean(candidate && !candidate.collapsed && container.contains(candidate.commonAncestorContainer)),
+++  );
+++}
+++
+++function readSelectionRange(selection: Selection | null): Range | undefined {
+++  return selection?.rangeCount ? selection.getRangeAt(0) : undefined;
++ }
++ 
++ function selectNode(node: Node): void {
++diff --git a/src/webview/confluence-table-tool.shadow.css b/src/webview/confluence-table-tool.shadow.css
++index c71856c..cff5f9a 100644
++--- a/src/webview/confluence-table-tool.shadow.css
+++++ b/src/webview/confluence-table-tool.shadow.css
++@@ -7,42 +7,6 @@
++ .slash-confluence-table-tool * {
++   box-sizing: border-box;
++ }
++-.ct-inline-toolbar {
++-  display: flex;
++-  width: fit-content;
++-  margin: 0 0 6px;
++-  padding: 3px;
++-  gap: 2px;
++-  border: 1px solid var(--vscode-panel-border);
++-  border-radius: 5px;
++-  background: var(--vscode-editorWidget-background);
++-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
++-}
++-.ct-inline-toolbar[hidden] {
++-  display: none;
++-}
++-.ct-inline-toolbar button,
++-.ct-inline-toolbar input {
++-  width: 26px;
++-  height: 26px;
++-  padding: 4px;
++-  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
++-  border: 0;
++-  border-radius: 3px;
++-  background: transparent;
++-  cursor: pointer;
++-}
++-.ct-inline-toolbar button:hover,
++-.ct-inline-toolbar input:hover {
++-  color: var(--vscode-toolbar-hoverForeground, var(--vscode-foreground));
++-  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
++-}
++-.ct-inline-toolbar svg {
++-  width: 18px;
++-  height: 18px;
++-  fill: none;
++-  stroke: currentColor;
++-}
++ .ct-cell code,
++ .ct-cell .inline-code {
++   padding: 0.12em 0.3em;
++diff --git a/src/webview/confluence-table-tool.ts b/src/webview/confluence-table-tool.ts
++index 728f3d8..695f7eb 100644
++--- a/src/webview/confluence-table-tool.ts
+++++ b/src/webview/confluence-table-tool.ts
++@@ -1,5 +1,5 @@
++ import { sanitizeTableCellHtml } from '../shared/table-cell-html';
++-import { createTableInlineToolbar } from './confluence-table-inline-toolbar';
+++import { createTextInlineToolbar } from './confluence-table-inline-toolbar';
++ import { LUCIDE_ICONS } from './lucide-icons';
++ import { CONFLUENCE_TABLE_TEMPLATE } from './confluence-table-template';
++ import {
++@@ -23,6 +23,7 @@ import {
++   type ToolArgs,
++ } from './confluence-table-data';
++ import styles from './confluence-table-tool.shadow.css?raw';
+++import inlineToolbarStyles from './text-inline-toolbar.css?raw';
++ import { createToolSurface } from './tool-surface';
++ 
++ export type { ConfluenceTableData } from './confluence-table-data';
++@@ -34,16 +35,17 @@ export default class ConfluenceTableTool {
++   private selectedColumn = 0;
++   private suppressNextClick = false;
++   private removePasteTargetCleanup?: () => void;
++-  private readonly inlineToolbar = createTableInlineToolbar();
+++  private readonly inlineToolbar;
++   static get toolbox() {
++     return { title: 'Таблица Confluence', icon: LUCIDE_ICONS.table };
++   }
++-  constructor({ data }: ToolArgs) {
+++  constructor({ data, config }: ToolArgs) {
++     this.data = normalizeTable(data);
+++    this.inlineToolbar = createTextInlineToolbar(config);
++   }
++ 
++   render(): HTMLElement {
++-    const surface = createToolSurface(styles, 'slash-confluence-table-surface');
+++    const surface = createToolSurface(`${inlineToolbarStyles}\n${styles}`, 'slash-confluence-table-surface');
++     const wrapper = document.createElement('div');
++     wrapper.className = 'slash-confluence-table-tool';
++     wrapper.innerHTML = CONFLUENCE_TABLE_TEMPLATE;
++diff --git a/src/webview/editor-components.css b/src/webview/editor-components.css
++index 9f7d81c..00e9e8e 100644
++--- a/src/webview/editor-components.css
+++++ b/src/webview/editor-components.css
++@@ -1,5 +1,7 @@
++ .slash-page-link-option,
++ .slash-page-link-remove {
+++  flex: 0 0 auto;
+++  min-height: 30px;
++   overflow: hidden;
++   padding: 6px 8px;
++   color: var(--vscode-foreground);
++diff --git a/src/webview/editor-layout.css b/src/webview/editor-layout.css
++index 9660c05..954c96e 100644
++--- a/src/webview/editor-layout.css
+++++ b/src/webview/editor-layout.css
++@@ -115,8 +115,11 @@
++ 
++ .slash-page-link-picker {
++   display: grid;
+++  grid-template-rows: auto minmax(0, 1fr) auto;
++   gap: 6px;
++   width: min(320px, 75vw);
+++  max-height: min(420px, 70vh);
+++  overflow: hidden;
++   padding: 7px;
++ }
++ 
++@@ -135,7 +138,12 @@
++ }
++ 
++ .slash-page-link-list {
++-  display: grid;
++-  max-height: 230px;
++-  overflow: auto;
+++  display: flex;
+++  flex-direction: column;
+++  min-height: 0;
+++  max-height: min(320px, 55vh);
+++  overflow-x: hidden;
+++  overflow-y: auto;
+++  overscroll-behavior: contain;
+++  scrollbar-gutter: stable;
++ }
++diff --git a/src/webview/editor-link-navigation.ts b/src/webview/editor-link-navigation.ts
++new file mode 100644
++index 0000000..be7979c
++--- /dev/null
+++++ b/src/webview/editor-link-navigation.ts
++@@ -0,0 +1,44 @@
+++export function findEventAnchor(event: Event): HTMLAnchorElement | undefined {
+++  const pathAnchor = event.composedPath().find(isAnchor);
+++  if (pathAnchor) return pathAnchor;
+++  if (isAnchor(event.target)) return event.target;
+++  if (typeof Element === 'undefined' || !(event.target instanceof Element)) return undefined;
+++  return event.target.closest<HTMLAnchorElement>('a[href]') ?? undefined;
+++}
+++
+++export function getDocumentationPageId(
+++  anchor: Pick<HTMLAnchorElement, 'dataset' | 'getAttribute'>,
+++): string | undefined {
+++  const explicitPageId = anchor.dataset.pageId;
+++  if (explicitPageId) return explicitPageId;
+++  const href = anchor.getAttribute('href')?.trim() ?? '';
+++  const encodedPageId =
+++    /^slash-doc:\/\/(?:page\/)?([^/?#]+)/i.exec(href)?.[1] ?? /^slash-doc:page\/([^/?#]+)/i.exec(href)?.[1];
+++  if (!encodedPageId) return undefined;
+++  try {
+++    return decodeURIComponent(encodedPageId);
+++  } catch {
+++    return encodedPageId;
+++  }
+++}
+++
+++export function getExternalUrl(anchor: Pick<HTMLAnchorElement, 'getAttribute'>): string | undefined {
+++  const href = anchor.getAttribute('href')?.trim();
+++  if (!href) return undefined;
+++  try {
+++    const url = new URL(href);
+++    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
+++  } catch {
+++    return undefined;
+++  }
+++}
+++
+++function isAnchor(target: EventTarget | null): target is HTMLAnchorElement {
+++  if (!target || typeof target !== 'object') return false;
+++  const element = target as Partial<HTMLAnchorElement>;
+++  return (
+++    element.tagName?.toUpperCase() === 'A' &&
+++    typeof element.getAttribute === 'function' &&
+++    element.hasAttribute?.('href') === true
+++  );
+++}
++diff --git a/src/webview/editor-paste-handlers.ts b/src/webview/editor-paste-handlers.ts
++index 050770b..8ea97bd 100644
++--- a/src/webview/editor-paste-handlers.ts
+++++ b/src/webview/editor-paste-handlers.ts
++@@ -100,7 +100,9 @@ export function findPasteActionInPath(path: EventTarget[]): PasteAction | undefi
++   );
++   if (mermaidCode) return (text) => insertTextIntoControl(mermaidCode, text);
++   const highlightedCode = path.find(
++-    (item): item is HTMLTextAreaElement => matchesElement(item, '.slash-highlight-input') && hasNumericSelection(item),
+++    (item): item is HTMLTextAreaElement =>
+++      (matchesElement(item, '.slash-highlight-input') || matchesElement(item, '.fp-script')) &&
+++      hasNumericSelection(item),
++   );
++   if (highlightedCode) return (text) => insertTextIntoControl(highlightedCode, text);
++   const listItem = path.find((item): item is HTMLElement => matchesElement(item, '.cdx-list__item'));
++diff --git a/src/webview/editor-selection.ts b/src/webview/editor-selection.ts
++new file mode 100644
++index 0000000..87aff6e
++--- /dev/null
+++++ b/src/webview/editor-selection.ts
++@@ -0,0 +1,47 @@
+++import { isNodeInsideSelector } from './shadow-dom';
+++
+++type SelectableShadowRoot = ShadowRoot & { getSelection?: () => Selection | null };
+++let lastEditorRange: Range | undefined;
+++
+++export function readActiveEditorRange(event?: Event): Range | undefined {
+++  const eventEditable = event?.composedPath().find(isEditableElement);
+++  const active = findDeepActiveElement();
+++  const editable = eventEditable ?? (active && isEditableElement(active) ? active : undefined);
+++  const current = readEditorRange(editable ? selectionForNode(editable) : undefined);
+++  if (current) {
+++    lastEditorRange = current.cloneRange();
+++    return current;
+++  }
+++  if (lastEditorRange?.commonAncestorContainer.isConnected) return lastEditorRange.cloneRange();
+++  const fallback = readEditorRange(window.getSelection());
+++  if (fallback) lastEditorRange = fallback.cloneRange();
+++  return fallback;
+++}
+++
+++export function selectionForNode(node: Node): Selection | null {
+++  const root = node.getRootNode();
+++  if (root instanceof ShadowRoot) return (root as SelectableShadowRoot).getSelection?.() ?? window.getSelection();
+++  return node.ownerDocument?.getSelection() ?? window.getSelection();
+++}
+++
+++export function selectRangeForNode(node: Node, range: Range): void {
+++  const selection = selectionForNode(node);
+++  selection?.removeAllRanges();
+++  selection?.addRange(range);
+++}
+++
+++function findDeepActiveElement(): Element | undefined {
+++  let active = document.activeElement ?? undefined;
+++  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+++  return active;
+++}
+++
+++function readEditorRange(selection: Selection | null | undefined): Range | undefined {
+++  if (!selection?.rangeCount) return undefined;
+++  const range = selection.getRangeAt(0);
+++  return isNodeInsideSelector(range.commonAncestorContainer, '#editor [contenteditable="true"]') ? range : undefined;
+++}
+++
+++function isEditableElement(target: EventTarget): target is HTMLElement {
+++  return target instanceof HTMLElement && target.isContentEditable;
+++}
++diff --git a/src/webview/editor-text-inline-toolbar.ts b/src/webview/editor-text-inline-toolbar.ts
++new file mode 100644
++index 0000000..bcc1833
++--- /dev/null
+++++ b/src/webview/editor-text-inline-toolbar.ts
++@@ -0,0 +1,39 @@
+++import { createTextInlineToolbar, type TextInlineToolbarConfig } from './confluence-table-inline-toolbar';
+++
+++export const EDITOR_TEXT_INLINE_TARGETS = [
+++  '.ce-paragraph[contenteditable="true"]',
+++  '.ce-header[contenteditable="true"]',
+++  '.cdx-list__item',
+++] as const;
+++const EDITABLE_SELECTOR = EDITOR_TEXT_INLINE_TARGETS.join(',');
+++
+++export function installEditorTextInlineToolbar(holder: HTMLElement, config: TextInlineToolbarConfig): () => void {
+++  const toolbar = createTextInlineToolbar(config);
+++  const bound = new WeakSet<HTMLElement>();
+++  document.body.append(toolbar.element);
+++
+++  const bind = (root: ParentNode) => {
+++    const editors = root instanceof HTMLElement && root.matches(EDITABLE_SELECTOR) ? [root] : [];
+++    editors.push(...Array.from(root.querySelectorAll<HTMLElement>(EDITABLE_SELECTOR)));
+++    for (const editor of editors) {
+++      if (bound.has(editor)) continue;
+++      bound.add(editor);
+++      toolbar.bindCell(editor);
+++    }
+++  };
+++
+++  bind(holder);
+++  const observer = new MutationObserver((records) => {
+++    for (const record of records) {
+++      for (const node of Array.from(record.addedNodes)) {
+++        if (node instanceof HTMLElement) bind(node);
+++      }
+++    }
+++  });
+++  observer.observe(holder, { childList: true, subtree: true });
+++
+++  return () => {
+++    observer.disconnect();
+++    toolbar.element.remove();
+++  };
+++}
++diff --git a/src/webview/editor-tool-registry.ts b/src/webview/editor-tool-registry.ts
++index 3d309df..9f908b2 100644
++--- a/src/webview/editor-tool-registry.ts
+++++ b/src/webview/editor-tool-registry.ts
++@@ -35,17 +35,30 @@ export function createEditorTools(
++   initializeMermaid();
++   const tools: EditorTools = {};
++   const addons = settings.editorAddons;
++-  tools.paragraph = { class: PersistentParagraphTool as unknown as ToolConstructable, inlineToolbar: true };
+++  tools.paragraph = { class: PersistentParagraphTool as unknown as ToolConstructable, inlineToolbar: false };
++   if (addons?.header !== false) {
++     tools.header = {
++       class: Header as unknown as ToolConstructable,
+++      inlineToolbar: false,
++       toolbox: { title: 'Заголовок', icon: LUCIDE_ICONS.heading },
++     };
++   }
++   if (addons?.list !== false) {
++-    tools.list = { class: List as unknown as ToolConstructable, toolbox: { title: 'Список', icon: LUCIDE_ICONS.list } };
+++    tools.list = {
+++      class: List as unknown as ToolConstructable,
+++      inlineToolbar: false,
+++      toolbox: { title: 'Список', icon: LUCIDE_ICONS.list },
+++    };
+++  }
+++  if (addons?.confluenceTable !== false) {
+++    tools.confluenceTable = {
+++      class: ConfluenceTableTool,
+++      config: {
+++        pages: window.__SLASH_DOC_PAGES__ ?? [],
+++        currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
+++      },
+++    };
++   }
++-  if (addons?.confluenceTable !== false) tools.confluenceTable = ConfluenceTableTool;
++   if (addons?.image !== false) {
++     tools.image = {
++       class: ImageTool as unknown as ToolConstructable,
++diff --git a/src/webview/header-inline-tools.ts b/src/webview/header-inline-tools.ts
++index f371b7b..afc70f5 100644
++--- a/src/webview/header-inline-tools.ts
+++++ b/src/webview/header-inline-tools.ts
++@@ -1,7 +1,7 @@
++ import type { DocumentationPageLink } from './page-link-tool';
++ import { LUCIDE_ICONS } from './lucide-icons';
++ import { preventDefault as preventSelectionLoss } from './event-utils';
++-import { isNodeInsideSelector } from './shadow-dom';
+++import { readActiveEditorRange, selectRangeForNode } from './editor-selection';
++ 
++ const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
++ 
++@@ -109,16 +109,18 @@ export function setupHeaderInlineTools(config: HeaderInlineToolsConfig): void {
++     });
++   }
++ 
++-  document.addEventListener('selectionchange', () => {
++-    const selection = window.getSelection();
++-    if (!selection?.rangeCount) return;
++-    const range = selection.getRangeAt(0);
++-    if (!isEditorRange(range)) return;
+++  const captureRange = (event?: Event) => {
+++    const range = readActiveEditorRange(event);
+++    if (!range) return;
++     savedRange = range.cloneRange();
++     for (const button of toolButtons) {
++       button.disabled = button.dataset.requiresSelection === 'true' ? range.collapsed : false;
++     }
++-  });
+++  };
+++
+++  document.addEventListener('selectionchange', () => captureRange());
+++  document.addEventListener('pointerup', (event) => captureRange(event), true);
+++  document.addEventListener('keyup', (event) => captureRange(event), true);
++ 
++   document.addEventListener('pointerdown', (event) => {
++     if (event.target instanceof Node && !root.contains(event.target)) closePanels();
++@@ -343,9 +345,7 @@ function unwrapLink(anchor: HTMLAnchorElement | null): void {
++ function finishChange(element: HTMLElement): void {
++   const range = document.createRange();
++   range.selectNodeContents(element);
++-  const selection = window.getSelection();
++-  selection?.removeAllRanges();
++-  selection?.addRange(range);
+++  selectRangeForNode(element, range);
++   dispatchEditorInput(element);
++ }
++ 
++@@ -353,18 +353,14 @@ function setCaretAfter(node: Node): void {
++   const range = document.createRange();
++   range.setStartAfter(node);
++   range.collapse(true);
++-  const selection = window.getSelection();
++-  selection?.removeAllRanges();
++-  selection?.addRange(range);
+++  selectRangeForNode(node, range);
++ }
++ 
++ function dispatchEditorInput(node: Node): void {
++   const element = node instanceof Element ? node : node.parentElement;
++-  element?.closest<HTMLElement>('[contenteditable="true"]')?.dispatchEvent(new Event('input', { bubbles: true }));
++-}
++-
++-function isEditorRange(range: Range): boolean {
++-  return isNodeInsideSelector(range.commonAncestorContainer, '#editor [contenteditable="true"]');
+++  element
+++    ?.closest<HTMLElement>('[contenteditable="true"]')
+++    ?.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
++ }
++ 
++ function findParentPageLink(node: Node | undefined): HTMLAnchorElement | null {
++diff --git a/src/webview/lucide-icons.ts b/src/webview/lucide-icons.ts
++index fe73b1b..1f301e1 100644
++--- a/src/webview/lucide-icons.ts
+++++ b/src/webview/lucide-icons.ts
++@@ -68,4 +68,11 @@ export const LUCIDE_ICONS = {
++   externalLink: lucideIcon(
++     '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
++   ),
+++  check: lucideIcon('<path d="M20 6 9 17l-5-5"/>'),
+++  clipboardPaste: lucideIcon(
+++    '<path d="M11 14h10"/><path d="m17 10 4 4-4 4"/><path d="M16 4h2a2 2 0 0 1 2 2v1.5"/><path d="M13 2h-2a2 2 0 0 0-2 2"/><path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/><rect x="9" y="2" width="6" height="4" rx="1"/>',
+++  ),
+++  unlink: lucideIcon(
+++    '<path d="m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="8" x2="8" y1="2" y2="5"/><line x1="2" x2="5" y1="8" y2="8"/><line x1="16" x2="16" y1="19" y2="22"/><line x1="19" x2="22" y1="16" y2="16"/>',
+++  ),
++ } as const;
++diff --git a/src/webview/main.ts b/src/webview/main.ts
++index 76859d8..843fd58 100644
++--- a/src/webview/main.ts
+++++ b/src/webview/main.ts
++@@ -11,6 +11,8 @@ import { createPageSaveController, updatePageSaveStatus } from './page-save-cont
++ import { renderPendingMermaidDiagrams } from './mermaid-tool';
++ import { createEditorUndoHistory, installEditorHistoryListeners } from './editor-undo-history';
++ import { installListExitHandler } from './list-exit-handler';
+++import { findEventAnchor, getDocumentationPageId, getExternalUrl } from './editor-link-navigation';
+++import { installEditorTextInlineToolbar } from './editor-text-inline-toolbar';
++ import 'bpmn-js/dist/assets/diagram-js.css';
++ import 'bpmn-js/dist/assets/bpmn-js.css';
++ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
++@@ -18,6 +20,7 @@ import './editor-foundation.css';
++ import './editor-layout.css';
++ import './editor-components.css';
++ import './editor-editorjs.css';
+++import './text-inline-toolbar.css';
++ 
++ type VSCodeApi = { postMessage(message: unknown): void };
++ 
++@@ -61,9 +64,7 @@ const pageSave = createPageSaveController({
++ document.addEventListener(
++   'click',
++   (event) => {
++-    const target = event.target;
++-    if (!(target instanceof Element)) return;
++-    const anchor = target.closest<HTMLAnchorElement>('a[href]');
+++    const anchor = findEventAnchor(event);
++     if (!anchor) return;
++     const pageId = getDocumentationPageId(anchor);
++     if (pageId) {
++@@ -303,6 +304,12 @@ async function initEditor() {
++   pageSave.installFallback(holder);
++   installEditorHistoryListeners(holder, handleEditorChange);
++   if (holder) installListExitHandler(holder, editor.blocks, editor.caret);
+++  if (holder instanceof HTMLElement) {
+++    installEditorTextInlineToolbar(holder, {
+++      pages: window.__SLASH_DOC_PAGES__ ?? [],
+++      currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
+++    });
+++  }
++   installUndoShortcut();
++   if (window.__SLASH_DOC_FOCUS_EDITOR__) {
++     requestAnimationFrame(() => editor.caret.setToLastBlock('start'));
++@@ -362,31 +369,6 @@ async function loadCustomTools() {
++   );
++ }
++ 
++-function getDocumentationPageId(anchor: HTMLAnchorElement): string | undefined {
++-  const explicitPageId = anchor.dataset.pageId;
++-  if (explicitPageId) return explicitPageId;
++-  const href = anchor.getAttribute('href')?.trim() ?? '';
++-  const encodedPageId =
++-    /^slash-doc:\/\/(?:page\/)?([^/?#]+)/i.exec(href)?.[1] ?? /^slash-doc:page\/([^/?#]+)/i.exec(href)?.[1];
++-  if (!encodedPageId) return undefined;
++-  try {
++-    return decodeURIComponent(encodedPageId);
++-  } catch {
++-    return encodedPageId;
++-  }
++-}
++-
++-function getExternalUrl(anchor: HTMLAnchorElement): string | undefined {
++-  const href = anchor.getAttribute('href')?.trim();
++-  if (!href) return undefined;
++-  try {
++-    const url = new URL(href);
++-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
++-  } catch {
++-    return undefined;
++-  }
++-}
++-
++ document.querySelector('#export-html')?.addEventListener('click', () => {
++   void exportPage('html');
++ });
++diff --git a/src/webview/page-link-tool.ts b/src/webview/page-link-tool.ts
++index 4c0746c..12321ea 100644
++--- a/src/webview/page-link-tool.ts
+++++ b/src/webview/page-link-tool.ts
++@@ -1,5 +1,6 @@
++ import type { API } from '@editorjs/editorjs/types';
++ import { LUCIDE_ICONS } from './lucide-icons';
+++import { readActiveEditorRange, selectRangeForNode } from './editor-selection';
++ 
++ type ExtendedSelection = API['selection'] & {
++   removeFakeBackground?: () => void;
++@@ -88,8 +89,9 @@ export default class PageLinkTool {
++   }
++ 
++   surround(range: Range | null): void {
++-    if (!range) return;
++-    this.range = range.cloneRange();
+++    const activeRange = readActiveEditorRange() ?? range ?? undefined;
+++    if (!activeRange) return;
+++    this.range = activeRange.cloneRange();
++     this.api.selection.setFakeBackground?.();
++     this.api.selection.save?.();
++   }
++@@ -168,9 +170,9 @@ export default class PageLinkTool {
++   }
++ 
++   private captureRange(): void {
++-    const selection = window.getSelection();
++-    if (!selection || selection.rangeCount === 0) return;
++-    this.range = selection.getRangeAt(0).cloneRange();
+++    const range = readActiveEditorRange();
+++    if (!range) return;
+++    this.range = range.cloneRange();
++     this.api.selection.save?.();
++   }
++ 
++@@ -213,25 +215,29 @@ export default class PageLinkTool {
++       const range = document.createRange();
++       range.setStartAfter(lastChild);
++       range.collapse(true);
++-      const selection = window.getSelection();
++-      selection?.removeAllRanges();
++-      selection?.addRange(range);
+++      selectRangeForNode(lastChild, range);
++     }
++-    parent.dispatchEvent(new Event('input', { bubbles: true }));
+++    parent.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
++     this.api.inlineToolbar.close();
++     this.range = undefined;
++   }
++ 
++   private findSelectedLink(): HTMLAnchorElement | null {
++     if (this.range) return findParentPageLink(this.range.commonAncestorContainer);
++-    const selection = window.getSelection();
++-    return selection?.rangeCount ? findParentPageLink(selection.getRangeAt(0).commonAncestorContainer) : null;
+++    const range = readActiveEditorRange();
+++    return range ? findParentPageLink(range.commonAncestorContainer) : null;
++   }
++ 
++   private finishChange(anchor: HTMLAnchorElement): void {
++     this.api.selection.removeFakeBackground?.();
++-    this.api.selection.expandToTag(anchor);
++-    anchor.dispatchEvent(new Event('input', { bubbles: true }));
+++    if (anchor.getRootNode() instanceof ShadowRoot) {
+++      const range = document.createRange();
+++      range.selectNodeContents(anchor);
+++      selectRangeForNode(anchor, range);
+++    } else {
+++      this.api.selection.expandToTag(anchor);
+++    }
+++    anchor.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
++     this.api.inlineToolbar.close();
++     this.range = undefined;
++   }
++diff --git a/src/webview/text-inline-toolbar.css b/src/webview/text-inline-toolbar.css
++new file mode 100644
++index 0000000..b19618d
++--- /dev/null
+++++ b/src/webview/text-inline-toolbar.css
++@@ -0,0 +1,74 @@
+++.slash-text-inline-toolbar {
+++  position: fixed;
+++  z-index: 1000;
+++  display: flex;
+++  align-items: center;
+++  width: fit-content;
+++  max-width: calc(100vw - 16px);
+++  margin: 0;
+++  padding: 3px;
+++  gap: 2px;
+++  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+++  border: 1px solid var(--vscode-panel-border);
+++  border-radius: 5px;
+++  background: var(--vscode-editorWidget-background);
+++  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+++}
+++.slash-text-inline-toolbar[hidden] {
+++  display: none;
+++}
+++.slash-text-inline-link-select {
+++  width: min(280px, 45vw) !important;
+++  padding: 3px 6px !important;
+++  color: var(--vscode-dropdown-foreground) !important;
+++  border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)) !important;
+++  background: var(--vscode-dropdown-background) !important;
+++}
+++.slash-text-inline-link-panel {
+++  display: flex;
+++  align-items: center;
+++  gap: 3px;
+++}
+++.slash-text-inline-link-panel[hidden],
+++.slash-text-inline-link-select[hidden] {
+++  display: none;
+++}
+++.slash-text-inline-link-panel input {
+++  width: min(460px, 60vw);
+++  height: 26px;
+++  padding: 3px 6px;
+++  color: var(--vscode-input-foreground);
+++  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+++  outline: none;
+++  background: var(--vscode-input-background);
+++}
+++.slash-text-inline-toolbar button,
+++.slash-text-inline-toolbar input {
+++  width: 26px;
+++  height: 26px;
+++  padding: 4px;
+++  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+++  border: 0;
+++  border-radius: 3px;
+++  background: transparent;
+++  cursor: pointer;
+++}
+++.slash-text-inline-toolbar button:hover,
+++.slash-text-inline-toolbar input:hover {
+++  color: var(--vscode-toolbar-hoverForeground, var(--vscode-foreground));
+++  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+++}
+++.slash-text-inline-toolbar button:disabled {
+++  opacity: 0.4;
+++  cursor: default;
+++}
+++.slash-text-inline-toolbar button:disabled:hover {
+++  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+++  background: transparent;
+++}
+++.slash-text-inline-toolbar svg {
+++  width: 18px;
+++  height: 18px;
+++  fill: none;
+++  stroke: currentColor;
+++}
++diff --git a/test/bpmn-export.test.ts b/test/bpmn-export.test.ts
++new file mode 100644
++index 0000000..b2cc910
++--- /dev/null
+++++ b/test/bpmn-export.test.ts
++@@ -0,0 +1,26 @@
+++import { describe, expect, it } from 'vitest';
+++import { exportBpmnSvg } from '../src/extension/document-export-common';
+++
+++describe('BPMN HTML export dimensions', () => {
+++  it('restores zero SVG dimensions from BPMN DI bounds and waypoints', () => {
+++    const result = exportBpmnSvg('bpmnPreview', {
+++      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" viewBox="0 0 0 0"><path/></svg>',
+++      xml: `<bpmn:definitions xmlns:bpmn="urn:bpmn" xmlns:bpmndi="urn:bpmndi" xmlns:dc="urn:dc" xmlns:di="urn:di">
+++        <bpmndi:BPMNShape><dc:Bounds x="100" y="50" width="200" height="80" /></bpmndi:BPMNShape>
+++        <bpmndi:BPMNEdge><di:waypoint x="50" y="70"/><di:waypoint x="350" y="70"/></bpmndi:BPMNEdge>
+++      </bpmn:definitions>`,
+++    });
+++
+++    expect(result).toContain('width="348" height="128" viewBox="26 26 348 128"');
+++    expect(result).not.toContain('viewBox="0 0 0 0"');
+++  });
+++
+++  it('uses a valid viewBox when percentage dimensions cannot define an intrinsic size', () => {
+++    const result = exportBpmnSvg('bpmnModeler', {
+++      svg: '<svg width="100%" height="100%" viewBox="10 20 300 200"><rect/></svg>',
+++      xml: '',
+++    });
+++
+++    expect(result).toContain('width="300" height="200" viewBox="10 20 300 200"');
+++  });
+++});
++diff --git a/test/confluence-table-inline-toolbar.test.ts b/test/confluence-table-inline-toolbar.test.ts
++new file mode 100644
++index 0000000..afea482
++--- /dev/null
+++++ b/test/confluence-table-inline-toolbar.test.ts
++@@ -0,0 +1,42 @@
+++import { describe, expect, it } from 'vitest';
+++import { calculateToolbarPosition, selectContainedRange } from '../src/webview/confluence-table-inline-toolbar';
+++
+++describe('Confluence table inline toolbar', () => {
+++  it('prefers a range contained in the active cell over an outside stale range', () => {
+++    const insideNode = {} as Node;
+++    const outsideNode = {} as Node;
+++    const outside = { collapsed: false, commonAncestorContainer: outsideNode } as Range;
+++    const inside = { collapsed: false, commonAncestorContainer: insideNode } as Range;
+++    const container = { contains: (node: Node) => node === insideNode } as Node;
+++
+++    expect(selectContainedRange(container, [outside, inside])).toBe(inside);
+++  });
+++
+++  it('ignores collapsed ranges', () => {
+++    const node = {} as Node;
+++    const collapsed = { collapsed: true, commonAncestorContainer: node } as Range;
+++    const container = { contains: () => true } as unknown as Node;
+++
+++    expect(selectContainedRange(container, [collapsed])).toBeUndefined();
+++  });
+++
+++  it('positions the toolbar above and centered on the selected text', () => {
+++    expect(
+++      calculateToolbarPosition(
+++        { left: 300, top: 200, bottom: 220, width: 100 },
+++        { width: 200, height: 40 },
+++        { width: 800, height: 600 },
+++      ),
+++    ).toEqual({ left: 250, top: 152 });
+++  });
+++
+++  it('moves the toolbar below a selection near the top edge', () => {
+++    expect(
+++      calculateToolbarPosition(
+++        { left: 10, top: 5, bottom: 25, width: 40 },
+++        { width: 120, height: 40 },
+++        { width: 800, height: 600 },
+++      ),
+++    ).toEqual({ left: 8, top: 33 });
+++  });
+++});
++diff --git a/test/editor-link-navigation.test.ts b/test/editor-link-navigation.test.ts
++new file mode 100644
++index 0000000..e39474f
++--- /dev/null
+++++ b/test/editor-link-navigation.test.ts
++@@ -0,0 +1,33 @@
+++import { describe, expect, it } from 'vitest';
+++import { findEventAnchor, getDocumentationPageId, getExternalUrl } from '../src/webview/editor-link-navigation';
+++
+++describe('Editor link navigation', () => {
+++  it('finds a Confluence Table link inside a retargeted Shadow DOM event', () => {
+++    const anchor = fakeAnchor('slash-doc://page/rfc-003', 'rfc-003');
+++    const host = {} as EventTarget;
+++    const event = { target: host, composedPath: () => [{}, anchor, host] } as unknown as Event;
+++
+++    expect(findEventAnchor(event)).toBe(anchor);
+++    expect(getDocumentationPageId(anchor)).toBe('rfc-003');
+++  });
+++
+++  it('reads an encoded internal page id from href', () => {
+++    const anchor = fakeAnchor('slash-doc://page/API%20contracts');
+++
+++    expect(getDocumentationPageId(anchor)).toBe('API contracts');
+++  });
+++
+++  it('allows only HTTP external links', () => {
+++    expect(getExternalUrl(fakeAnchor('https://example.com/docs'))).toBe('https://example.com/docs');
+++    expect(getExternalUrl(fakeAnchor('javascript:alert(1)'))).toBeUndefined();
+++  });
+++});
+++
+++function fakeAnchor(href: string, pageId?: string): HTMLAnchorElement {
+++  return {
+++    tagName: 'A',
+++    dataset: pageId ? { pageId } : {},
+++    getAttribute: (name: string) => (name === 'href' ? href : null),
+++    hasAttribute: (name: string) => name === 'href',
+++  } as unknown as HTMLAnchorElement;
+++}
++diff --git a/test/editor-paste-routing.test.ts b/test/editor-paste-routing.test.ts
++index 439bc21..c7c7738 100644
++--- a/test/editor-paste-routing.test.ts
+++++ b/test/editor-paste-routing.test.ts
++@@ -24,6 +24,12 @@ describe('Editor paste routing', () => {
++     expect(findPasteActionInPath([textarea])).toBeTypeOf('function');
++   });
++ 
+++  it('routes paste to the File Processor script textarea', () => {
+++    const textarea = Object.assign(elementMatching('.fp-script'), { selectionStart: 2, selectionEnd: 4 });
+++
+++    expect(findPasteActionInPath([textarea])).toBeTypeOf('function');
+++  });
+++
++   it('routes paste only when the event path contains a Confluence Table cell', () => {
++     const paste = vi.fn();
++     const tableCell = Object.assign(elementMatching('.ct-cell'), { __slashDocPasteTable: paste });
++diff --git a/test/editor-text-inline-toolbar.test.ts b/test/editor-text-inline-toolbar.test.ts
++new file mode 100644
++index 0000000..652cf3a
++--- /dev/null
+++++ b/test/editor-text-inline-toolbar.test.ts
++@@ -0,0 +1,12 @@
+++import { describe, expect, it } from 'vitest';
+++import { EDITOR_TEXT_INLINE_TARGETS } from '../src/webview/editor-text-inline-toolbar';
+++
+++describe('shared text inline toolbar', () => {
+++  it('binds paragraph, header, and list item editors', () => {
+++    expect(EDITOR_TEXT_INLINE_TARGETS).toEqual([
+++      '.ce-paragraph[contenteditable="true"]',
+++      '.ce-header[contenteditable="true"]',
+++      '.cdx-list__item',
+++    ]);
+++  });
+++});
++diff --git a/test/page-link-picker-styles.test.ts b/test/page-link-picker-styles.test.ts
++new file mode 100644
++index 0000000..3b70301
++--- /dev/null
+++++ b/test/page-link-picker-styles.test.ts
++@@ -0,0 +1,13 @@
+++import { readFileSync } from 'node:fs';
+++import { describe, expect, it } from 'vitest';
+++
+++describe('Page link picker styles', () => {
+++  it('scrolls a large page list without shrinking options', () => {
+++    const layout = readFileSync('src/webview/editor-layout.css', 'utf8');
+++    const components = readFileSync('src/webview/editor-components.css', 'utf8');
+++
+++    expect(layout).toMatch(/\.slash-page-link-list\s*\{[^}]*overflow-y:\s*auto/s);
+++    expect(layout).toMatch(/\.slash-page-link-picker\s*\{[^}]*max-height:/s);
+++    expect(components).toMatch(/\.slash-page-link-option,[^{]+\{[^}]*flex:\s*0 0 auto/s);
+++  });
+++});
+diff --git a/src/extension/bpmn-export-dimensions.ts b/src/extension/bpmn-export-dimensions.ts
+new file mode 100644
+index 0000000..4466352
+--- /dev/null
++++ b/src/extension/bpmn-export-dimensions.ts
+@@ -0,0 +1,93 @@
++export type BpmnSvgDimensions = {
++  width: number;
++  height: number;
++  viewBox: string;
++};
++
++type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
++
++const FALLBACK_DIMENSIONS: BpmnSvgDimensions = { width: 640, height: 120, viewBox: '0 0 640 120' };
++const DIAGRAM_PADDING = 24;
++
++export function resolveBpmnSvgDimensions(attributes: string, xml: string): BpmnSvgDimensions {
++  const viewBox = parseViewBox(readAttribute(attributes, 'viewBox'));
++  if (viewBox) {
++    return {
++      width: positiveLength(readAttribute(attributes, 'width')) ?? viewBox.width,
++      height: positiveLength(readAttribute(attributes, 'height')) ?? viewBox.height,
++      viewBox: `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`,
++    };
++  }
++  const width = positiveLength(readAttribute(attributes, 'width'));
++  const height = positiveLength(readAttribute(attributes, 'height'));
++  if (width && height) return { width, height, viewBox: `0 0 ${width} ${height}` };
++  return readDiagramBounds(xml) ?? FALLBACK_DIMENSIONS;
++}
++
++function readDiagramBounds(xml: string): BpmnSvgDimensions | undefined {
++  let bounds: Bounds | undefined;
++  for (const match of xml.matchAll(/<(?:[a-z_][\w.-]*:)?Bounds\b([^>]*)>/gi)) {
++    const x = finiteAttribute(match[1], 'x');
++    const y = finiteAttribute(match[1], 'y');
++    const width = finiteAttribute(match[1], 'width');
++    const height = finiteAttribute(match[1], 'height');
++    if (x === undefined || y === undefined || width === undefined || height === undefined || width < 0 || height < 0) {
++      continue;
++    }
++    bounds = includeRectangle(bounds, x, y, width, height);
++  }
++  for (const match of xml.matchAll(/<(?:[a-z_][\w.-]*:)?waypoint\b([^>]*)>/gi)) {
++    const x = finiteAttribute(match[1], 'x');
++    const y = finiteAttribute(match[1], 'y');
++    if (x !== undefined && y !== undefined) bounds = includePoint(bounds, x, y);
++  }
++  if (!bounds) return undefined;
++  const x = bounds.minX - DIAGRAM_PADDING;
++  const y = bounds.minY - DIAGRAM_PADDING;
++  const width = Math.max(1, bounds.maxX - bounds.minX + DIAGRAM_PADDING * 2);
++  const height = Math.max(1, bounds.maxY - bounds.minY + DIAGRAM_PADDING * 2);
++  return { width, height, viewBox: `${x} ${y} ${width} ${height}` };
++}
++
++function includeRectangle(bounds: Bounds | undefined, x: number, y: number, width: number, height: number): Bounds {
++  return includePoint(includePoint(bounds, x, y), x + width, y + height);
++}
++
++function includePoint(bounds: Bounds | undefined, x: number, y: number): Bounds {
++  if (!bounds) return { minX: x, minY: y, maxX: x, maxY: y };
++  return {
++    minX: Math.min(bounds.minX, x),
++    minY: Math.min(bounds.minY, y),
++    maxX: Math.max(bounds.maxX, x),
++    maxY: Math.max(bounds.maxY, y),
++  };
++}
++
++function parseViewBox(value: string): { x: number; y: number; width: number; height: number } | undefined {
++  const values = value
++    .trim()
++    .split(/[\s,]+/)
++    .map(Number);
++  if (values.length !== 4 || values.some((item) => !Number.isFinite(item)) || values[2] <= 0 || values[3] <= 0) {
++    return undefined;
++  }
++  return { x: values[0], y: values[1], width: values[2], height: values[3] };
++}
++
++function positiveLength(value: string): number | undefined {
++  const match = /^\s*(\d+(?:\.\d+)?)\s*(?:px)?\s*$/i.exec(value);
++  const number = match ? Number(match[1]) : 0;
++  return Number.isFinite(number) && number > 0 ? number : undefined;
++}
++
++function finiteAttribute(attributes: string, name: string): number | undefined {
++  const source = readAttribute(attributes, name).trim();
++  if (!source) return undefined;
++  const value = Number(source);
++  return Number.isFinite(value) ? value : undefined;
++}
++
++function readAttribute(attributes: string, name: string): string {
++  const match = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(attributes);
++  return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
++}
+diff --git a/src/extension/document-export-common.ts b/src/extension/document-export-common.ts
+index 1beb9da..60c736f 100644
+--- a/src/extension/document-export-common.ts
++++ b/src/extension/document-export-common.ts
+@@ -1,4 +1,5 @@
+ import { escapeAttribute, isRecord, stripHtml } from './utils';
++import { resolveBpmnSvgDimensions } from './bpmn-export-dimensions';
+ 
+ export function markdownCodeFence(language: string, source: string): string {
+   const longestFence = Math.max(0, ...(source.match(/`+/g) ?? []).map((match) => match.length));
+@@ -19,18 +20,19 @@ export function exportBpmnSvg(type: string, data: Record<string, unknown>): stri
+     .replace(/\sdata-slash-doc-bpmn=("[^"]*"|'[^']*')/gi, '')
+     .replace(/\sdata-slash-doc-bpmn-state=("[^"]*"|'[^']*')/gi, '');
+   return cleanSvg.replace(/<svg\b([^>]*)>/i, (_opening, attributes: string) =>
+-    renderBpmnSvgOpening(attributes, kind, state),
++    renderBpmnSvgOpening(attributes, kind, state, xml),
+   );
+ }
+ 
+-function renderBpmnSvgOpening(attributes: string, kind: string, state: string): string {
++function renderBpmnSvgOpening(attributes: string, kind: string, state: string, xml: string): string {
+   const existingClass = readSvgAttribute(attributes, 'class');
+   const className = [...new Set([...existingClass.split(/\s+/), 'slash-bpmn-export'].filter(Boolean))].join(' ');
+-  const cleanedAttributes = ['class', 'role', 'preserveAspectRatio'].reduce(
++  const dimensions = resolveBpmnSvgDimensions(attributes, xml);
++  const cleanedAttributes = ['class', 'role', 'preserveAspectRatio', 'width', 'height', 'viewBox'].reduce(
+     (value, name) => removeSvgAttribute(value, name),
+     attributes,
+   );
+-  return `<svg${cleanedAttributes} class="${escapeAttribute(className)}" role="img" preserveAspectRatio="xMidYMid meet" data-slash-doc-bpmn="${kind}" data-slash-doc-bpmn-state="${escapeAttribute(state)}">`;
++  return `<svg${cleanedAttributes} width="${dimensions.width}" height="${dimensions.height}" viewBox="${dimensions.viewBox}" class="${escapeAttribute(className)}" role="img" preserveAspectRatio="xMidYMid meet" data-slash-doc-bpmn="${kind}" data-slash-doc-bpmn-state="${escapeAttribute(state)}">`;
+ }
+ 
+ function readSvgAttribute(attributes: string, name: string): string {
+diff --git a/src/extension/styles/site-host.embedded.css b/src/extension/styles/site-host.embedded.css
+index 1e5d017..5350207 100644
+--- a/src/extension/styles/site-host.embedded.css
++++ b/src/extension/styles/site-host.embedded.css
+@@ -1,4 +1,6 @@
+ :root {
++  height: 100%;
++  overflow: hidden;
+   color: #172033;
+   background: #fff;
+   font-family:
+@@ -19,6 +21,8 @@ body {
+   display: grid;
+   grid-template-columns: 280px minmax(0, 1fr);
+   height: 100vh;
++  height: 100dvh;
++  min-height: 0;
+   margin: 0;
+   overflow: hidden;
+ }
+@@ -26,7 +30,10 @@ body {
+ .sidebar {
+   display: grid;
+   grid-template-rows: auto auto minmax(0, 1fr);
++  height: 100%;
++  min-height: 0;
+   min-width: 0;
++  overflow: hidden;
+   border-right: 1px solid #dfe3ea;
+   background: #f7f8fa;
+ }
+@@ -58,8 +65,12 @@ body {
+ }
+ 
+ .navigation {
+-  overflow: auto;
++  min-height: 0;
++  overflow-x: hidden;
++  overflow-y: auto;
+   padding: 10px 8px 24px;
++  overscroll-behavior: contain;
++  scrollbar-gutter: stable;
+ }
+ 
+ .navigation ul {
+@@ -79,12 +90,31 @@ body {
+   display: grid;
+   align-content: start;
+   gap: 3px;
+-  overflow: auto;
++  min-height: 0;
++  overflow-x: hidden;
++  overflow-y: auto;
+   padding: 10px 8px 24px;
+   color: #6b7280;
+   font-size: 12px;
+ }
+ 
++.navigation::-webkit-scrollbar,
++.search-results::-webkit-scrollbar {
++  width: 10px;
++}
++
++.navigation::-webkit-scrollbar-thumb,
++.search-results::-webkit-scrollbar-thumb {
++  border: 2px solid #f7f8fa;
++  border-radius: 8px;
++  background: #aeb7c5;
++}
++
++.navigation::-webkit-scrollbar-track,
++.search-results::-webkit-scrollbar-track {
++  background: #f7f8fa;
++}
++
+ .search-result {
+   display: grid;
+   gap: 3px;
+diff --git a/src/webview/confluence-table-data.ts b/src/webview/confluence-table-data.ts
+index c03ec7a..6f37ad8 100644
+--- a/src/webview/confluence-table-data.ts
++++ b/src/webview/confluence-table-data.ts
+@@ -13,7 +13,13 @@ type LegacyTableData = {
+   withHeadings?: unknown;
+ };
+ 
+-export type ToolArgs = { data?: Partial<ConfluenceTableData> & LegacyTableData };
++export type ToolArgs = {
++  data?: Partial<ConfluenceTableData> & LegacyTableData;
++  config?: {
++    currentPageId?: string;
++    pages?: Array<{ depth: number; id: string; title: string }>;
++  };
++};
+ 
+ declare global {
+   interface Window {
+diff --git a/src/webview/confluence-table-inline-toolbar.ts b/src/webview/confluence-table-inline-toolbar.ts
+index 537499d..5b095b3 100644
+--- a/src/webview/confluence-table-inline-toolbar.ts
++++ b/src/webview/confluence-table-inline-toolbar.ts
+@@ -1,18 +1,26 @@
+ import { LUCIDE_ICONS } from './lucide-icons';
++import { readActiveEditorRange, selectionForNode } from './editor-selection';
++import type { DocumentationPageLink } from './page-link-tool';
+ 
+ type SelectionRoot = ShadowRoot & { getSelection?: () => Selection | null };
+ 
+-export type TableInlineToolbar = {
++export type TextInlineToolbar = {
+   element: HTMLElement;
+   bindCell(cell: HTMLElement): void;
+ };
+ 
+-export function createTableInlineToolbar(): TableInlineToolbar {
++export type TextInlineToolbarConfig = {
++  pages?: DocumentationPageLink[];
++  currentPageId?: string;
++};
++
++export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): TextInlineToolbar {
+   const element = document.createElement('div');
+-  element.className = 'ct-inline-toolbar';
++  element.className = 'slash-text-inline-toolbar';
+   element.hidden = true;
+   let range: Range | undefined;
+   let cell: HTMLElement | undefined;
++  let captureFrame: number | undefined;
+ 
+   const apply = (tag: keyof HTMLElementTagNameMap, className?: string, configure?: (wrapper: HTMLElement) => void) => {
+     if (!range || range.collapsed || !cell?.contains(range.commonAncestorContainer)) return;
+@@ -31,7 +39,6 @@ export function createTableInlineToolbar(): TableInlineToolbar {
+     { title: 'Подчёркивание', icon: LUCIDE_ICONS.underline, action: () => apply('u') },
+     { title: 'Маркер', icon: LUCIDE_ICONS.highlighter, action: () => apply('mark') },
+     { title: 'Встроенный код', icon: LUCIDE_ICONS.code, action: () => apply('code') },
+-    { title: 'Внешняя ссылка', icon: LUCIDE_ICONS.externalLink, action: () => applyExternalLink() },
+   ];
+ 
+   for (const tool of tools) {
+@@ -45,6 +52,63 @@ export function createTableInlineToolbar(): TableInlineToolbar {
+     element.append(button);
+   }
+ 
++  const pageLink = createButton('Ссылка на страницу', LUCIDE_ICONS.link);
++  const pageSelect = document.createElement('select');
++  pageSelect.className = 'slash-text-inline-link-select';
++  pageSelect.title = 'Выберите страницу';
++  pageSelect.setAttribute('aria-label', 'Выберите страницу');
++  pageSelect.hidden = true;
++  populatePageOptions(pageSelect, config.pages ?? [], config.currentPageId);
++  pageLink.addEventListener('click', () => togglePanel(pageSelect));
++  pageSelect.addEventListener('change', () => {
++    const page = (config.pages ?? []).find((item) => item.id === pageSelect.value);
++    if (page) applyPageLink(page);
++  });
++  element.append(pageLink, pageSelect);
++
++  const externalLink = createButton('Внешняя ссылка', LUCIDE_ICONS.externalLink);
++  const externalPanel = document.createElement('span');
++  externalPanel.className = 'slash-text-inline-link-panel';
++  externalPanel.hidden = true;
++  const externalInput = document.createElement('input');
++  externalInput.type = 'url';
++  externalInput.placeholder = 'https://example.com';
++  externalInput.setAttribute('aria-label', 'Внешний адрес');
++  externalInput.setAttribute('style', 'width: 128px;');
++  const externalPaste = createButton('Вставить из буфера обмена', LUCIDE_ICONS.clipboardPaste);
++  const externalSave = createButton('Сохранить ссылку', LUCIDE_ICONS.check);
++  const saveExternalLink = () => {
++    const href = normalizeExternalUrl(externalInput.value);
++    if (!href) {
++      externalInput.setCustomValidity('Введите корректный адрес http:// или https://');
++      externalInput.reportValidity();
++      return;
++    }
++    externalInput.setCustomValidity('');
++    applyLink(href, 'slash-external-link', { target: '_blank', rel: 'noopener noreferrer' });
++  };
++  externalLink.addEventListener('click', () => {
++    togglePanel(externalPanel);
++    if (!externalPanel.hidden) queueMicrotask(() => externalInput.focus());
++  });
++  externalInput.addEventListener('input', () => externalInput.setCustomValidity(''));
++  externalInput.addEventListener('paste', (event) => event.stopPropagation());
++  externalInput.addEventListener('keydown', (event) => {
++    event.stopPropagation();
++    if (event.key !== 'Enter') return;
++    event.preventDefault();
++    saveExternalLink();
++  });
++  externalPaste.addEventListener('click', () => void pasteExternalLink());
++  externalSave.addEventListener('click', saveExternalLink);
++  externalPanel.append(externalInput, externalPaste, externalSave);
++  element.append(externalLink, externalPanel);
++
++  const unlink = createButton('Удалить ссылку', LUCIDE_ICONS.unlink);
++  unlink.disabled = true;
++  unlink.addEventListener('click', removeSelectedLinks);
++  element.append(unlink);
++
+   const color = document.createElement('input');
+   color.type = 'color';
+   color.value = '#3b82f6';
+@@ -52,17 +116,32 @@ export function createTableInlineToolbar(): TableInlineToolbar {
+   color.setAttribute('aria-label', 'Цвет текста');
+   color.addEventListener('change', () => applyColor(color.value));
+   element.append(color);
++  element.addEventListener('pointerdown', (event) => event.stopPropagation());
++  element.addEventListener('click', (event) => event.stopPropagation());
+ 
+   function capture(current: HTMLElement): void {
+-    const selection = getSelection(current);
+-    const selected = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+-    if (!selected || selected.collapsed || !current.contains(selected.commonAncestorContainer)) {
++    const selected = selectContainedRange(current, [
++      readSelectionRange(selectionForNode(current)),
++      readActiveEditorRange(),
++      readSelectionRange(window.getSelection()),
++    ]);
++    if (!selected) {
+       element.hidden = true;
+       return;
+     }
+     cell = current;
+     range = selected.cloneRange();
++    unlink.disabled = findSelectedLinks(current, selected).length === 0;
+     element.hidden = false;
++    positionToolbar(element, selected);
++  }
++
++  function scheduleCapture(current: HTMLElement): void {
++    if (captureFrame !== undefined) window.cancelAnimationFrame(captureFrame);
++    captureFrame = window.requestAnimationFrame(() => {
++      captureFrame = undefined;
++      capture(current);
++    });
+   }
+ 
+   function applyColor(value: string): void {
+@@ -73,36 +152,182 @@ export function createTableInlineToolbar(): TableInlineToolbar {
+     });
+   }
+ 
+-  function applyExternalLink(): void {
+-    if (!range || range.collapsed || !cell) return;
+-    const input = window.prompt('Внешний адрес', 'https://');
+-    if (!input) return;
+-    const href = normalizeExternalUrl(input);
+-    if (!href) return;
+-    const anchor = document.createElement('a');
+-    anchor.className = 'slash-external-link';
+-    anchor.href = href;
+-    anchor.target = '_blank';
+-    anchor.rel = 'noopener noreferrer';
+-    anchor.append(range.extractContents());
+-    range.insertNode(anchor);
++  function applyPageLink(page: DocumentationPageLink): void {
++    applyLink(`slash-doc://page/${encodeURIComponent(page.id)}`, 'slash-page-link', { pageId: page.id });
++  }
++
++  function applyLink(
++    href: string,
++    className: 'slash-page-link' | 'slash-external-link',
++    attributes: { pageId?: string; rel?: string; target?: string },
++  ): void {
++    if (!range || range.collapsed || !cell?.contains(range.commonAncestorContainer)) return;
++    const selectedLinks = findSelectedLinks(cell, range);
++    const existing = selectedLinks.find((candidate) => isRangeInside(range as Range, candidate));
++    const anchor = existing ?? document.createElement('a');
++    configureLink(anchor, href, className, attributes);
++    if (!existing) {
++      const contents = range.extractContents();
++      for (const nested of Array.from(contents.querySelectorAll<HTMLAnchorElement>('a[href]'))) unwrapAnchor(nested);
++      anchor.append(contents);
++      range.insertNode(anchor);
++    }
+     selectNode(anchor);
+-    cell.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
++    finishCellChange();
++  }
++
++  function removeSelectedLinks(): void {
++    if (!range || !cell) return;
++    const links = findSelectedLinks(cell, range);
++    if (links.length === 0) return;
++    for (const anchor of links) unwrapAnchor(anchor);
++    finishCellChange();
++  }
++
++  async function pasteExternalLink(): Promise<void> {
++    try {
++      const text = await readClipboardText();
++      if (!text) return;
++      externalInput.value = text.trim();
++      externalInput.setCustomValidity('');
++      externalInput.focus();
++      externalInput.select();
++    } catch {
++      externalInput.setCustomValidity('Не удалось прочитать буфер обмена');
++      externalInput.reportValidity();
++    }
++  }
++
++  function finishCellChange(): void {
++    cell?.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
++    closePanels();
++    range = undefined;
++    element.hidden = true;
++  }
++
++  function togglePanel(panel: HTMLElement): void {
++    const open = panel.hidden;
++    closePanels();
++    panel.hidden = !open;
++    if (open && range) positionToolbar(element, range);
++  }
++
++  function closePanels(): void {
++    pageSelect.hidden = true;
++    externalPanel.hidden = true;
++    pageSelect.value = '';
+   }
+ 
+   return {
+     element,
+     bindCell(current) {
+-      current.addEventListener('mouseup', () => capture(current));
+-      current.addEventListener('keyup', () => capture(current));
++      current.addEventListener('mouseup', () => scheduleCapture(current));
++      current.addEventListener('keyup', () => scheduleCapture(current));
+       current.addEventListener('focus', () => capture(current));
+     },
+   };
+ }
+ 
+-function getSelection(cell: HTMLElement): Selection | null {
+-  const root = cell.getRootNode() as SelectionRoot;
+-  return root.getSelection?.() ?? window.getSelection();
++function configureLink(
++  anchor: HTMLAnchorElement,
++  href: string,
++  className: 'slash-page-link' | 'slash-external-link',
++  attributes: { pageId?: string; rel?: string; target?: string },
++): void {
++  anchor.classList.remove('slash-page-link', 'slash-external-link');
++  anchor.classList.add(className);
++  anchor.href = href;
++  if (attributes.pageId) anchor.dataset.pageId = attributes.pageId;
++  else delete anchor.dataset.pageId;
++  if (attributes.target) anchor.target = attributes.target;
++  else anchor.removeAttribute('target');
++  if (attributes.rel) anchor.rel = attributes.rel;
++  else anchor.removeAttribute('rel');
++}
++
++function findSelectedLinks(cell: HTMLElement, range: Range): HTMLAnchorElement[] {
++  return Array.from(cell.querySelectorAll<HTMLAnchorElement>('a[href]')).filter((anchor) =>
++    range.intersectsNode(anchor),
++  );
++}
++
++function isRangeInside(range: Range, element: HTMLElement): boolean {
++  return element.contains(range.startContainer) && element.contains(range.endContainer);
++}
++
++function unwrapAnchor(anchor: HTMLAnchorElement): void {
++  const parent = anchor.parentNode;
++  if (!parent) return;
++  while (anchor.firstChild) parent.insertBefore(anchor.firstChild, anchor);
++  anchor.remove();
++}
++
++async function readClipboardText(): Promise<string> {
++  if (window.__SLASH_DOC_READ_CLIPBOARD__) return window.__SLASH_DOC_READ_CLIPBOARD__();
++  return navigator.clipboard.readText();
++}
++
++function createButton(title: string, icon: string): HTMLButtonElement {
++  const button = document.createElement('button');
++  button.type = 'button';
++  button.title = title;
++  button.setAttribute('aria-label', title);
++  button.innerHTML = icon;
++  button.addEventListener('pointerdown', (event) => event.preventDefault());
++  return button;
++}
++
++function populatePageOptions(
++  select: HTMLSelectElement,
++  pages: DocumentationPageLink[],
++  currentPageId: string | undefined,
++): void {
++  const placeholder = document.createElement('option');
++  placeholder.value = '';
++  placeholder.textContent = pages.length > 0 ? 'Выберите страницу…' : 'Нет доступных страниц';
++  select.append(placeholder);
++  for (const page of pages) {
++    const option = document.createElement('option');
++    option.value = page.id;
++    option.textContent = `${'\u00a0'.repeat(page.depth * 2)}${page.title}${page.id === currentPageId ? ' (текущая)' : ''}`;
++    select.append(option);
++  }
++}
++
++export function calculateToolbarPosition(
++  selection: Pick<DOMRect, 'bottom' | 'left' | 'top' | 'width'>,
++  toolbar: Pick<DOMRect, 'height' | 'width'>,
++  viewport: { height: number; width: number },
++): { left: number; top: number } {
++  const gap = 8;
++  const left = Math.max(
++    gap,
++    Math.min(selection.left + selection.width / 2 - toolbar.width / 2, viewport.width - toolbar.width - gap),
++  );
++  const above = selection.top - toolbar.height - gap;
++  const top = above >= gap ? above : Math.min(selection.bottom + gap, viewport.height - toolbar.height - gap);
++  return { left, top: Math.max(gap, top) };
++}
++
++function positionToolbar(toolbar: HTMLElement, range: Range): void {
++  const selectionRect = range.getBoundingClientRect();
++  const toolbarRect = toolbar.getBoundingClientRect();
++  const position = calculateToolbarPosition(selectionRect, toolbarRect, {
++    width: window.innerWidth,
++    height: window.innerHeight,
++  });
++  toolbar.style.left = `${position.left}px`;
++  toolbar.style.top = `${position.top}px`;
++}
++
++export function selectContainedRange(container: Node, candidates: Array<Range | undefined>): Range | undefined {
++  return candidates.find((candidate): candidate is Range =>
++    Boolean(candidate && !candidate.collapsed && container.contains(candidate.commonAncestorContainer)),
++  );
++}
++
++function readSelectionRange(selection: Selection | null): Range | undefined {
++  return selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+ }
+ 
+ function selectNode(node: Node): void {
+diff --git a/src/webview/confluence-table-tool.shadow.css b/src/webview/confluence-table-tool.shadow.css
+index c71856c..cff5f9a 100644
+--- a/src/webview/confluence-table-tool.shadow.css
++++ b/src/webview/confluence-table-tool.shadow.css
+@@ -7,42 +7,6 @@
+ .slash-confluence-table-tool * {
+   box-sizing: border-box;
+ }
+-.ct-inline-toolbar {
+-  display: flex;
+-  width: fit-content;
+-  margin: 0 0 6px;
+-  padding: 3px;
+-  gap: 2px;
+-  border: 1px solid var(--vscode-panel-border);
+-  border-radius: 5px;
+-  background: var(--vscode-editorWidget-background);
+-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+-}
+-.ct-inline-toolbar[hidden] {
+-  display: none;
+-}
+-.ct-inline-toolbar button,
+-.ct-inline-toolbar input {
+-  width: 26px;
+-  height: 26px;
+-  padding: 4px;
+-  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+-  border: 0;
+-  border-radius: 3px;
+-  background: transparent;
+-  cursor: pointer;
+-}
+-.ct-inline-toolbar button:hover,
+-.ct-inline-toolbar input:hover {
+-  color: var(--vscode-toolbar-hoverForeground, var(--vscode-foreground));
+-  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+-}
+-.ct-inline-toolbar svg {
+-  width: 18px;
+-  height: 18px;
+-  fill: none;
+-  stroke: currentColor;
+-}
+ .ct-cell code,
+ .ct-cell .inline-code {
+   padding: 0.12em 0.3em;
+diff --git a/src/webview/confluence-table-tool.ts b/src/webview/confluence-table-tool.ts
+index 728f3d8..695f7eb 100644
+--- a/src/webview/confluence-table-tool.ts
++++ b/src/webview/confluence-table-tool.ts
+@@ -1,5 +1,5 @@
+ import { sanitizeTableCellHtml } from '../shared/table-cell-html';
+-import { createTableInlineToolbar } from './confluence-table-inline-toolbar';
++import { createTextInlineToolbar } from './confluence-table-inline-toolbar';
+ import { LUCIDE_ICONS } from './lucide-icons';
+ import { CONFLUENCE_TABLE_TEMPLATE } from './confluence-table-template';
+ import {
+@@ -23,6 +23,7 @@ import {
+   type ToolArgs,
+ } from './confluence-table-data';
+ import styles from './confluence-table-tool.shadow.css?raw';
++import inlineToolbarStyles from './text-inline-toolbar.css?raw';
+ import { createToolSurface } from './tool-surface';
+ 
+ export type { ConfluenceTableData } from './confluence-table-data';
+@@ -34,16 +35,17 @@ export default class ConfluenceTableTool {
+   private selectedColumn = 0;
+   private suppressNextClick = false;
+   private removePasteTargetCleanup?: () => void;
+-  private readonly inlineToolbar = createTableInlineToolbar();
++  private readonly inlineToolbar;
+   static get toolbox() {
+     return { title: 'Таблица Confluence', icon: LUCIDE_ICONS.table };
+   }
+-  constructor({ data }: ToolArgs) {
++  constructor({ data, config }: ToolArgs) {
+     this.data = normalizeTable(data);
++    this.inlineToolbar = createTextInlineToolbar(config);
+   }
+ 
+   render(): HTMLElement {
+-    const surface = createToolSurface(styles, 'slash-confluence-table-surface');
++    const surface = createToolSurface(`${inlineToolbarStyles}\n${styles}`, 'slash-confluence-table-surface');
+     const wrapper = document.createElement('div');
+     wrapper.className = 'slash-confluence-table-tool';
+     wrapper.innerHTML = CONFLUENCE_TABLE_TEMPLATE;
+diff --git a/src/webview/editor-components.css b/src/webview/editor-components.css
+index 9f7d81c..00e9e8e 100644
+--- a/src/webview/editor-components.css
++++ b/src/webview/editor-components.css
+@@ -1,5 +1,7 @@
+ .slash-page-link-option,
+ .slash-page-link-remove {
++  flex: 0 0 auto;
++  min-height: 30px;
+   overflow: hidden;
+   padding: 6px 8px;
+   color: var(--vscode-foreground);
+diff --git a/src/webview/editor-layout.css b/src/webview/editor-layout.css
+index 9660c05..954c96e 100644
+--- a/src/webview/editor-layout.css
++++ b/src/webview/editor-layout.css
+@@ -115,8 +115,11 @@
+ 
+ .slash-page-link-picker {
+   display: grid;
++  grid-template-rows: auto minmax(0, 1fr) auto;
+   gap: 6px;
+   width: min(320px, 75vw);
++  max-height: min(420px, 70vh);
++  overflow: hidden;
+   padding: 7px;
+ }
+ 
+@@ -135,7 +138,12 @@
+ }
+ 
+ .slash-page-link-list {
+-  display: grid;
+-  max-height: 230px;
+-  overflow: auto;
++  display: flex;
++  flex-direction: column;
++  min-height: 0;
++  max-height: min(320px, 55vh);
++  overflow-x: hidden;
++  overflow-y: auto;
++  overscroll-behavior: contain;
++  scrollbar-gutter: stable;
+ }
+diff --git a/src/webview/editor-link-navigation.ts b/src/webview/editor-link-navigation.ts
+new file mode 100644
+index 0000000..be7979c
+--- /dev/null
++++ b/src/webview/editor-link-navigation.ts
+@@ -0,0 +1,44 @@
++export function findEventAnchor(event: Event): HTMLAnchorElement | undefined {
++  const pathAnchor = event.composedPath().find(isAnchor);
++  if (pathAnchor) return pathAnchor;
++  if (isAnchor(event.target)) return event.target;
++  if (typeof Element === 'undefined' || !(event.target instanceof Element)) return undefined;
++  return event.target.closest<HTMLAnchorElement>('a[href]') ?? undefined;
++}
++
++export function getDocumentationPageId(
++  anchor: Pick<HTMLAnchorElement, 'dataset' | 'getAttribute'>,
++): string | undefined {
++  const explicitPageId = anchor.dataset.pageId;
++  if (explicitPageId) return explicitPageId;
++  const href = anchor.getAttribute('href')?.trim() ?? '';
++  const encodedPageId =
++    /^slash-doc:\/\/(?:page\/)?([^/?#]+)/i.exec(href)?.[1] ?? /^slash-doc:page\/([^/?#]+)/i.exec(href)?.[1];
++  if (!encodedPageId) return undefined;
++  try {
++    return decodeURIComponent(encodedPageId);
++  } catch {
++    return encodedPageId;
++  }
++}
++
++export function getExternalUrl(anchor: Pick<HTMLAnchorElement, 'getAttribute'>): string | undefined {
++  const href = anchor.getAttribute('href')?.trim();
++  if (!href) return undefined;
++  try {
++    const url = new URL(href);
++    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
++  } catch {
++    return undefined;
++  }
++}
++
++function isAnchor(target: EventTarget | null): target is HTMLAnchorElement {
++  if (!target || typeof target !== 'object') return false;
++  const element = target as Partial<HTMLAnchorElement>;
++  return (
++    element.tagName?.toUpperCase() === 'A' &&
++    typeof element.getAttribute === 'function' &&
++    element.hasAttribute?.('href') === true
++  );
++}
+diff --git a/src/webview/editor-paste-handlers.ts b/src/webview/editor-paste-handlers.ts
+index 050770b..8ea97bd 100644
+--- a/src/webview/editor-paste-handlers.ts
++++ b/src/webview/editor-paste-handlers.ts
+@@ -100,7 +100,9 @@ export function findPasteActionInPath(path: EventTarget[]): PasteAction | undefi
+   );
+   if (mermaidCode) return (text) => insertTextIntoControl(mermaidCode, text);
+   const highlightedCode = path.find(
+-    (item): item is HTMLTextAreaElement => matchesElement(item, '.slash-highlight-input') && hasNumericSelection(item),
++    (item): item is HTMLTextAreaElement =>
++      (matchesElement(item, '.slash-highlight-input') || matchesElement(item, '.fp-script')) &&
++      hasNumericSelection(item),
+   );
+   if (highlightedCode) return (text) => insertTextIntoControl(highlightedCode, text);
+   const listItem = path.find((item): item is HTMLElement => matchesElement(item, '.cdx-list__item'));
+diff --git a/src/webview/editor-selection.ts b/src/webview/editor-selection.ts
+new file mode 100644
+index 0000000..87aff6e
+--- /dev/null
++++ b/src/webview/editor-selection.ts
+@@ -0,0 +1,47 @@
++import { isNodeInsideSelector } from './shadow-dom';
++
++type SelectableShadowRoot = ShadowRoot & { getSelection?: () => Selection | null };
++let lastEditorRange: Range | undefined;
++
++export function readActiveEditorRange(event?: Event): Range | undefined {
++  const eventEditable = event?.composedPath().find(isEditableElement);
++  const active = findDeepActiveElement();
++  const editable = eventEditable ?? (active && isEditableElement(active) ? active : undefined);
++  const current = readEditorRange(editable ? selectionForNode(editable) : undefined);
++  if (current) {
++    lastEditorRange = current.cloneRange();
++    return current;
++  }
++  if (lastEditorRange?.commonAncestorContainer.isConnected) return lastEditorRange.cloneRange();
++  const fallback = readEditorRange(window.getSelection());
++  if (fallback) lastEditorRange = fallback.cloneRange();
++  return fallback;
++}
++
++export function selectionForNode(node: Node): Selection | null {
++  const root = node.getRootNode();
++  if (root instanceof ShadowRoot) return (root as SelectableShadowRoot).getSelection?.() ?? window.getSelection();
++  return node.ownerDocument?.getSelection() ?? window.getSelection();
++}
++
++export function selectRangeForNode(node: Node, range: Range): void {
++  const selection = selectionForNode(node);
++  selection?.removeAllRanges();
++  selection?.addRange(range);
++}
++
++function findDeepActiveElement(): Element | undefined {
++  let active = document.activeElement ?? undefined;
++  while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
++  return active;
++}
++
++function readEditorRange(selection: Selection | null | undefined): Range | undefined {
++  if (!selection?.rangeCount) return undefined;
++  const range = selection.getRangeAt(0);
++  return isNodeInsideSelector(range.commonAncestorContainer, '#editor [contenteditable="true"]') ? range : undefined;
++}
++
++function isEditableElement(target: EventTarget): target is HTMLElement {
++  return target instanceof HTMLElement && target.isContentEditable;
++}
+diff --git a/src/webview/editor-text-inline-toolbar.ts b/src/webview/editor-text-inline-toolbar.ts
+new file mode 100644
+index 0000000..bcc1833
+--- /dev/null
++++ b/src/webview/editor-text-inline-toolbar.ts
+@@ -0,0 +1,39 @@
++import { createTextInlineToolbar, type TextInlineToolbarConfig } from './confluence-table-inline-toolbar';
++
++export const EDITOR_TEXT_INLINE_TARGETS = [
++  '.ce-paragraph[contenteditable="true"]',
++  '.ce-header[contenteditable="true"]',
++  '.cdx-list__item',
++] as const;
++const EDITABLE_SELECTOR = EDITOR_TEXT_INLINE_TARGETS.join(',');
++
++export function installEditorTextInlineToolbar(holder: HTMLElement, config: TextInlineToolbarConfig): () => void {
++  const toolbar = createTextInlineToolbar(config);
++  const bound = new WeakSet<HTMLElement>();
++  document.body.append(toolbar.element);
++
++  const bind = (root: ParentNode) => {
++    const editors = root instanceof HTMLElement && root.matches(EDITABLE_SELECTOR) ? [root] : [];
++    editors.push(...Array.from(root.querySelectorAll<HTMLElement>(EDITABLE_SELECTOR)));
++    for (const editor of editors) {
++      if (bound.has(editor)) continue;
++      bound.add(editor);
++      toolbar.bindCell(editor);
++    }
++  };
++
++  bind(holder);
++  const observer = new MutationObserver((records) => {
++    for (const record of records) {
++      for (const node of Array.from(record.addedNodes)) {
++        if (node instanceof HTMLElement) bind(node);
++      }
++    }
++  });
++  observer.observe(holder, { childList: true, subtree: true });
++
++  return () => {
++    observer.disconnect();
++    toolbar.element.remove();
++  };
++}
+diff --git a/src/webview/editor-tool-registry.ts b/src/webview/editor-tool-registry.ts
+index 3d309df..9f908b2 100644
+--- a/src/webview/editor-tool-registry.ts
++++ b/src/webview/editor-tool-registry.ts
+@@ -35,17 +35,30 @@ export function createEditorTools(
+   initializeMermaid();
+   const tools: EditorTools = {};
+   const addons = settings.editorAddons;
+-  tools.paragraph = { class: PersistentParagraphTool as unknown as ToolConstructable, inlineToolbar: true };
++  tools.paragraph = { class: PersistentParagraphTool as unknown as ToolConstructable, inlineToolbar: false };
+   if (addons?.header !== false) {
+     tools.header = {
+       class: Header as unknown as ToolConstructable,
++      inlineToolbar: false,
+       toolbox: { title: 'Заголовок', icon: LUCIDE_ICONS.heading },
+     };
+   }
+   if (addons?.list !== false) {
+-    tools.list = { class: List as unknown as ToolConstructable, toolbox: { title: 'Список', icon: LUCIDE_ICONS.list } };
++    tools.list = {
++      class: List as unknown as ToolConstructable,
++      inlineToolbar: false,
++      toolbox: { title: 'Список', icon: LUCIDE_ICONS.list },
++    };
++  }
++  if (addons?.confluenceTable !== false) {
++    tools.confluenceTable = {
++      class: ConfluenceTableTool,
++      config: {
++        pages: window.__SLASH_DOC_PAGES__ ?? [],
++        currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
++      },
++    };
+   }
+-  if (addons?.confluenceTable !== false) tools.confluenceTable = ConfluenceTableTool;
+   if (addons?.image !== false) {
+     tools.image = {
+       class: ImageTool as unknown as ToolConstructable,
+diff --git a/src/webview/header-inline-tools.ts b/src/webview/header-inline-tools.ts
+index f371b7b..afc70f5 100644
+--- a/src/webview/header-inline-tools.ts
++++ b/src/webview/header-inline-tools.ts
+@@ -1,7 +1,7 @@
+ import type { DocumentationPageLink } from './page-link-tool';
+ import { LUCIDE_ICONS } from './lucide-icons';
+ import { preventDefault as preventSelectionLoss } from './event-utils';
+-import { isNodeInsideSelector } from './shadow-dom';
++import { readActiveEditorRange, selectRangeForNode } from './editor-selection';
+ 
+ const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
+ 
+@@ -109,16 +109,18 @@ export function setupHeaderInlineTools(config: HeaderInlineToolsConfig): void {
+     });
+   }
+ 
+-  document.addEventListener('selectionchange', () => {
+-    const selection = window.getSelection();
+-    if (!selection?.rangeCount) return;
+-    const range = selection.getRangeAt(0);
+-    if (!isEditorRange(range)) return;
++  const captureRange = (event?: Event) => {
++    const range = readActiveEditorRange(event);
++    if (!range) return;
+     savedRange = range.cloneRange();
+     for (const button of toolButtons) {
+       button.disabled = button.dataset.requiresSelection === 'true' ? range.collapsed : false;
+     }
+-  });
++  };
++
++  document.addEventListener('selectionchange', () => captureRange());
++  document.addEventListener('pointerup', (event) => captureRange(event), true);
++  document.addEventListener('keyup', (event) => captureRange(event), true);
+ 
+   document.addEventListener('pointerdown', (event) => {
+     if (event.target instanceof Node && !root.contains(event.target)) closePanels();
+@@ -343,9 +345,7 @@ function unwrapLink(anchor: HTMLAnchorElement | null): void {
+ function finishChange(element: HTMLElement): void {
+   const range = document.createRange();
+   range.selectNodeContents(element);
+-  const selection = window.getSelection();
+-  selection?.removeAllRanges();
+-  selection?.addRange(range);
++  selectRangeForNode(element, range);
+   dispatchEditorInput(element);
+ }
+ 
+@@ -353,18 +353,14 @@ function setCaretAfter(node: Node): void {
+   const range = document.createRange();
+   range.setStartAfter(node);
+   range.collapse(true);
+-  const selection = window.getSelection();
+-  selection?.removeAllRanges();
+-  selection?.addRange(range);
++  selectRangeForNode(node, range);
+ }
+ 
+ function dispatchEditorInput(node: Node): void {
+   const element = node instanceof Element ? node : node.parentElement;
+-  element?.closest<HTMLElement>('[contenteditable="true"]')?.dispatchEvent(new Event('input', { bubbles: true }));
+-}
+-
+-function isEditorRange(range: Range): boolean {
+-  return isNodeInsideSelector(range.commonAncestorContainer, '#editor [contenteditable="true"]');
++  element
++    ?.closest<HTMLElement>('[contenteditable="true"]')
++    ?.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+ }
+ 
+ function findParentPageLink(node: Node | undefined): HTMLAnchorElement | null {
+diff --git a/src/webview/lucide-icons.ts b/src/webview/lucide-icons.ts
+index fe73b1b..1f301e1 100644
+--- a/src/webview/lucide-icons.ts
++++ b/src/webview/lucide-icons.ts
+@@ -68,4 +68,11 @@ export const LUCIDE_ICONS = {
+   externalLink: lucideIcon(
+     '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+   ),
++  check: lucideIcon('<path d="M20 6 9 17l-5-5"/>'),
++  clipboardPaste: lucideIcon(
++    '<path d="M11 14h10"/><path d="m17 10 4 4-4 4"/><path d="M16 4h2a2 2 0 0 1 2 2v1.5"/><path d="M13 2h-2a2 2 0 0 0-2 2"/><path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/><rect x="9" y="2" width="6" height="4" rx="1"/>',
++  ),
++  unlink: lucideIcon(
++    '<path d="m18.84 12.25 1.72-1.71a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="8" x2="8" y1="2" y2="5"/><line x1="2" x2="5" y1="8" y2="8"/><line x1="16" x2="16" y1="19" y2="22"/><line x1="19" x2="22" y1="16" y2="16"/>',
++  ),
+ } as const;
+diff --git a/src/webview/main.ts b/src/webview/main.ts
+index 76859d8..843fd58 100644
+--- a/src/webview/main.ts
++++ b/src/webview/main.ts
+@@ -11,6 +11,8 @@ import { createPageSaveController, updatePageSaveStatus } from './page-save-cont
+ import { renderPendingMermaidDiagrams } from './mermaid-tool';
+ import { createEditorUndoHistory, installEditorHistoryListeners } from './editor-undo-history';
+ import { installListExitHandler } from './list-exit-handler';
++import { findEventAnchor, getDocumentationPageId, getExternalUrl } from './editor-link-navigation';
++import { installEditorTextInlineToolbar } from './editor-text-inline-toolbar';
+ import 'bpmn-js/dist/assets/diagram-js.css';
+ import 'bpmn-js/dist/assets/bpmn-js.css';
+ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
+@@ -18,6 +20,7 @@ import './editor-foundation.css';
+ import './editor-layout.css';
+ import './editor-components.css';
+ import './editor-editorjs.css';
++import './text-inline-toolbar.css';
+ 
+ type VSCodeApi = { postMessage(message: unknown): void };
+ 
+@@ -61,9 +64,7 @@ const pageSave = createPageSaveController({
+ document.addEventListener(
+   'click',
+   (event) => {
+-    const target = event.target;
+-    if (!(target instanceof Element)) return;
+-    const anchor = target.closest<HTMLAnchorElement>('a[href]');
++    const anchor = findEventAnchor(event);
+     if (!anchor) return;
+     const pageId = getDocumentationPageId(anchor);
+     if (pageId) {
+@@ -303,6 +304,12 @@ async function initEditor() {
+   pageSave.installFallback(holder);
+   installEditorHistoryListeners(holder, handleEditorChange);
+   if (holder) installListExitHandler(holder, editor.blocks, editor.caret);
++  if (holder instanceof HTMLElement) {
++    installEditorTextInlineToolbar(holder, {
++      pages: window.__SLASH_DOC_PAGES__ ?? [],
++      currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
++    });
++  }
+   installUndoShortcut();
+   if (window.__SLASH_DOC_FOCUS_EDITOR__) {
+     requestAnimationFrame(() => editor.caret.setToLastBlock('start'));
+@@ -362,31 +369,6 @@ async function loadCustomTools() {
+   );
+ }
+ 
+-function getDocumentationPageId(anchor: HTMLAnchorElement): string | undefined {
+-  const explicitPageId = anchor.dataset.pageId;
+-  if (explicitPageId) return explicitPageId;
+-  const href = anchor.getAttribute('href')?.trim() ?? '';
+-  const encodedPageId =
+-    /^slash-doc:\/\/(?:page\/)?([^/?#]+)/i.exec(href)?.[1] ?? /^slash-doc:page\/([^/?#]+)/i.exec(href)?.[1];
+-  if (!encodedPageId) return undefined;
+-  try {
+-    return decodeURIComponent(encodedPageId);
+-  } catch {
+-    return encodedPageId;
+-  }
+-}
+-
+-function getExternalUrl(anchor: HTMLAnchorElement): string | undefined {
+-  const href = anchor.getAttribute('href')?.trim();
+-  if (!href) return undefined;
+-  try {
+-    const url = new URL(href);
+-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
+-  } catch {
+-    return undefined;
+-  }
+-}
+-
+ document.querySelector('#export-html')?.addEventListener('click', () => {
+   void exportPage('html');
+ });
+diff --git a/src/webview/page-link-tool.ts b/src/webview/page-link-tool.ts
+index 4c0746c..12321ea 100644
+--- a/src/webview/page-link-tool.ts
++++ b/src/webview/page-link-tool.ts
+@@ -1,5 +1,6 @@
+ import type { API } from '@editorjs/editorjs/types';
+ import { LUCIDE_ICONS } from './lucide-icons';
++import { readActiveEditorRange, selectRangeForNode } from './editor-selection';
+ 
+ type ExtendedSelection = API['selection'] & {
+   removeFakeBackground?: () => void;
+@@ -88,8 +89,9 @@ export default class PageLinkTool {
+   }
+ 
+   surround(range: Range | null): void {
+-    if (!range) return;
+-    this.range = range.cloneRange();
++    const activeRange = readActiveEditorRange() ?? range ?? undefined;
++    if (!activeRange) return;
++    this.range = activeRange.cloneRange();
+     this.api.selection.setFakeBackground?.();
+     this.api.selection.save?.();
+   }
+@@ -168,9 +170,9 @@ export default class PageLinkTool {
+   }
+ 
+   private captureRange(): void {
+-    const selection = window.getSelection();
+-    if (!selection || selection.rangeCount === 0) return;
+-    this.range = selection.getRangeAt(0).cloneRange();
++    const range = readActiveEditorRange();
++    if (!range) return;
++    this.range = range.cloneRange();
+     this.api.selection.save?.();
+   }
+ 
+@@ -213,25 +215,29 @@ export default class PageLinkTool {
+       const range = document.createRange();
+       range.setStartAfter(lastChild);
+       range.collapse(true);
+-      const selection = window.getSelection();
+-      selection?.removeAllRanges();
+-      selection?.addRange(range);
++      selectRangeForNode(lastChild, range);
+     }
+-    parent.dispatchEvent(new Event('input', { bubbles: true }));
++    parent.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+     this.api.inlineToolbar.close();
+     this.range = undefined;
+   }
+ 
+   private findSelectedLink(): HTMLAnchorElement | null {
+     if (this.range) return findParentPageLink(this.range.commonAncestorContainer);
+-    const selection = window.getSelection();
+-    return selection?.rangeCount ? findParentPageLink(selection.getRangeAt(0).commonAncestorContainer) : null;
++    const range = readActiveEditorRange();
++    return range ? findParentPageLink(range.commonAncestorContainer) : null;
+   }
+ 
+   private finishChange(anchor: HTMLAnchorElement): void {
+     this.api.selection.removeFakeBackground?.();
+-    this.api.selection.expandToTag(anchor);
+-    anchor.dispatchEvent(new Event('input', { bubbles: true }));
++    if (anchor.getRootNode() instanceof ShadowRoot) {
++      const range = document.createRange();
++      range.selectNodeContents(anchor);
++      selectRangeForNode(anchor, range);
++    } else {
++      this.api.selection.expandToTag(anchor);
++    }
++    anchor.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+     this.api.inlineToolbar.close();
+     this.range = undefined;
+   }
+diff --git a/src/webview/text-inline-toolbar.css b/src/webview/text-inline-toolbar.css
+new file mode 100644
+index 0000000..b19618d
+--- /dev/null
++++ b/src/webview/text-inline-toolbar.css
+@@ -0,0 +1,74 @@
++.slash-text-inline-toolbar {
++  position: fixed;
++  z-index: 1000;
++  display: flex;
++  align-items: center;
++  width: fit-content;
++  max-width: calc(100vw - 16px);
++  margin: 0;
++  padding: 3px;
++  gap: 2px;
++  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
++  border: 1px solid var(--vscode-panel-border);
++  border-radius: 5px;
++  background: var(--vscode-editorWidget-background);
++  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
++}
++.slash-text-inline-toolbar[hidden] {
++  display: none;
++}
++.slash-text-inline-link-select {
++  width: min(280px, 45vw) !important;
++  padding: 3px 6px !important;
++  color: var(--vscode-dropdown-foreground) !important;
++  border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)) !important;
++  background: var(--vscode-dropdown-background) !important;
++}
++.slash-text-inline-link-panel {
++  display: flex;
++  align-items: center;
++  gap: 3px;
++}
++.slash-text-inline-link-panel[hidden],
++.slash-text-inline-link-select[hidden] {
++  display: none;
++}
++.slash-text-inline-link-panel input {
++  width: min(460px, 60vw);
++  height: 26px;
++  padding: 3px 6px;
++  color: var(--vscode-input-foreground);
++  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
++  outline: none;
++  background: var(--vscode-input-background);
++}
++.slash-text-inline-toolbar button,
++.slash-text-inline-toolbar input {
++  width: 26px;
++  height: 26px;
++  padding: 4px;
++  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
++  border: 0;
++  border-radius: 3px;
++  background: transparent;
++  cursor: pointer;
++}
++.slash-text-inline-toolbar button:hover,
++.slash-text-inline-toolbar input:hover {
++  color: var(--vscode-toolbar-hoverForeground, var(--vscode-foreground));
++  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
++}
++.slash-text-inline-toolbar button:disabled {
++  opacity: 0.4;
++  cursor: default;
++}
++.slash-text-inline-toolbar button:disabled:hover {
++  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
++  background: transparent;
++}
++.slash-text-inline-toolbar svg {
++  width: 18px;
++  height: 18px;
++  fill: none;
++  stroke: currentColor;
++}
+diff --git a/test/bpmn-export.test.ts b/test/bpmn-export.test.ts
+new file mode 100644
+index 0000000..b2cc910
+--- /dev/null
++++ b/test/bpmn-export.test.ts
+@@ -0,0 +1,26 @@
++import { describe, expect, it } from 'vitest';
++import { exportBpmnSvg } from '../src/extension/document-export-common';
++
++describe('BPMN HTML export dimensions', () => {
++  it('restores zero SVG dimensions from BPMN DI bounds and waypoints', () => {
++    const result = exportBpmnSvg('bpmnPreview', {
++      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" viewBox="0 0 0 0"><path/></svg>',
++      xml: `<bpmn:definitions xmlns:bpmn="urn:bpmn" xmlns:bpmndi="urn:bpmndi" xmlns:dc="urn:dc" xmlns:di="urn:di">
++        <bpmndi:BPMNShape><dc:Bounds x="100" y="50" width="200" height="80" /></bpmndi:BPMNShape>
++        <bpmndi:BPMNEdge><di:waypoint x="50" y="70"/><di:waypoint x="350" y="70"/></bpmndi:BPMNEdge>
++      </bpmn:definitions>`,
++    });
++
++    expect(result).toContain('width="348" height="128" viewBox="26 26 348 128"');
++    expect(result).not.toContain('viewBox="0 0 0 0"');
++  });
++
++  it('uses a valid viewBox when percentage dimensions cannot define an intrinsic size', () => {
++    const result = exportBpmnSvg('bpmnModeler', {
++      svg: '<svg width="100%" height="100%" viewBox="10 20 300 200"><rect/></svg>',
++      xml: '',
++    });
++
++    expect(result).toContain('width="300" height="200" viewBox="10 20 300 200"');
++  });
++});
+diff --git a/test/confluence-table-inline-toolbar.test.ts b/test/confluence-table-inline-toolbar.test.ts
+new file mode 100644
+index 0000000..afea482
+--- /dev/null
++++ b/test/confluence-table-inline-toolbar.test.ts
+@@ -0,0 +1,42 @@
++import { describe, expect, it } from 'vitest';
++import { calculateToolbarPosition, selectContainedRange } from '../src/webview/confluence-table-inline-toolbar';
++
++describe('Confluence table inline toolbar', () => {
++  it('prefers a range contained in the active cell over an outside stale range', () => {
++    const insideNode = {} as Node;
++    const outsideNode = {} as Node;
++    const outside = { collapsed: false, commonAncestorContainer: outsideNode } as Range;
++    const inside = { collapsed: false, commonAncestorContainer: insideNode } as Range;
++    const container = { contains: (node: Node) => node === insideNode } as Node;
++
++    expect(selectContainedRange(container, [outside, inside])).toBe(inside);
++  });
++
++  it('ignores collapsed ranges', () => {
++    const node = {} as Node;
++    const collapsed = { collapsed: true, commonAncestorContainer: node } as Range;
++    const container = { contains: () => true } as unknown as Node;
++
++    expect(selectContainedRange(container, [collapsed])).toBeUndefined();
++  });
++
++  it('positions the toolbar above and centered on the selected text', () => {
++    expect(
++      calculateToolbarPosition(
++        { left: 300, top: 200, bottom: 220, width: 100 },
++        { width: 200, height: 40 },
++        { width: 800, height: 600 },
++      ),
++    ).toEqual({ left: 250, top: 152 });
++  });
++
++  it('moves the toolbar below a selection near the top edge', () => {
++    expect(
++      calculateToolbarPosition(
++        { left: 10, top: 5, bottom: 25, width: 40 },
++        { width: 120, height: 40 },
++        { width: 800, height: 600 },
++      ),
++    ).toEqual({ left: 8, top: 33 });
++  });
++});
+diff --git a/test/documentation-compiler.test.ts b/test/documentation-compiler.test.ts
+index ac74fff..d51db1c 100644
+--- a/test/documentation-compiler.test.ts
++++ b/test/documentation-compiler.test.ts
+@@ -23,6 +23,8 @@ describe('standalone documentation compiler', () => {
+     expect(index).toContain('<title>Test docs</title>');
+     expect(index).toContain('"pageId":"start"');
+     expect(index).toContain('Second page');
++    expect(index).toMatch(/\.sidebar\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
++    expect(index).toMatch(/\.navigation\s*\{[^}]*overflow-y:\s*auto;[^}]*scrollbar-gutter:\s*stable;/s);
+     expect(firstPage).toContain('href="details.html#section"');
+     expect(firstPage).toContain('target="_blank" rel="noopener noreferrer"');
+     expect(firstPage).toContain('slash-doc-page-id');
+diff --git a/test/editor-link-navigation.test.ts b/test/editor-link-navigation.test.ts
+new file mode 100644
+index 0000000..e39474f
+--- /dev/null
++++ b/test/editor-link-navigation.test.ts
+@@ -0,0 +1,33 @@
++import { describe, expect, it } from 'vitest';
++import { findEventAnchor, getDocumentationPageId, getExternalUrl } from '../src/webview/editor-link-navigation';
++
++describe('Editor link navigation', () => {
++  it('finds a Confluence Table link inside a retargeted Shadow DOM event', () => {
++    const anchor = fakeAnchor('slash-doc://page/rfc-003', 'rfc-003');
++    const host = {} as EventTarget;
++    const event = { target: host, composedPath: () => [{}, anchor, host] } as unknown as Event;
++
++    expect(findEventAnchor(event)).toBe(anchor);
++    expect(getDocumentationPageId(anchor)).toBe('rfc-003');
++  });
++
++  it('reads an encoded internal page id from href', () => {
++    const anchor = fakeAnchor('slash-doc://page/API%20contracts');
++
++    expect(getDocumentationPageId(anchor)).toBe('API contracts');
++  });
++
++  it('allows only HTTP external links', () => {
++    expect(getExternalUrl(fakeAnchor('https://example.com/docs'))).toBe('https://example.com/docs');
++    expect(getExternalUrl(fakeAnchor('javascript:alert(1)'))).toBeUndefined();
++  });
++});
++
++function fakeAnchor(href: string, pageId?: string): HTMLAnchorElement {
++  return {
++    tagName: 'A',
++    dataset: pageId ? { pageId } : {},
++    getAttribute: (name: string) => (name === 'href' ? href : null),
++    hasAttribute: (name: string) => name === 'href',
++  } as unknown as HTMLAnchorElement;
++}
+diff --git a/test/editor-paste-routing.test.ts b/test/editor-paste-routing.test.ts
+index 439bc21..c7c7738 100644
+--- a/test/editor-paste-routing.test.ts
++++ b/test/editor-paste-routing.test.ts
+@@ -24,6 +24,12 @@ describe('Editor paste routing', () => {
+     expect(findPasteActionInPath([textarea])).toBeTypeOf('function');
+   });
+ 
++  it('routes paste to the File Processor script textarea', () => {
++    const textarea = Object.assign(elementMatching('.fp-script'), { selectionStart: 2, selectionEnd: 4 });
++
++    expect(findPasteActionInPath([textarea])).toBeTypeOf('function');
++  });
++
+   it('routes paste only when the event path contains a Confluence Table cell', () => {
+     const paste = vi.fn();
+     const tableCell = Object.assign(elementMatching('.ct-cell'), { __slashDocPasteTable: paste });
+diff --git a/test/editor-text-inline-toolbar.test.ts b/test/editor-text-inline-toolbar.test.ts
+new file mode 100644
+index 0000000..652cf3a
+--- /dev/null
++++ b/test/editor-text-inline-toolbar.test.ts
+@@ -0,0 +1,12 @@
++import { describe, expect, it } from 'vitest';
++import { EDITOR_TEXT_INLINE_TARGETS } from '../src/webview/editor-text-inline-toolbar';
++
++describe('shared text inline toolbar', () => {
++  it('binds paragraph, header, and list item editors', () => {
++    expect(EDITOR_TEXT_INLINE_TARGETS).toEqual([
++      '.ce-paragraph[contenteditable="true"]',
++      '.ce-header[contenteditable="true"]',
++      '.cdx-list__item',
++    ]);
++  });
++});
+diff --git a/test/page-link-picker-styles.test.ts b/test/page-link-picker-styles.test.ts
+new file mode 100644
+index 0000000..3b70301
+--- /dev/null
++++ b/test/page-link-picker-styles.test.ts
+@@ -0,0 +1,13 @@
++import { readFileSync } from 'node:fs';
++import { describe, expect, it } from 'vitest';
++
++describe('Page link picker styles', () => {
++  it('scrolls a large page list without shrinking options', () => {
++    const layout = readFileSync('src/webview/editor-layout.css', 'utf8');
++    const components = readFileSync('src/webview/editor-components.css', 'utf8');
++
++    expect(layout).toMatch(/\.slash-page-link-list\s*\{[^}]*overflow-y:\s*auto/s);
++    expect(layout).toMatch(/\.slash-page-link-picker\s*\{[^}]*max-height:/s);
++    expect(components).toMatch(/\.slash-page-link-option,[^{]+\{[^}]*flex:\s*0 0 auto/s);
++  });
++});

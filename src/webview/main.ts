@@ -11,6 +11,8 @@ import { createPageSaveController, updatePageSaveStatus } from './page-save-cont
 import { renderPendingMermaidDiagrams } from './mermaid-tool';
 import { createEditorUndoHistory, installEditorHistoryListeners } from './editor-undo-history';
 import { installListExitHandler } from './list-exit-handler';
+import { findEventAnchor, getDocumentationPageId, getExternalUrl } from './editor-link-navigation';
+import { installEditorTextInlineToolbar } from './editor-text-inline-toolbar';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
@@ -18,6 +20,7 @@ import './editor-foundation.css';
 import './editor-layout.css';
 import './editor-components.css';
 import './editor-editorjs.css';
+import './text-inline-toolbar.css';
 
 type VSCodeApi = { postMessage(message: unknown): void };
 
@@ -61,9 +64,7 @@ const pageSave = createPageSaveController({
 document.addEventListener(
   'click',
   (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const anchor = target.closest<HTMLAnchorElement>('a[href]');
+    const anchor = findEventAnchor(event);
     if (!anchor) return;
     const pageId = getDocumentationPageId(anchor);
     if (pageId) {
@@ -303,6 +304,12 @@ async function initEditor() {
   pageSave.installFallback(holder);
   installEditorHistoryListeners(holder, handleEditorChange);
   if (holder) installListExitHandler(holder, editor.blocks, editor.caret);
+  if (holder instanceof HTMLElement) {
+    installEditorTextInlineToolbar(holder, {
+      pages: window.__SLASH_DOC_PAGES__ ?? [],
+      currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
+    });
+  }
   installUndoShortcut();
   if (window.__SLASH_DOC_FOCUS_EDITOR__) {
     requestAnimationFrame(() => editor.caret.setToLastBlock('start'));
@@ -360,31 +367,6 @@ async function loadCustomTools() {
       }
     }),
   );
-}
-
-function getDocumentationPageId(anchor: HTMLAnchorElement): string | undefined {
-  const explicitPageId = anchor.dataset.pageId;
-  if (explicitPageId) return explicitPageId;
-  const href = anchor.getAttribute('href')?.trim() ?? '';
-  const encodedPageId =
-    /^slash-doc:\/\/(?:page\/)?([^/?#]+)/i.exec(href)?.[1] ?? /^slash-doc:page\/([^/?#]+)/i.exec(href)?.[1];
-  if (!encodedPageId) return undefined;
-  try {
-    return decodeURIComponent(encodedPageId);
-  } catch {
-    return encodedPageId;
-  }
-}
-
-function getExternalUrl(anchor: HTMLAnchorElement): string | undefined {
-  const href = anchor.getAttribute('href')?.trim();
-  if (!href) return undefined;
-  try {
-    const url = new URL(href);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 document.querySelector('#export-html')?.addEventListener('click', () => {

@@ -24,6 +24,12 @@ describe('Editor paste routing', () => {
     expect(findPasteActionInPath([textarea])).toBeTypeOf('function');
   });
 
+  it('routes paste to the File Processor script textarea', () => {
+    const textarea = Object.assign(elementMatching('.fp-script'), { selectionStart: 2, selectionEnd: 4 });
+
+    expect(findPasteActionInPath([textarea])).toBeTypeOf('function');
+  });
+
   it('routes paste only when the event path contains a Confluence Table cell', () => {
     const paste = vi.fn();
     const tableCell = Object.assign(elementMatching('.ct-cell'), { __slashDocPasteTable: paste });

@@ -1,0 +1,74 @@
+.slash-text-inline-toolbar {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: calc(100vw - 16px);
+  margin: 0;
+  padding: 3px;
+  gap: 2px;
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 5px;
+  background: var(--vscode-editorWidget-background);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.slash-text-inline-toolbar[hidden] {
+  display: none;
+}
+.slash-text-inline-link-select {
+  width: min(280px, 45vw) !important;
+  padding: 3px 6px !important;
+  color: var(--vscode-dropdown-foreground) !important;
+  border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border)) !important;
+  background: var(--vscode-dropdown-background) !important;
+}
+.slash-text-inline-link-panel {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.slash-text-inline-link-panel[hidden],
+.slash-text-inline-link-select[hidden] {
+  display: none;
+}
+.slash-text-inline-link-panel input {
+  width: min(460px, 60vw);
+  height: 26px;
+  padding: 3px 6px;
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  outline: none;
+  background: var(--vscode-input-background);
+}
+.slash-text-inline-toolbar button,
+.slash-text-inline-toolbar input {
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+.slash-text-inline-toolbar button:hover,
+.slash-text-inline-toolbar input:hover {
+  color: var(--vscode-toolbar-hoverForeground, var(--vscode-foreground));
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+.slash-text-inline-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.slash-text-inline-toolbar button:disabled:hover {
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  background: transparent;
+}
+.slash-text-inline-toolbar svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+}

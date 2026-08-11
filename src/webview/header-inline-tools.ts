@@ -1,7 +1,7 @@
 import type { DocumentationPageLink } from './page-link-tool';
 import { LUCIDE_ICONS } from './lucide-icons';
 import { preventDefault as preventSelectionLoss } from './event-utils';
-import { isNodeInsideSelector } from './shadow-dom';
+import { readActiveEditorRange, selectRangeForNode } from './editor-selection';
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
 
@@ -109,16 +109,18 @@ export function setupHeaderInlineTools(config: HeaderInlineToolsConfig): void {
     });
   }
 
-  document.addEventListener('selectionchange', () => {
-    const selection = window.getSelection();
-    if (!selection?.rangeCount) return;
-    const range = selection.getRangeAt(0);
-    if (!isEditorRange(range)) return;
+  const captureRange = (event?: Event) => {
+    const range = readActiveEditorRange(event);
+    if (!range) return;
     savedRange = range.cloneRange();
     for (const button of toolButtons) {
       button.disabled = button.dataset.requiresSelection === 'true' ? range.collapsed : false;
     }
-  });
+  };
+
+  document.addEventListener('selectionchange', () => captureRange());
+  document.addEventListener('pointerup', (event) => captureRange(event), true);
+  document.addEventListener('keyup', (event) => captureRange(event), true);
 
   document.addEventListener('pointerdown', (event) => {
     if (event.target instanceof Node && !root.contains(event.target)) closePanels();
@@ -343,9 +345,7 @@ function unwrapLink(anchor: HTMLAnchorElement | null): void {
 function finishChange(element: HTMLElement): void {
   const range = document.createRange();
   range.selectNodeContents(element);
-  const selection = window.getSelection();
-  selection?.removeAllRanges();
-  selection?.addRange(range);
+  selectRangeForNode(element, range);
   dispatchEditorInput(element);
 }
 
@@ -353,18 +353,14 @@ function setCaretAfter(node: Node): void {
   const range = document.createRange();
   range.setStartAfter(node);
   range.collapse(true);
-  const selection = window.getSelection();
-  selection?.removeAllRanges();
-  selection?.addRange(range);
+  selectRangeForNode(node, range);
 }
 
 function dispatchEditorInput(node: Node): void {
   const element = node instanceof Element ? node : node.parentElement;
-  element?.closest<HTMLElement>('[contenteditable="true"]')?.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-function isEditorRange(range: Range): boolean {
-  return isNodeInsideSelector(range.commonAncestorContainer, '#editor [contenteditable="true"]');
+  element
+    ?.closest<HTMLElement>('[contenteditable="true"]')
+    ?.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
 }
 
 function findParentPageLink(node: Node | undefined): HTMLAnchorElement | null {

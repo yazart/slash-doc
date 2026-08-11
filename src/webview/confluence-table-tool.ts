@@ -1,5 +1,5 @@
 import { sanitizeTableCellHtml } from '../shared/table-cell-html';
-import { createTableInlineToolbar } from './confluence-table-inline-toolbar';
+import { createTextInlineToolbar } from './confluence-table-inline-toolbar';
 import { LUCIDE_ICONS } from './lucide-icons';
 import { CONFLUENCE_TABLE_TEMPLATE } from './confluence-table-template';
 import {
@@ -23,6 +23,7 @@ import {
   type ToolArgs,
 } from './confluence-table-data';
 import styles from './confluence-table-tool.shadow.css?raw';
+import inlineToolbarStyles from './text-inline-toolbar.css?raw';
 import { createToolSurface } from './tool-surface';
 
 export type { ConfluenceTableData } from './confluence-table-data';
@@ -34,16 +35,17 @@ export default class ConfluenceTableTool {
   private selectedColumn = 0;
   private suppressNextClick = false;
   private removePasteTargetCleanup?: () => void;
-  private readonly inlineToolbar = createTableInlineToolbar();
+  private readonly inlineToolbar;
   static get toolbox() {
     return { title: 'Таблица Confluence', icon: LUCIDE_ICONS.table };
   }
-  constructor({ data }: ToolArgs) {
+  constructor({ data, config }: ToolArgs) {
     this.data = normalizeTable(data);
+    this.inlineToolbar = createTextInlineToolbar(config);
   }
 
   render(): HTMLElement {
-    const surface = createToolSurface(styles, 'slash-confluence-table-surface');
+    const surface = createToolSurface(`${inlineToolbarStyles}\n${styles}`, 'slash-confluence-table-surface');
     const wrapper = document.createElement('div');
     wrapper.className = 'slash-confluence-table-tool';
     wrapper.innerHTML = CONFLUENCE_TABLE_TEMPLATE;

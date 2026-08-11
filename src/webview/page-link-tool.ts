@@ -1,5 +1,6 @@
 import type { API } from '@editorjs/editorjs/types';
 import { LUCIDE_ICONS } from './lucide-icons';
+import { readActiveEditorRange, selectRangeForNode } from './editor-selection';
 
 type ExtendedSelection = API['selection'] & {
   removeFakeBackground?: () => void;
@@ -88,8 +89,9 @@ export default class PageLinkTool {
   }
 
   surround(range: Range | null): void {
-    if (!range) return;
-    this.range = range.cloneRange();
+    const activeRange = readActiveEditorRange() ?? range ?? undefined;
+    if (!activeRange) return;
+    this.range = activeRange.cloneRange();
     this.api.selection.setFakeBackground?.();
     this.api.selection.save?.();
   }
@@ -168,9 +170,9 @@ export default class PageLinkTool {
   }
 
   private captureRange(): void {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-    this.range = selection.getRangeAt(0).cloneRange();
+    const range = readActiveEditorRange();
+    if (!range) return;
+    this.range = range.cloneRange();
     this.api.selection.save?.();
   }
 
@@ -213,25 +215,29 @@ export default class PageLinkTool {
       const range = document.createRange();
       range.setStartAfter(lastChild);
       range.collapse(true);
-      const selection = window.getSelection();
-      selection?.removeAllRanges();
-      selection?.addRange(range);
+      selectRangeForNode(lastChild, range);
     }
-    parent.dispatchEvent(new Event('input', { bubbles: true }));
+    parent.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     this.api.inlineToolbar.close();
     this.range = undefined;
   }
 
   private findSelectedLink(): HTMLAnchorElement | null {
     if (this.range) return findParentPageLink(this.range.commonAncestorContainer);
-    const selection = window.getSelection();
-    return selection?.rangeCount ? findParentPageLink(selection.getRangeAt(0).commonAncestorContainer) : null;
+    const range = readActiveEditorRange();
+    return range ? findParentPageLink(range.commonAncestorContainer) : null;
   }
 
   private finishChange(anchor: HTMLAnchorElement): void {
     this.api.selection.removeFakeBackground?.();
-    this.api.selection.expandToTag(anchor);
-    anchor.dispatchEvent(new Event('input', { bubbles: true }));
+    if (anchor.getRootNode() instanceof ShadowRoot) {
+      const range = document.createRange();
+      range.selectNodeContents(anchor);
+      selectRangeForNode(anchor, range);
+    } else {
+      this.api.selection.expandToTag(anchor);
+    }
+    anchor.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     this.api.inlineToolbar.close();
     this.range = undefined;
   }

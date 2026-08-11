@@ -23,6 +23,8 @@ describe('standalone documentation compiler', () => {
     expect(index).toContain('<title>Test docs</title>');
     expect(index).toContain('"pageId":"start"');
     expect(index).toContain('Second page');
+    expect(index).toMatch(/\.sidebar\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+    expect(index).toMatch(/\.navigation\s*\{[^}]*overflow-y:\s*auto;[^}]*scrollbar-gutter:\s*stable;/s);
     expect(firstPage).toContain('href="details.html#section"');
     expect(firstPage).toContain('target="_blank" rel="noopener noreferrer"');
     expect(firstPage).toContain('slash-doc-page-id');

@@ -1,4 +1,5 @@
 import { escapeAttribute, isRecord, stripHtml } from './utils';
+import { resolveBpmnSvgDimensions } from './bpmn-export-dimensions';
 
 export function markdownCodeFence(language: string, source: string): string {
   const longestFence = Math.max(0, ...(source.match(/`+/g) ?? []).map((match) => match.length));
@@ -19,18 +20,19 @@ export function exportBpmnSvg(type: string, data: Record<string, unknown>): stri
     .replace(/\sdata-slash-doc-bpmn=("[^"]*"|'[^']*')/gi, '')
     .replace(/\sdata-slash-doc-bpmn-state=("[^"]*"|'[^']*')/gi, '');
   return cleanSvg.replace(/<svg\b([^>]*)>/i, (_opening, attributes: string) =>
-    renderBpmnSvgOpening(attributes, kind, state),
+    renderBpmnSvgOpening(attributes, kind, state, xml),
   );
 }
 
-function renderBpmnSvgOpening(attributes: string, kind: string, state: string): string {
+function renderBpmnSvgOpening(attributes: string, kind: string, state: string, xml: string): string {
   const existingClass = readSvgAttribute(attributes, 'class');
   const className = [...new Set([...existingClass.split(/\s+/), 'slash-bpmn-export'].filter(Boolean))].join(' ');
-  const cleanedAttributes = ['class', 'role', 'preserveAspectRatio'].reduce(
+  const dimensions = resolveBpmnSvgDimensions(attributes, xml);
+  const cleanedAttributes = ['class', 'role', 'preserveAspectRatio', 'width', 'height', 'viewBox'].reduce(
     (value, name) => removeSvgAttribute(value, name),
     attributes,
   );
-  return `<svg${cleanedAttributes} class="${escapeAttribute(className)}" role="img" preserveAspectRatio="xMidYMid meet" data-slash-doc-bpmn="${kind}" data-slash-doc-bpmn-state="${escapeAttribute(state)}">`;
+  return `<svg${cleanedAttributes} width="${dimensions.width}" height="${dimensions.height}" viewBox="${dimensions.viewBox}" class="${escapeAttribute(className)}" role="img" preserveAspectRatio="xMidYMid meet" data-slash-doc-bpmn="${kind}" data-slash-doc-bpmn-state="${escapeAttribute(state)}">`;
 }
 
 function readSvgAttribute(attributes: string, name: string): string {

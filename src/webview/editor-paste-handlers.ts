@@ -100,7 +100,9 @@ export function findPasteActionInPath(path: EventTarget[]): PasteAction | undefi
   );
   if (mermaidCode) return (text) => insertTextIntoControl(mermaidCode, text);
   const highlightedCode = path.find(
-    (item): item is HTMLTextAreaElement => matchesElement(item, '.slash-highlight-input') && hasNumericSelection(item),
+    (item): item is HTMLTextAreaElement =>
+      (matchesElement(item, '.slash-highlight-input') || matchesElement(item, '.fp-script')) &&
+      hasNumericSelection(item),
   );
   if (highlightedCode) return (text) => insertTextIntoControl(highlightedCode, text);
   const listItem = path.find((item): item is HTMLElement => matchesElement(item, '.cdx-list__item'));
