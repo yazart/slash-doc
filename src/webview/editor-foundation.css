@@ -94,47 +94,6 @@ body {
   stroke: currentColor;
 }
 
-.header-inline-tools {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: 10px;
-}
-
-.header-inline-tool {
-  position: relative;
-}
-
-.header-inline-tool-button {
-  display: grid;
-  width: 26px;
-  height: 26px;
-  padding: 3px;
-  place-items: center;
-  color: var(--vscode-icon-foreground, var(--vscode-foreground));
-  border: 1px solid transparent;
-  border-radius: 3px;
-  background: transparent;
-  cursor: pointer;
-}
-
-.header-inline-tool-button:hover,
-.header-inline-tool-button[aria-expanded='true'] {
-  color: var(--vscode-list-hoverForeground, var(--vscode-foreground));
-  background: var(--vscode-list-hoverBackground);
-}
-
-.header-inline-tool-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.header-inline-tool-button svg {
-  width: 19px;
-  height: 19px;
-}
-
-.header-inline-tool-button svg [fill='none'],
 .ce-toolbar svg [fill='none'],
 .ce-toolbox__button svg [fill='none'],
 .ce-inline-toolbar svg [fill='none'],
@@ -143,22 +102,6 @@ body {
 .ce-settings svg [fill='none'] {
   fill: none !important;
   stroke: currentColor;
-}
-
-.header-inline-tool-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 50;
-  color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
-  border: 1px solid var(--vscode-dropdown-border, var(--border));
-  border-radius: 4px;
-  background: var(--vscode-dropdown-background, var(--surface-raised));
-  box-shadow: 0 6px 18px color-mix(in srgb, #000 32%, transparent);
-}
-
-.header-inline-tool-panel[hidden] {
-  display: none;
 }
 
 .export-button {

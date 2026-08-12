@@ -1,5 +1,6 @@
 import { LUCIDE_ICONS } from './lucide-icons';
-import { readActiveEditorRange, selectionForNode } from './editor-selection';
+import { readActiveEditorRange, selectionForNode, selectRangeForNode } from './editor-selection';
+import { toggleInlineFormat, type InlineFormatMatcher } from './inline-format-toggle';
 import type { DocumentationPageLink } from './page-link-tool';
 
 type SelectionRoot = ShadowRoot & { getSelection?: () => Selection | null };
@@ -22,23 +23,12 @@ export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): T
   let cell: HTMLElement | undefined;
   let captureFrame: number | undefined;
 
-  const apply = (tag: keyof HTMLElementTagNameMap, className?: string, configure?: (wrapper: HTMLElement) => void) => {
-    if (!range || range.collapsed || !cell?.contains(range.commonAncestorContainer)) return;
-    const wrapper = document.createElement(tag);
-    if (className) wrapper.className = className;
-    configure?.(wrapper);
-    wrapper.append(range.extractContents());
-    range.insertNode(wrapper);
-    selectNode(wrapper);
-    cell.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-  };
-
   const tools: Array<{ title: string; icon: string; action: () => void }> = [
-    { title: 'Полужирный', icon: LUCIDE_ICONS.bold, action: () => apply('strong') },
-    { title: 'Курсив', icon: LUCIDE_ICONS.italic, action: () => apply('em') },
-    { title: 'Подчёркивание', icon: LUCIDE_ICONS.underline, action: () => apply('u') },
-    { title: 'Маркер', icon: LUCIDE_ICONS.highlighter, action: () => apply('mark') },
-    { title: 'Встроенный код', icon: LUCIDE_ICONS.code, action: () => apply('code') },
+    { title: 'Полужирный', icon: LUCIDE_ICONS.bold, action: () => toggleFormat(matchesTags('b', 'strong'), 'strong') },
+    { title: 'Курсив', icon: LUCIDE_ICONS.italic, action: () => toggleFormat(matchesTags('em', 'i'), 'em') },
+    { title: 'Подчёркивание', icon: LUCIDE_ICONS.underline, action: () => toggleFormat(matchesTags('u'), 'u') },
+    { title: 'Маркер', icon: LUCIDE_ICONS.highlighter, action: () => toggleFormat(matchesTags('mark'), 'mark') },
+    { title: 'Встроенный код', icon: LUCIDE_ICONS.code, action: () => toggleFormat(matchesCode, 'code') },
   ];
 
   for (const tool of tools) {
@@ -146,10 +136,37 @@ export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): T
 
   function applyColor(value: string): void {
     if (!/^#[0-9a-f]{6}$/i.test(value)) return;
-    apply('span', 'slash-text-color', (span) => {
-      span.dataset.slashTextColor = value.toLowerCase();
-      span.style.color = value;
+    const normalized = value.toLowerCase();
+    toggleFormat(
+      (element) => matchesTextColor(element) && element.getAttribute('data-slash-text-color') === normalized,
+      'span',
+      (span) => {
+        span.className = 'slash-text-color';
+        span.dataset.slashTextColor = normalized;
+        span.style.color = value;
+      },
+      matchesTextColor,
+    );
+  }
+
+  function toggleFormat(
+    matcher: InlineFormatMatcher,
+    tag: keyof HTMLElementTagNameMap,
+    configure?: (element: HTMLElement) => void,
+    normalizeMatcher?: InlineFormatMatcher,
+  ): void {
+    if (!range || !cell) return;
+    range = toggleInlineFormat(cell, range, {
+      matcher,
+      normalizeMatcher,
+      create: () => {
+        const span = document.createElement(tag);
+        configure?.(span);
+        return span;
+      },
     });
+    selectRangeForNode(cell, range);
+    cell.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
   }
 
   function applyPageLink(page: DocumentationPageLink): void {
@@ -347,4 +364,17 @@ function normalizeExternalUrl(value: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function matchesTags(...tags: string[]): InlineFormatMatcher {
+  const normalized = new Set(tags.map((tag) => tag.toUpperCase()));
+  return (element) => normalized.has(element.tagName);
+}
+
+function matchesCode(element: Element): boolean {
+  return element.tagName === 'CODE' || element.classList.contains('inline-code');
+}
+
+function matchesTextColor(element: Element): boolean {
+  return element.classList.contains('slash-text-color') || element.hasAttribute('data-slash-text-color');
 }

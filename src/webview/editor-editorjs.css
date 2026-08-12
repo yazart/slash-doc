@@ -68,7 +68,6 @@
 }
 
 :is(
-    .header-inline-tool-button,
     .ce-toolbar__plus,
     .ce-toolbar__settings-btn,
     .ce-toolbox__button,
@@ -84,7 +83,6 @@
 }
 
 :is(
-    .header-inline-tool-button,
     .ce-toolbar__plus,
     .ce-toolbar__settings-btn,
     .ce-toolbox__button,
@@ -96,7 +94,6 @@
   )
   svg[fill='none'],
 :is(
-    .header-inline-tool-button,
     .ce-toolbar__plus,
     .ce-toolbar__settings-btn,
     .ce-toolbox__button,
@@ -111,9 +108,7 @@
   fill: none !important;
 }
 
-:is(.header-inline-tool-button, .ce-toolbox__button, .ce-inline-tool, .ce-settings__button)
-  svg
-  [stroke]:not([stroke='none']) {
+:is(.ce-toolbox__button, .ce-inline-tool, .ce-settings__button) svg [stroke]:not([stroke='none']) {
   stroke: currentColor !important;
 }
 

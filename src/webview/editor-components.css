@@ -153,17 +153,6 @@
   padding: 8px;
 }
 
-.header-inline-tool-button:hover,
-.header-inline-tool-button[aria-expanded='true'] {
-  color: var(--vscode-list-hoverForeground, var(--vscode-icon-foreground, var(--vscode-foreground))) !important;
-  background: var(
-    --vscode-toolbar-hoverBackground,
-    var(--vscode-list-hoverBackground, var(--vscode-editorWidget-background))
-  ) !important;
-  outline: 1px solid var(--vscode-toolbar-hoverOutline, transparent);
-  outline-offset: -1px;
-}
-
 .codex-editor {
   --slash-toolbar-foreground: var(--vscode-icon-foreground, var(--vscode-editor-foreground));
   --slash-popup-foreground: var(--vscode-dropdown-foreground, var(--vscode-editor-foreground));

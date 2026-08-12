@@ -23,11 +23,18 @@ describe('standalone documentation compiler', () => {
     expect(index).toContain('<title>Test docs</title>');
     expect(index).toContain('"pageId":"start"');
     expect(index).toContain('Second page');
+    expect(index).toContain('class="sidebar-resizer"');
+    expect(index).toContain("'#page/' + encodeURIComponent(pageId)");
+    expect(index).toContain('slash-doc-sidebar-width');
+    expect(index).toContain('data-page-id="start"');
+    const hostScript = /<script>([\s\S]*?)<\/script>/.exec(index)?.[1] ?? '';
+    expect(() => new Function(hostScript)).not.toThrow();
     expect(index).toMatch(/\.sidebar\s*\{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
     expect(index).toMatch(/\.navigation\s*\{[^}]*overflow-y:\s*auto;[^}]*scrollbar-gutter:\s*stable;/s);
     expect(firstPage).toContain('href="details.html#section"');
     expect(firstPage).toContain('target="_blank" rel="noopener noreferrer"');
     expect(firstPage).toContain('slash-doc-page-id');
+    expect(firstPage).toContain("type:'slash-doc-page'");
   });
 
   it('uses the default output directory and creates a page when content is missing', async () => {

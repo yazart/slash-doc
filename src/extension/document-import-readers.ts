@@ -9,6 +9,8 @@ export function importedCodeLanguage(value: string): CodeLanguage {
     ts: 'typescript',
     yml: 'yaml',
     py: 'python',
+    puml: 'plantuml',
+    iuml: 'plantuml',
     shell: 'bash',
     sh: 'bash',
   };

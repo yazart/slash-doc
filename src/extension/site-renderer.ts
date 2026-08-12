@@ -12,7 +12,8 @@ export function flattenPages(items: SlashDocMenuItem[]): SlashDocMenuItem[] {
 export function prepareCompiledPage(html: string, pageId: string, pageIds: Set<string>): string {
   const withLinks = rewriteDocumentationLinks(html, pageIds);
   const additions = `<meta name="slash-doc-page-id" content="${escapeAttribute(pageId)}">
-  <style>${pageStyles}</style>`;
+  <style>${pageStyles}</style>
+  <script>window.parent.postMessage({type:'slash-doc-page',pageId:${escapeScriptJson(pageId)}}, '*');</script>`;
   return withLinks.replace('</head>', `${additions}\n  </head>`);
 }
 
@@ -103,13 +104,100 @@ export function renderHostHtml(
     <nav class="navigation" aria-label="Страницы документации">${renderHostMenu(items)}</nav>
     <div class="search-results" hidden></div>
   </aside>
+  <div class="sidebar-resizer" role="separator" aria-label="Изменить ширину меню" aria-orientation="vertical" aria-valuemin="180" aria-valuemax="600" tabindex="0"></div>
   <iframe class="content" name="content" title="Документация" src="${escapeAttribute(firstPage)}"></iframe>
   <script>
     const links = Array.from(document.querySelectorAll('.page-link'));
-    links.forEach((link) => link.addEventListener('click', () => {
+    const content = document.querySelector('.content');
+    const pageLinks = new Map(links.map((link) => [link.dataset.pageId, link]));
+    let activePageId = '';
+    let expectedPageId = '';
+    const pageHash = (pageId) => '#page/' + encodeURIComponent(pageId);
+    const readPageHash = () => {
+      const value = location.hash.startsWith('#page/') ? location.hash.slice(6) : location.hash.slice(1);
+      try { return decodeURIComponent(value); } catch { return value; }
+    };
+    const selectPage = (pageId, loadPage, updateHash) => {
+      const link = pageLinks.get(pageId);
+      if (!link) return false;
       links.forEach((item) => item.classList.toggle('active', item === link));
+      link.scrollIntoView({ block: 'nearest' });
+      if (loadPage && activePageId !== pageId) {
+        expectedPageId = pageId;
+        content.src = link.href;
+      }
+      activePageId = pageId;
+      if (updateHash && location.hash !== pageHash(pageId)) location.hash = pageHash(pageId);
+      return true;
+    };
+    const acceptLoadedPage = (pageId) => {
+      if (expectedPageId && pageId !== expectedPageId) return;
+      expectedPageId = '';
+      selectPage(pageId, false, true);
+    };
+    content.addEventListener('load', () => {
+      try {
+        const pageId = content.contentDocument?.querySelector('meta[name="slash-doc-page-id"]')?.content;
+        if (pageId) acceptLoadedPage(pageId);
+      } catch {}
+    });
+    window.addEventListener('message', (event) => {
+      if (event.source !== content.contentWindow || event.data?.type !== 'slash-doc-page') return;
+      acceptLoadedPage(String(event.data.pageId || ''));
+    });
+    links.forEach((link) => link.addEventListener('click', (event) => {
+      event.preventDefault();
+      selectPage(link.dataset.pageId, true, true);
     }));
-    if (links[0]) links[0].classList.add('active');
+    const requestedPage = readPageHash();
+    if (!selectPage(requestedPage, true, false) && links[0]) {
+      selectPage(links[0].dataset.pageId, true, false);
+      history.replaceState(null, '', pageHash(links[0].dataset.pageId));
+    }
+    window.addEventListener('hashchange', () => selectPage(readPageHash(), true, false));
+
+    const resizer = document.querySelector('.sidebar-resizer');
+    const sidebarStorageKey = 'slash-doc-sidebar-width';
+    const maximumSidebarWidth = () => Math.max(180, Math.min(600, window.innerWidth - 240));
+    const setSidebarWidth = (width) => {
+      const normalized = Math.max(180, Math.min(maximumSidebarWidth(), Math.round(width)));
+      document.body.style.setProperty('--sidebar-width', normalized + 'px');
+      resizer.setAttribute('aria-valuenow', String(normalized));
+      return normalized;
+    };
+    try {
+      const storedWidth = Number(localStorage.getItem(sidebarStorageKey));
+      if (Number.isFinite(storedWidth) && storedWidth > 0) setSidebarWidth(storedWidth);
+    } catch {}
+    let resizing = false;
+    resizer.addEventListener('pointerdown', (event) => {
+      resizing = true;
+      resizer.setPointerCapture(event.pointerId);
+      document.body.classList.add('resizing-sidebar');
+      event.preventDefault();
+    });
+    resizer.addEventListener('pointermove', (event) => {
+      if (resizing) setSidebarWidth(event.clientX);
+    });
+    const finishResize = (event) => {
+      if (!resizing) return;
+      resizing = false;
+      document.body.classList.remove('resizing-sidebar');
+      const width = parseInt(getComputedStyle(document.body).getPropertyValue('--sidebar-width'), 10);
+      try { localStorage.setItem(sidebarStorageKey, String(width)); } catch {}
+      if (resizer.hasPointerCapture(event.pointerId)) resizer.releasePointerCapture(event.pointerId);
+    };
+    resizer.addEventListener('pointerup', finishResize);
+    resizer.addEventListener('pointercancel', finishResize);
+    resizer.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const current = parseInt(getComputedStyle(document.body).getPropertyValue('--sidebar-width'), 10) || 280;
+      const width = setSidebarWidth(current + (event.key === 'ArrowRight' ? 16 : -16));
+      try { localStorage.setItem(sidebarStorageKey, String(width)); } catch {}
+    });
+    window.addEventListener('resize', () => setSidebarWidth(parseInt(getComputedStyle(document.body).getPropertyValue('--sidebar-width'), 10) || 280));
+
     const searchIndex = ${escapeScriptJson(searchIndex)};
     const search = document.querySelector('.documentation-search input');
     const navigation = document.querySelector('.navigation');
@@ -145,6 +233,11 @@ export function renderHostHtml(
         link.className = 'search-result';
         link.href = 'pages/' + encodeURIComponent(page.pageId) + '.html';
         link.target = 'content';
+        link.dataset.pageId = page.pageId;
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          selectPage(page.pageId, true, true);
+        });
         const title = document.createElement('strong');
         title.textContent = page.title;
         const snippet = document.createElement('span');
@@ -166,7 +259,7 @@ function renderHostMenu(items: SlashDocMenuItem[]): string {
 }
 
 function renderHostMenuItem(item: SlashDocMenuItem): string {
-  const link = `<a class="page-link" href="pages/${escapeAttribute(item.id)}.html" target="content">${escapeHtml(item.title)}</a>`;
+  const link = `<a class="page-link" data-page-id="${escapeAttribute(item.id)}" href="pages/${escapeAttribute(item.id)}.html" target="content">${escapeHtml(item.title)}</a>`;
   if (item.children.length === 0) return `<li class="leaf">${link}</li>`;
   return `<li><details open><summary>${link}</summary>${renderHostMenu(item.children)}</details></li>`;
 }

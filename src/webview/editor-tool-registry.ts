@@ -12,7 +12,6 @@ import DiffBlockTool from './diff-block-tool';
 import type { SlashDocWebviewSettings } from './editor-settings';
 import FileProcessorTool from './file-processor-tool';
 import FlowDesignerTool from './flow-designer-tool';
-import { setupHeaderInlineTools } from './header-inline-tools';
 import ImageAnnotationTool from './image-annotation-tool';
 import { LUCIDE_ICONS } from './lucide-icons';
 import LucideInlineCode from './lucide-inline-code';
@@ -85,11 +84,6 @@ export function createEditorTools(
       currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
     },
   };
-  setupHeaderInlineTools({
-    pages: window.__SLASH_DOC_PAGES__ ?? [],
-    currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
-    textColorEnabled: addons?.textColor !== false,
-  });
   if (addons?.userMention !== false) setupUserMentions(userDirectory);
   if (addons?.mermaid !== false) tools.mermaid = MermaidTool;
   if (addons?.flowDesigner !== false) tools.flowDesigner = FlowDesignerTool;
