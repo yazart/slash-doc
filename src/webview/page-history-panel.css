@@ -1,0 +1,179 @@
+.git-history-control {
+  position: relative;
+  display: flex;
+  gap: 4px;
+}
+.git-history-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr) auto auto;
+  align-items: end;
+  width: min(780px, calc(100vw - 24px));
+  padding: 10px;
+  gap: 8px;
+  color: var(--vscode-dropdown-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-dropdown-border, var(--border));
+  border-radius: 5px;
+  background: var(--vscode-dropdown-background, var(--surface-raised));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+}
+.git-history-panel--view {
+  grid-template-columns: minmax(360px, 1fr) auto;
+  width: min(560px, calc(100vw - 24px));
+}
+.git-history-panel--comparison {
+  grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr) auto;
+}
+.git-history-panel[hidden],
+.git-history-overlay[hidden] {
+  display: none;
+}
+.git-history-panel label {
+  display: grid;
+  gap: 4px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+}
+.git-history-panel select {
+  min-width: 0;
+  height: 28px;
+  color: var(--vscode-dropdown-foreground);
+  border: 1px solid var(--vscode-dropdown-border, var(--border));
+  background: var(--vscode-dropdown-background);
+}
+.git-history-action {
+  height: 28px;
+  padding: 0 10px;
+  color: var(--vscode-button-foreground);
+  border: 0;
+  border-radius: 3px;
+  background: var(--vscode-button-background);
+  cursor: pointer;
+}
+.git-history-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.git-history-status {
+  grid-column: 1 / -1;
+  min-height: 16px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+}
+.git-history-status[data-error='true'] {
+  color: var(--vscode-errorForeground);
+}
+.git-history-overlay {
+  position: fixed;
+  inset: 45px 0 0;
+  z-index: 90;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  color: var(--vscode-editor-foreground);
+  background: var(--vscode-editor-background);
+}
+.git-history-overlay > header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-editorWidget-background);
+}
+.git-history-overlay > header > button {
+  margin-left: auto;
+}
+.git-history-legend {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+}
+.git-history-legend[hidden] {
+  display: none;
+}
+.git-history-legend span::before {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  border-radius: 2px;
+  content: '';
+}
+.git-history-legend [data-kind='added']::before,
+.git-history-viewer .ce-block[data-git-diff='added'] {
+  background: color-mix(in srgb, #22c55e 24%, var(--vscode-editor-background));
+}
+.git-history-legend [data-kind='modified']::before,
+.git-history-viewer .ce-block[data-git-diff='modified'] {
+  background: color-mix(in srgb, #eab308 27%, var(--vscode-editor-background));
+}
+.git-history-legend [data-kind='removed']::before,
+.git-history-viewer .ce-block[data-git-diff='removed'] {
+  background: color-mix(in srgb, #ef4444 24%, var(--vscode-editor-background));
+}
+.git-history-viewer {
+  min-width: 960px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 20px 64px 80px;
+  touch-action: pan-x pan-y;
+}
+.git-history-viewer[aria-readonly='true'] {
+  cursor: default;
+}
+.git-history-viewer[aria-readonly='true'] .ce-block {
+  pointer-events: none;
+}
+.git-history-exit {
+  min-width: max-content;
+}
+.git-history-viewer .ce-block {
+  margin: 4px 0;
+  border-radius: 5px;
+  outline: 1px solid transparent;
+}
+.git-history-viewer .ce-block[data-git-diff='added'] {
+  outline-color: color-mix(in srgb, #22c55e 58%, transparent);
+}
+.git-history-viewer .ce-block[data-git-diff='modified'] {
+  outline-color: color-mix(in srgb, #eab308 64%, transparent);
+}
+.git-history-viewer .ce-block[data-git-diff='removed'] {
+  outline-color: color-mix(in srgb, #ef4444 58%, transparent);
+}
+.git-history-text-diff {
+  display: block;
+  margin-top: 6px;
+  padding: 6px 8px;
+  white-space: pre-wrap;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--vscode-editorWidget-background) 78%, transparent);
+}
+.ce-paragraph > .git-history-text-diff,
+.ce-header > .git-history-text-diff {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+.git-history-text-diff ins {
+  color: var(--vscode-editor-foreground);
+  background: color-mix(in srgb, #22c55e 42%, transparent);
+  text-decoration: none;
+}
+.git-history-text-diff del {
+  color: var(--vscode-editor-foreground);
+  background: color-mix(in srgb, #ef4444 38%, transparent);
+  text-decoration: line-through;
+}
+@media (max-width: 760px) {
+  .git-history-panel--comparison {
+    grid-template-columns: 1fr 1fr;
+  }
+  .git-history-panel--view {
+    grid-template-columns: 1fr auto;
+  }
+}

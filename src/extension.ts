@@ -27,6 +27,7 @@ import {
 import { SlashDocSidebarProvider } from './extension/sidebar-provider';
 import type { OpenPagePanel } from './extension/sidebar-page-actions';
 import { searchMockUsers } from './shared/users';
+import { readPageGitHistory, readPageGitVersion } from './extension/git-page-history';
 
 const viewType = 'slashDoc.editor';
 const sidebarViewId = 'slashDoc.actions';
@@ -48,6 +49,7 @@ type EditorMessage = {
   query?: string;
   revision?: number;
   error?: string;
+  commit?: string;
 };
 
 let apiServerManager: ApiServerManager | undefined;
@@ -155,6 +157,35 @@ export function activate(context: vscode.ExtensionContext) {
                 requestId: message.requestId,
                 users: await searchUsers(settings, message.query ?? ''),
               });
+              return;
+            }
+
+            if (message.type === 'gitPageHistory' || message.type === 'gitPageVersion') {
+              if (!workspaceRoot || !pageId) {
+                await panel.webview.postMessage({
+                  type: `${message.type}Response`,
+                  requestId: message.requestId,
+                  error: 'Страница не привязана к открытому проекту.',
+                });
+                return;
+              }
+              try {
+                const payload =
+                  message.type === 'gitPageHistory'
+                    ? { commits: await readPageGitHistory(workspaceRoot, pageId) }
+                    : { data: await readPageGitVersion(workspaceRoot, pageId, message.commit ?? '') };
+                await panel.webview.postMessage({
+                  type: `${message.type}Response`,
+                  requestId: message.requestId,
+                  ...payload,
+                });
+              } catch (error) {
+                await panel.webview.postMessage({
+                  type: `${message.type}Response`,
+                  requestId: message.requestId,
+                  error: error instanceof Error ? error.message : String(error),
+                });
+              }
               return;
             }
 

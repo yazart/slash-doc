@@ -13,6 +13,7 @@ import { createEditorUndoHistory, installEditorHistoryListeners } from './editor
 import { installListExitHandler } from './list-exit-handler';
 import { findEventAnchor, getDocumentationPageId, getExternalUrl } from './editor-link-navigation';
 import { installEditorTextInlineToolbar } from './editor-text-inline-toolbar';
+import { installPageHistoryPanel } from './page-history-panel';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
@@ -21,6 +22,7 @@ import './editor-layout.css';
 import './editor-components.css';
 import './editor-editorjs.css';
 import './text-inline-toolbar.css';
+import './page-history-panel.css';
 
 type VSCodeApi = { postMessage(message: unknown): void };
 
@@ -300,6 +302,7 @@ async function initEditor() {
   });
 
   await editor.isReady;
+  installPageHistoryPanel(tools, (message) => vscode.postMessage(message));
   const holder = document.querySelector('#editor');
   pageSave.installFallback(holder);
   installEditorHistoryListeners(holder, handleEditorChange);
