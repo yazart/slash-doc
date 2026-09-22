@@ -5,3 +5,12 @@
 .slash-nested-list-item > :is(ol, ul) {
   margin: 2px 0 2px 22px;
 }
+.slash-list-settings {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+}
+.slash-list-style-button svg {
+  width: 20px;
+  height: 20px;
+}

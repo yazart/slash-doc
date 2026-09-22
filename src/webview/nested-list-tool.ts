@@ -1,4 +1,5 @@
 import type { API, BlockToolConstructorOptions } from '@editorjs/editorjs/types';
+import { LUCIDE_ICONS } from './lucide-icons';
 
 export type NestedListItem = { content: string; items: NestedListItem[] };
 export type NestedListData = { style: 'ordered' | 'unordered'; items: NestedListItem[] };
@@ -8,6 +9,10 @@ export default class NestedListTool {
   private readonly readOnly: boolean;
   private data: NestedListData;
   private root?: HTMLOListElement | HTMLUListElement;
+
+  static get toolbox() {
+    return { title: 'Многоуровневый список', icon: LUCIDE_ICONS.list };
+  }
 
   static get isReadOnlySupported(): boolean {
     return true;
@@ -50,20 +55,40 @@ export default class NestedListTool {
     return true;
   }
 
-  renderSettings() {
-    return [
-      this.setting('unordered', 'Маркированный'),
-      this.setting('ordered', 'Нумерованный'),
-    ];
+  renderSettings(): HTMLElement {
+    const panel = document.createElement('div');
+    panel.className = 'slash-list-settings';
+    panel.append(
+      this.settingButton(panel, 'unordered', 'Маркированный список', LUCIDE_ICONS.list),
+      this.settingButton(panel, 'ordered', 'Нумерованный список', LUCIDE_ICONS.listOrdered),
+    );
+    return panel;
   }
 
-  private setting(style: NestedListData['style'], label: string) {
-    return {
-      label,
-      isActive: this.data.style === style,
-      closeOnActivate: true,
-      onActivate: () => this.changeStyle(style),
-    };
+  private settingButton(
+    panel: HTMLElement,
+    style: NestedListData['style'],
+    label: string,
+    icon: string,
+  ): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'cdx-settings-button slash-list-style-button';
+    button.classList.toggle('cdx-settings-button--active', this.data.style === style);
+    button.dataset.style = style;
+    button.title = label;
+    button.setAttribute('aria-label', label);
+    button.setAttribute('aria-pressed', String(this.data.style === style));
+    button.innerHTML = icon;
+    button.addEventListener('click', () => {
+      this.changeStyle(style);
+      panel.querySelectorAll<HTMLButtonElement>('.slash-list-style-button').forEach((item) => {
+        const active = item.dataset.style === style;
+        item.classList.toggle('cdx-settings-button--active', active);
+        item.setAttribute('aria-pressed', String(active));
+      });
+    });
+    return button;
   }
 
   private changeStyle(style: NestedListData['style']): void {

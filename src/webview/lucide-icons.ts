@@ -19,6 +19,9 @@ export const LUCIDE_ICONS = {
   list: lucideIcon(
     '<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
   ),
+  listOrdered: lucideIcon(
+    '<path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 6h1V2"/><path d="M4 10h2l-2 2h2"/><path d="M4 16h2l-2 2h2"/>',
+  ),
   table: lucideIcon(
     '<path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>',
   ),

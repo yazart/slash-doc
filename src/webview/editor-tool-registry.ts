@@ -46,7 +46,7 @@ export function createEditorTools(
     tools.list = {
       class: NestedListTool as unknown as ToolConstructable,
       inlineToolbar: false,
-      toolbox: { title: 'Список', icon: LUCIDE_ICONS.list },
+      toolbox: { title: 'Многоуровневый список', icon: LUCIDE_ICONS.list },
     };
   }
   if (addons?.confluenceTable !== false) {

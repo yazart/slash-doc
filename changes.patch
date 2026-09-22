@@ -1,0 +1,148 @@
+diff --git a/.vscode/launch.json b/.vscode/launch.json
+index 31ac563..c2c33b5 100644
+--- a/.vscode/launch.json
++++ b/.vscode/launch.json
+@@ -11,7 +11,6 @@
+         "vscode.mermaid-markdown-features"
+       ],
+       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+-      "preLaunchTask": "npm: compile"
+     }
+   ]
+ }
+diff --git a/src/webview/editor-tool-registry.ts b/src/webview/editor-tool-registry.ts
+index d8ff070..9a75e15 100644
+--- a/src/webview/editor-tool-registry.ts
++++ b/src/webview/editor-tool-registry.ts
+@@ -46,7 +46,7 @@ export function createEditorTools(
+     tools.list = {
+       class: NestedListTool as unknown as ToolConstructable,
+       inlineToolbar: false,
+-      toolbox: { title: 'Список', icon: LUCIDE_ICONS.list },
++      toolbox: { title: 'Многоуровневый список', icon: LUCIDE_ICONS.list },
+     };
+   }
+   if (addons?.confluenceTable !== false) {
+diff --git a/src/webview/lucide-icons.ts b/src/webview/lucide-icons.ts
+index 3ea4e93..ccda9f2 100644
+--- a/src/webview/lucide-icons.ts
++++ b/src/webview/lucide-icons.ts
+@@ -19,6 +19,9 @@ export const LUCIDE_ICONS = {
+   list: lucideIcon(
+     '<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
+   ),
++  listOrdered: lucideIcon(
++    '<path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 6h1V2"/><path d="M4 10h2l-2 2h2"/><path d="M4 16h2l-2 2h2"/>',
++  ),
+   table: lucideIcon(
+     '<path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>',
+   ),
+diff --git a/src/webview/nested-list-tool.css b/src/webview/nested-list-tool.css
+index 31f78da..0fe2c91 100644
+--- a/src/webview/nested-list-tool.css
++++ b/src/webview/nested-list-tool.css
+@@ -5,3 +5,12 @@
+ .slash-nested-list-item > :is(ol, ul) {
+   margin: 2px 0 2px 22px;
+ }
++.slash-list-settings {
++  display: flex;
++  gap: 3px;
++  padding: 3px;
++}
++.slash-list-style-button svg {
++  width: 20px;
++  height: 20px;
++}
+diff --git a/src/webview/nested-list-tool.ts b/src/webview/nested-list-tool.ts
+index 9268c45..51e1703 100644
+--- a/src/webview/nested-list-tool.ts
++++ b/src/webview/nested-list-tool.ts
+@@ -1,4 +1,5 @@
+ import type { API, BlockToolConstructorOptions } from '@editorjs/editorjs/types';
++import { LUCIDE_ICONS } from './lucide-icons';
+ 
+ export type NestedListItem = { content: string; items: NestedListItem[] };
+ export type NestedListData = { style: 'ordered' | 'unordered'; items: NestedListItem[] };
+@@ -9,6 +10,10 @@ export default class NestedListTool {
+   private data: NestedListData;
+   private root?: HTMLOListElement | HTMLUListElement;
+ 
++  static get toolbox() {
++    return { title: 'Многоуровневый список', icon: LUCIDE_ICONS.list };
++  }
++
+   static get isReadOnlySupported(): boolean {
+     return true;
+   }
+@@ -50,20 +55,40 @@ export default class NestedListTool {
+     return true;
+   }
+ 
+-  renderSettings() {
+-    return [
+-      this.setting('unordered', 'Маркированный'),
+-      this.setting('ordered', 'Нумерованный'),
+-    ];
++  renderSettings(): HTMLElement {
++    const panel = document.createElement('div');
++    panel.className = 'slash-list-settings';
++    panel.append(
++      this.settingButton(panel, 'unordered', 'Маркированный список', LUCIDE_ICONS.list),
++      this.settingButton(panel, 'ordered', 'Нумерованный список', LUCIDE_ICONS.listOrdered),
++    );
++    return panel;
+   }
+ 
+-  private setting(style: NestedListData['style'], label: string) {
+-    return {
+-      label,
+-      isActive: this.data.style === style,
+-      closeOnActivate: true,
+-      onActivate: () => this.changeStyle(style),
+-    };
++  private settingButton(
++    panel: HTMLElement,
++    style: NestedListData['style'],
++    label: string,
++    icon: string,
++  ): HTMLButtonElement {
++    const button = document.createElement('button');
++    button.type = 'button';
++    button.className = 'cdx-settings-button slash-list-style-button';
++    button.classList.toggle('cdx-settings-button--active', this.data.style === style);
++    button.dataset.style = style;
++    button.title = label;
++    button.setAttribute('aria-label', label);
++    button.setAttribute('aria-pressed', String(this.data.style === style));
++    button.innerHTML = icon;
++    button.addEventListener('click', () => {
++      this.changeStyle(style);
++      panel.querySelectorAll<HTMLButtonElement>('.slash-list-style-button').forEach((item) => {
++        const active = item.dataset.style === style;
++        item.classList.toggle('cdx-settings-button--active', active);
++        item.setAttribute('aria-pressed', String(active));
++      });
++    });
++    return button;
+   }
+ 
+   private changeStyle(style: NestedListData['style']): void {
+diff --git a/test/nested-list-tool.test.ts b/test/nested-list-tool.test.ts
+index a97f91e..89b1e00 100644
+--- a/test/nested-list-tool.test.ts
++++ b/test/nested-list-tool.test.ts
+@@ -1,7 +1,13 @@
+ import { describe, expect, it } from 'vitest';
+ import { normalizeNestedListItems } from '../src/webview/nested-list-tool';
++import NestedListTool from '../src/webview/nested-list-tool';
+ 
+ describe('nested list tool', () => {
++  it('is available in the EditorJS toolbox', () => {
++    expect(NestedListTool.toolbox.title).toBe('Многоуровневый список');
++    expect(NestedListTool.toolbox.icon).toContain('<svg');
++  });
++
+   it('migrates legacy flat list items without losing inline markup', () => {
+     expect(normalizeNestedListItems(['Первый', '<b>Второй</b>'])).toEqual([
+       { content: 'Первый', items: [] },
