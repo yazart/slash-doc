@@ -2,6 +2,7 @@ import type { OutputData } from '@editorjs/editorjs';
 import { migrateApprovalTableData } from '../shared/approval-table-migration';
 import { removePageTime } from '../shared/page-content';
 import { normalizeParagraphText } from './persistent-paragraph-tool';
+import { readListItems } from './nested-list-tool';
 
 export function normalizeEditorData(value: unknown): OutputData {
   const source = isRecord(value) ? value : {};
@@ -43,7 +44,8 @@ export function preserveInlineMarkup(data: OutputData): OutputData {
       return;
     }
     if (block.type === 'list') {
-      const items = Array.from(element.querySelectorAll<HTMLElement>('.cdx-list__item')).map((item) => item.innerHTML);
+      const list = element.querySelector<HTMLElement>('.cdx-list');
+      const items = list ? readListItems(list) : [];
       if (items.length > 0) block.data.items = items;
     }
   });

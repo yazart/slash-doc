@@ -22,6 +22,7 @@ import {
   getEditorBlocks,
   getExportTitle,
   getListItems,
+  type ExportListItem,
   getTableRows,
   htmlToMarkdownInline,
   markdownCodeFence,
@@ -106,9 +107,7 @@ function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>): 
   }
 
   if (type === 'list') {
-    const tag = data.style === 'ordered' ? 'ol' : 'ul';
-    const items = getListItems(data);
-    return `<${tag}>${items.map((item) => `<li>${item}</li>`).join('')}</${tag}>`;
+    return renderListHtml(getListItems(data), data.style === 'ordered');
   }
 
   if (type === 'table' || type === 'confluenceTable') {
@@ -183,11 +182,7 @@ function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown
   }
 
   if (type === 'list') {
-    return getListItems(data)
-      .map((item, index) =>
-        data.style === 'ordered' ? `${index + 1}. ${htmlToMarkdownInline(item)}` : `- ${htmlToMarkdownInline(item)}`,
-      )
-      .join('\n');
+    return renderListMarkdown(getListItems(data), data.style === 'ordered');
   }
 
   if (type === 'table' || type === 'confluenceTable') {
@@ -253,4 +248,21 @@ function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown
   }
 
   return `\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
+}
+
+function renderListHtml(items: ExportListItem[], ordered: boolean): string {
+  const tag = ordered ? 'ol' : 'ul';
+  return `<${tag}>${items
+    .map((item) => `<li>${item.content}${item.items.length ? renderListHtml(item.items, ordered) : ''}</li>`)
+    .join('')}</${tag}>`;
+}
+
+function renderListMarkdown(items: ExportListItem[], ordered: boolean, depth = 0): string {
+  return items
+    .flatMap((item, index) => {
+      const marker = ordered ? `${index + 1}.` : '-';
+      const line = `${'  '.repeat(depth)}${marker} ${htmlToMarkdownInline(item.content)}`;
+      return [line, ...(item.items.length ? [renderListMarkdown(item.items, ordered, depth + 1)] : [])];
+    })
+    .join('\n');
 }

@@ -1,0 +1,7 @@
+.slash-nested-list-item > .cdx-list__item {
+  min-height: 24px;
+  outline: none;
+}
+.slash-nested-list-item > :is(ol, ul) {
+  margin: 2px 0 2px 22px;
+}

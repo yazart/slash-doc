@@ -23,6 +23,7 @@ import './editor-components.css';
 import './editor-editorjs.css';
 import './text-inline-toolbar.css';
 import './page-history-panel.css';
+import './nested-list-tool.css';
 
 type VSCodeApi = { postMessage(message: unknown): void };
 

@@ -70,12 +70,19 @@ export function getExportTitle(blocks: Record<string, unknown>[]): string {
   return text || 'Slash Doc';
 }
 
-export function getListItems(data: Record<string, unknown>): string[] {
+export type ExportListItem = { content: string; items: ExportListItem[] };
+
+export function getListItems(data: Record<string, unknown>): ExportListItem[] {
   if (!Array.isArray(data.items)) return [];
   return data.items.map((item) => {
-    if (typeof item === 'string') return item;
-    if (isRecord(item) && typeof item.content === 'string') return item.content;
-    return String(item ?? '');
+    if (typeof item === 'string') return { content: item, items: [] };
+    if (isRecord(item)) {
+      return {
+        content: typeof item.content === 'string' ? item.content : '',
+        items: getListItems({ items: item.items }),
+      };
+    }
+    return { content: String(item ?? ''), items: [] };
   });
 }
 

@@ -2,7 +2,6 @@ import type { EditorConfig } from '@editorjs/editorjs/types/configs';
 import type { InlineToolConstructable, ToolConstructable } from '@editorjs/editorjs/types/tools';
 import Header from '@editorjs/header';
 import ImageTool from '@editorjs/image';
-import List from '@editorjs/list';
 import mermaid from 'mermaid';
 import ApiEndpointTool from './api-endpoint-tool';
 import { BpmnModelerTool, BpmnPreviewTool } from './bpmn-tools';
@@ -19,6 +18,7 @@ import LucideMarker from './lucide-marker';
 import LucideUnderline from './lucide-underline';
 import MermaidTool from './mermaid-tool';
 import NetworkCanvasTool from './network-canvas-tool';
+import NestedListTool from './nested-list-tool';
 import PageLinkTool from './page-link-tool';
 import PersistentParagraphTool from './persistent-paragraph-tool';
 import TaskTableTool from './task-table-tool';
@@ -44,7 +44,7 @@ export function createEditorTools(
   }
   if (addons?.list !== false) {
     tools.list = {
-      class: List as unknown as ToolConstructable,
+      class: NestedListTool as unknown as ToolConstructable,
       inlineToolbar: false,
       toolbox: { title: 'Список', icon: LUCIDE_ICONS.list },
     };
