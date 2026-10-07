@@ -5,12 +5,14 @@
       "name": "Run Extension",
       "type": "extensionHost",
       "request": "launch",
+      "noDebug": true,
+      "timeout": 60000,
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}",
         "--enable-proposed-api",
         "vscode.mermaid-markdown-features"
       ],
-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
     }
   ]
 }

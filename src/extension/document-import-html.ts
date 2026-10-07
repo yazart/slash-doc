@@ -14,6 +14,7 @@ import {
   readFileProcessorHtml,
   readImageAnnotationHtml,
   readMermaidSvg,
+  readMkDocsWidgetHtml,
   readTaskTableHtml,
 } from './document-import-readers';
 
@@ -23,7 +24,7 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
     .replaceAll(/<script[\s\S]*?<\/script>/gi, '')
     .replaceAll(/<style[\s\S]*?<\/style>/gi, '');
   const blockPattern =
-    /<(h[1-6]|p|ul|ol|table|figure|section|div|article|main|blockquote|pre|svg)\b[^>]*>([\s\S]*?)<\/\1\s*>|<img\b([^>]*)>/gi;
+    /<(h[1-6]|p|ul|ol|table|figure|section|div|article|main|blockquote|pre|svg|aside|details)\b[^>]*>([\s\S]*?)<\/\1\s*>|<img\b([^>]*)>/gi;
   let match: RegExpExecArray | null;
   let consumedUntil = 0;
 
@@ -33,6 +34,13 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
     const tag = (match[1] ?? 'img').toLowerCase();
     const outer = match[0];
     const inner = match[2] ?? '';
+    const mkDocsWidget = readMkDocsWidgetHtml(outer);
+    if (mkDocsWidget) {
+      blocks.push(createEditorBlock(mkDocsWidget.type, mkDocsWidget.data));
+      skipUnclosedHtmlElement(body, outer, match.index, blockPattern, tag);
+      consumedUntil = blockPattern.lastIndex;
+      continue;
+    }
 
     if (tag === 'section') {
       const apiEndpoint = readApiEndpointHtml(outer);
@@ -58,7 +66,14 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
       continue;
     }
 
-    if (tag === 'div' || tag === 'article' || tag === 'main' || tag === 'blockquote') {
+    if (
+      tag === 'div' ||
+      tag === 'article' ||
+      tag === 'main' ||
+      tag === 'blockquote' ||
+      tag === 'aside' ||
+      tag === 'details'
+    ) {
       blocks.push(...importHtmlBlocks(inner));
       continue;
     }

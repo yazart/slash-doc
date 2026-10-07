@@ -2,6 +2,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import {
   createDocumentationTree,
+  getMarkdownPagePath,
   renderMarkdownContents,
   rewriteMarkdownPageLinks,
 } from '../shared/documentation-tree';
@@ -14,6 +15,7 @@ import { getDefaultSettings, normalizeSettings } from '../extension/settings';
 import { flattenPages, prepareCompiledPage, renderHostHtml } from '../extension/site-renderer';
 import type { SlashDocMenuItem } from '../extension/types';
 import { isRecord } from '../extension/utils';
+import { readPageRevisionMetadata, resolvePageRevisionFile } from '../shared/page-revision';
 
 export type DocumentationCompilerOptions = {
   projectRoot: string;
@@ -21,6 +23,7 @@ export type DocumentationCompilerOptions = {
   addonsRoot?: string;
   projectName?: string;
   format?: 'html' | 'md';
+  repositoryUrl?: string;
 };
 
 export type DocumentationCompilerResult = {
@@ -56,8 +59,14 @@ export async function compileDocumentation(
   await mkdir(pagesOutputRoot, { recursive: true });
   for (const page of pages) {
     const data = await readPage(docsRoot, page);
+    const revisionFile = await resolvePageRevisionFile(projectRoot, page.id);
+    const revision = await readPageRevisionMetadata(
+      projectRoot,
+      revisionFile,
+      options.repositoryUrl ?? settings.exportOptions.repositoryUrl,
+    );
     searchIndex.push({ pageId: page.id, title: page.title, text: getDocumentationSearchText(data) });
-    await writeCompiledPage(outputRoot, page, pageIds, data, settings, customExporter);
+    await writeCompiledPage(outputRoot, page, pageIds, data, settings, customExporter, revision);
   }
 
   const indexPath = resolve(outputRoot, 'index.html');
@@ -73,10 +82,11 @@ async function writeCompiledPage(
   data: unknown,
   settings: ReturnType<typeof getDefaultSettings>,
   customExporter: CustomBlockExporter | undefined,
+  revision: Awaited<ReturnType<typeof readPageRevisionMetadata>>,
 ): Promise<void> {
   const exported = await exportPageContent(data, 'html', settings, customExporter);
   const outputPath = resolveInside(resolve(outputRoot, 'pages'), `${page.id}.html`);
-  const html = prepareCompiledPage(exported, page.id, pageIds);
+  const html = prepareCompiledPage(exported, page.id, pageIds, revision);
   const result = settings.exportOptions.separateFiles
     ? extractEmbeddedImages(html, `${page.id}-image`)
     : { content: html, images: [] };
@@ -107,10 +117,11 @@ async function compileMarkdownDocumentation(
     const result = settings.exportOptions.separateFiles
       ? extractEmbeddedImages(markdown)
       : { content: markdown, images: [] };
-    await writeFile(resolve(pageRoot, 'content.md'), result.content, 'utf8');
+    const pageFileName = getMarkdownPagePath(current).at(-1) ?? 'Страница.md';
+    await writeFile(resolve(pageRoot, pageFileName), result.content, 'utf8');
     await Promise.all(result.images.map((image) => writeFile(resolve(pageRoot, image.fileName), image.data)));
   }
-  const indexPath = resolve(outputRoot, 'contents.md');
+  const indexPath = resolve(outputRoot, settings.exportOptions.markdownRootFileName);
   await writeFile(indexPath, renderMarkdownContents(items, pages), 'utf8');
   return { indexPath, outputRoot, pageCount: pages.length };
 }

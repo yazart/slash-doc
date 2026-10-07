@@ -23,5 +23,9 @@ export type SlashDocWebviewSettings = {
     bpmnModeler?: boolean;
     bpmnPreview?: boolean;
     userMention?: boolean;
+    mkdocsAdmonition?: boolean;
+    mkdocsTabs?: boolean;
+    mkdocsDetails?: boolean;
+    mkdocsChecklist?: boolean;
   };
 };

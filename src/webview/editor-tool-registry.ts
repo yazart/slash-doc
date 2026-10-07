@@ -17,6 +17,10 @@ import LucideInlineCode from './lucide-inline-code';
 import LucideMarker from './lucide-marker';
 import LucideUnderline from './lucide-underline';
 import MermaidTool from './mermaid-tool';
+import MkDocsAdmonitionTool from './mkdocs-admonition-tool';
+import MkDocsChecklistTool from './mkdocs-checklist-tool';
+import MkDocsDetailsTool from './mkdocs-details-tool';
+import MkDocsTabsTool from './mkdocs-tabs-tool';
 import NetworkCanvasTool from './network-canvas-tool';
 import NestedListTool from './nested-list-tool';
 import PageLinkTool from './page-link-tool';
@@ -96,6 +100,10 @@ export function createEditorTools(
   if (addons?.diffBlock !== false) tools.diffBlock = DiffBlockTool;
   if (addons?.bpmnModeler !== false) tools.bpmnModeler = BpmnModelerTool;
   if (addons?.bpmnPreview !== false) tools.bpmnPreview = BpmnPreviewTool;
+  if (addons?.mkdocsAdmonition !== false) tools.mkdocsAdmonition = MkDocsAdmonitionTool;
+  if (addons?.mkdocsTabs !== false) tools.mkdocsTabs = MkDocsTabsTool;
+  if (addons?.mkdocsDetails !== false) tools.mkdocsDetails = MkDocsDetailsTool;
+  if (addons?.mkdocsChecklist !== false) tools.mkdocsChecklist = MkDocsChecklistTool;
   return {
     tools,
     inlineToolbarTools: [

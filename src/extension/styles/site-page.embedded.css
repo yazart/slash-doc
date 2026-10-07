@@ -1,3 +1,88 @@
 body {
   max-width: 1940px;
+  padding-top: 72px;
+}
+
+.slash-doc-page-revision {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  margin: -0.25em 0 1.5em;
+  color: var(--slash-page-muted);
+  font-size: 13px;
+}
+
+.slash-doc-page-revision time,
+.slash-doc-page-revision-user {
+  color: inherit;
+}
+
+.slash-doc-page-revision a {
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+.slash-doc-copy-html {
+  position: fixed;
+  z-index: 100;
+  top: 14px;
+  right: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 11px;
+  color: var(--slash-page-foreground);
+  cursor: pointer;
+  border: 1px solid var(--slash-page-border);
+  border-radius: 6px;
+  background: var(--slash-page-surface);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.slash-doc-copy-html:hover {
+  border-color: var(--slash-page-link);
+}
+
+.slash-doc-copy-html:focus-visible {
+  outline: 2px solid var(--slash-page-link);
+  outline-offset: 2px;
+}
+
+.slash-doc-copy-html.copied {
+  color: #fff;
+  border-color: #1a7f37;
+  background: #1a7f37;
+}
+
+.slash-doc-copy-html svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 650px) {
+  body {
+    padding-top: 64px;
+  }
+
+  .slash-doc-copy-html {
+    top: 10px;
+    right: 12px;
+  }
+}
+
+@media print {
+  .slash-doc-copy-html {
+    display: none;
+  }
 }

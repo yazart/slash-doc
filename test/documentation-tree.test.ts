@@ -8,7 +8,7 @@ describe('Markdown documentation tree', () => {
     const pages = createDocumentationTree(items);
 
     expect(pages.map((item) => item.directories)).toEqual([['API - Intro'], ['API - Intro (2)'], ['Страница']]);
-    expect(renderMarkdownContents(items, pages)).toContain('[API / Intro](API%20-%20Intro/content.md)');
+    expect(renderMarkdownContents(items, pages)).toContain('[API / Intro](API%20-%20Intro/API%20-%20Intro.md)');
   });
 });
 

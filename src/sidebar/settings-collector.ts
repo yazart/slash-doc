@@ -7,7 +7,12 @@ export function collectSettings() {
       enabled: isSwitchEnabled('auto-save-enabled', true),
       intervalSeconds: Number(document.querySelector<HTMLInputElement>('#auto-save-interval')?.value ?? '1'),
     },
-    exportOptions: { separateFiles: isSwitchEnabled('separate-files', false) },
+    exportOptions: {
+      separateFiles: isSwitchEnabled('separate-files', false),
+      repositoryUrl: document.querySelector<HTMLInputElement>('#repository-url')?.value.trim() ?? '',
+      markdownRootFileName:
+        document.querySelector<HTMLInputElement>('#markdown-root-file-name')?.value.trim() ?? 'README.md',
+    },
     editorAddons: {
       header: isAddonEnabled('header'),
       list: isAddonEnabled('list'),
@@ -29,6 +34,10 @@ export function collectSettings() {
       bpmnModeler: isAddonEnabled('bpmnModeler'),
       bpmnPreview: isAddonEnabled('bpmnPreview'),
       userMention: isAddonEnabled('userMention'),
+      mkdocsAdmonition: isAddonEnabled('mkdocsAdmonition'),
+      mkdocsTabs: isAddonEnabled('mkdocsTabs'),
+      mkdocsDetails: isAddonEnabled('mkdocsDetails'),
+      mkdocsChecklist: isAddonEnabled('mkdocsChecklist'),
     },
     customEditorAddons: Array.from(document.querySelectorAll<HTMLElement>('[data-custom-addon-id]')).map((row) => ({
       id: row.dataset.customAddonId ?? createId('addon'),

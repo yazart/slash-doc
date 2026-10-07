@@ -36,7 +36,10 @@ export default class NestedListTool {
   constructor({ data, api, readOnly }: BlockToolConstructorOptions<NestedListData>) {
     this.api = api;
     this.readOnly = readOnly;
-    this.data = { style: data?.style === 'ordered' ? 'ordered' : 'unordered', items: normalizeNestedListItems(data?.items) };
+    this.data = {
+      style: data?.style === 'ordered' ? 'ordered' : 'unordered',
+      items: normalizeNestedListItems(data?.items),
+    };
   }
 
   render(): HTMLElement {
@@ -157,7 +160,12 @@ export default class NestedListTool {
 
   private exitList(content: HTMLElement): boolean {
     const item = content.parentElement;
-    if (!item || item.parentElement !== this.root || item !== this.root.lastElementChild || this.root.children.length < 2) {
+    if (
+      !item ||
+      item.parentElement !== this.root ||
+      item !== this.root.lastElementChild ||
+      this.root.children.length < 2
+    ) {
       return false;
     }
     item.remove();
@@ -240,12 +248,16 @@ function selectedItems(root: Element): HTMLLIElement[] {
   const range = selection.getRangeAt(0);
   return Array.from(root.querySelectorAll<HTMLLIElement>('li.slash-nested-list-item')).filter((item) => {
     const content = item.querySelector(':scope > .cdx-list__item');
-    return Boolean(content && (range.collapsed ? content.contains(selection.anchorNode) : range.intersectsNode(content)));
+    return Boolean(
+      content && (range.collapsed ? content.contains(selection.anchorNode) : range.intersectsNode(content)),
+    );
   });
 }
 
 function currentContent(event: KeyboardEvent): HTMLElement | undefined {
-  return event.composedPath().find((item): item is HTMLElement => item instanceof HTMLElement && item.matches('.cdx-list__item'));
+  return event
+    .composedPath()
+    .find((item): item is HTMLElement => item instanceof HTMLElement && item.matches('.cdx-list__item'));
 }
 
 function focusContent(content: HTMLElement): void {

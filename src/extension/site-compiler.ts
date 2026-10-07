@@ -6,6 +6,7 @@ import { getDocumentationSearchText } from './documentation-search-text';
 import { readMenu, readPageContent } from './pages';
 import { readSettings } from './settings-store';
 import { flattenPages, prepareCompiledPage, renderHostHtml } from './site-renderer';
+import { readPageRevisionMetadata, resolvePageRevisionFile } from '../shared/page-revision';
 
 export type CompiledDocumentation = {
   indexUri: vscode.Uri;
@@ -29,11 +30,17 @@ export async function compileDocumentationSite(
 
   for (const page of pages) {
     const data = await readPageContent(workspaceRoot, page.id, page.title);
+    const revision = await readPageRevisionMetadata(
+      workspaceRoot.fsPath,
+      await resolvePageRevisionFile(workspaceRoot.fsPath, page.id),
+      settings.exportOptions.repositoryUrl,
+    );
     searchIndex.push({ pageId: page.id, title: page.title, text: getDocumentationSearchText(data) });
     const exported = prepareCompiledPage(
       await exportPageContent(data, 'html', settings, customExporter),
       page.id,
       pageIds,
+      revision,
     );
     const result = settings.exportOptions.separateFiles
       ? extractEmbeddedImages(exported, `${page.id}-image`)

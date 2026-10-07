@@ -1,4 +1,5 @@
 import type { SlashDocMenuItem } from './types';
+import type { PageRevisionMetadata } from '../shared/page-revision';
 import { escapeAttribute, escapeHtml, escapeScriptJson } from './utils';
 import hostStyles from './styles/site-host.embedded.css?raw';
 import pageStyles from './styles/site-page.embedded.css?raw';
@@ -9,12 +10,78 @@ export function flattenPages(items: SlashDocMenuItem[]): SlashDocMenuItem[] {
   return items.flatMap((item) => [item, ...flattenPages(item.children)]);
 }
 
-export function prepareCompiledPage(html: string, pageId: string, pageIds: Set<string>): string {
-  const withLinks = rewriteDocumentationLinks(html, pageIds);
+export function prepareCompiledPage(
+  html: string,
+  pageId: string,
+  pageIds: Set<string>,
+  revision?: PageRevisionMetadata,
+): string {
+  const withLinks = injectPageRevision(rewriteDocumentationLinks(html, pageIds), revision);
   const additions = `<meta name="slash-doc-page-id" content="${escapeAttribute(pageId)}">
   <style>${pageStyles}</style>
-  <script>window.parent.postMessage({type:'slash-doc-page',pageId:${escapeScriptJson(pageId)}}, '*');</script>`;
-  return withLinks.replace('</head>', `${additions}\n  </head>`);
+  <script>try{const theme=window.parent.document.documentElement.dataset.slashDocTheme;if(theme)document.documentElement.dataset.slashDocTheme=theme}catch{}window.parent.postMessage({type:'slash-doc-page',pageId:${escapeScriptJson(pageId)}}, '*');</script>`;
+  const prepared = withLinks.replace('</head>', `${additions}\n  </head>`);
+  const copyControl = `<button class="slash-doc-copy-html" type="button" data-slash-doc-copy-control aria-label="Скопировать HTML страницы" title="Скопировать HTML страницы">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+    <span>Скопировать HTML</span>
+  </button>
+  <script data-slash-doc-copy-script>${getCopyPageScript()}</script>`;
+  return prepared.replace('</body>', `${copyControl}\n  </body>`);
+}
+
+function injectPageRevision(html: string, revision: PageRevisionMetadata | undefined): string {
+  if (!revision) return html;
+  const date = formatRevisionDate(revision.changedAt);
+  const editLink =
+    revision.editUrl && /^https?:\/\//i.test(revision.editUrl)
+      ? ` <a href="${escapeAttribute(revision.editUrl)}" target="_blank" rel="noopener noreferrer">Редактировать</a>`
+      : '';
+  const metadata = `<p class="slash-doc-page-revision">Изменено: <time datetime="${escapeAttribute(revision.changedAt)}">${escapeHtml(date)}</time> <span class="slash-doc-page-revision-user">${escapeHtml(revision.user)}</span>${editLink}</p>`;
+  const heading = /<h([1-6])\b[^>]*>[\s\S]*?<\/h\1\s*>/i;
+  if (heading.test(html)) return html.replace(heading, (value) => `${value}\n${metadata}`);
+  return html.replace(/<body\b[^>]*>/i, (value) => `${value}\n${metadata}`);
+}
+
+function formatRevisionDate(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
+function getCopyPageScript(): string {
+  return `(() => {
+    const button = document.querySelector('[data-slash-doc-copy-control]');
+    if (!button) return;
+    const writeClipboard = async (value) => {
+      if (navigator.clipboard?.writeText) {
+        try { await navigator.clipboard.writeText(value); return true; } catch {}
+      }
+      const textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.setAttribute('readonly', '');
+      textarea.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+      document.body.append(textarea);
+      textarea.select();
+      let copied = false;
+      try { copied = document.execCommand('copy'); } catch {}
+      textarea.remove();
+      return copied;
+    };
+    button.addEventListener('click', async () => {
+      const clone = document.documentElement.cloneNode(true);
+      clone.removeAttribute('data-slash-doc-theme');
+      clone.querySelectorAll('[data-slash-doc-copy-control],script[data-slash-doc-copy-script]').forEach((item) => item.remove());
+      const source = '<!DOCTYPE html>\\n' + clone.outerHTML;
+      const copied = await writeClipboard(source);
+      const label = button.querySelector('span');
+      const original = 'Скопировать HTML';
+      if (label) label.textContent = copied ? 'Скопировано' : 'Не удалось скопировать';
+      button.classList.toggle('copied', copied);
+      window.setTimeout(() => {
+        if (label) label.textContent = original;
+        button.classList.remove('copied');
+      }, 1800);
+    });
+  })();`;
 }
 
 function rewriteDocumentationLinks(html: string, pageIds: Set<string>): string {
@@ -99,7 +166,7 @@ export function renderHostHtml(
 </head>
 <body>
   <aside class="sidebar">
-    <header class="sidebar-title">${escapeHtml(projectName)}</header>
+    <header class="sidebar-title"><span>${escapeHtml(projectName)}</span><button class="theme-toggle" type="button" aria-label="Включить тёмную тему" title="Включить тёмную тему">☾</button></header>
     <div class="documentation-search"><input type="search" placeholder="Поиск по документации" aria-label="Поиск по документации"></div>
     <nav class="navigation" aria-label="Страницы документации">${renderHostMenu(items)}</nav>
     <div class="search-results" hidden></div>
@@ -109,6 +176,24 @@ export function renderHostHtml(
   <script>
     const links = Array.from(document.querySelectorAll('.page-link'));
     const content = document.querySelector('.content');
+    const themeToggle = document.querySelector('.theme-toggle');
+    const themeStorageKey = 'slash-doc-theme';
+    let currentTheme = 'light';
+    try { currentTheme = localStorage.getItem(themeStorageKey) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch {}
+    const applyTheme = (theme) => {
+      currentTheme = theme === 'dark' ? 'dark' : 'light';
+      document.documentElement.dataset.slashDocTheme = currentTheme;
+      themeToggle.textContent = currentTheme === 'dark' ? '☀' : '☾';
+      const label = currentTheme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему';
+      themeToggle.setAttribute('aria-label', label);
+      themeToggle.title = label;
+      try { content.contentDocument.documentElement.dataset.slashDocTheme = currentTheme; } catch {}
+    };
+    applyTheme(currentTheme);
+    themeToggle.addEventListener('click', () => {
+      applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+      try { localStorage.setItem(themeStorageKey, currentTheme); } catch {}
+    });
     const pageLinks = new Map(links.map((link) => [link.dataset.pageId, link]));
     let activePageId = '';
     let expectedPageId = '';
@@ -137,6 +222,7 @@ export function renderHostHtml(
     };
     content.addEventListener('load', () => {
       try {
+        content.contentDocument.documentElement.dataset.slashDocTheme = currentTheme;
         const pageId = content.contentDocument?.querySelector('meta[name="slash-doc-page-id"]')?.content;
         if (pageId) acceptLoadedPage(pageId);
       } catch {}

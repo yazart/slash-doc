@@ -25,6 +25,14 @@ export function renderSettingsPanel(settings: SlashDocSettings): string {
           <span>Сохранять файлы документа отдельно</span>
           <slash-switch id="separate-files" ${settings.exportOptions.separateFiles ? 'checked' : ''}></slash-switch>
         </label>
+        <label class="settings-row repository-settings-row">
+          <span>GitLab-репозиторий</span>
+          <input class="settings-input" id="repository-url" type="url" value="${escapeAttribute(settings.exportOptions.repositoryUrl)}" placeholder="https://gitlab.example/group/project">
+        </label>
+        <label class="settings-row repository-settings-row">
+          <span>Корневой Markdown-файл</span>
+          <input class="settings-input" id="markdown-root-file-name" value="${escapeAttribute(settings.exportOptions.markdownRootFileName)}" placeholder="README.md">
+        </label>
       </div>
       <div class="settings-group">
         <div class="settings-group-title">Свои Editor.js аддоны</div>

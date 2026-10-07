@@ -259,6 +259,10 @@ async function initEditor() {
           Diff: 'Diff',
           'BPMN Modeler': 'BPMN-редактор',
           'BPMN Preview': 'Предпросмотр BPMN',
+          'MkDocs Admonition': 'Примечание MkDocs',
+          'MkDocs Tabs': 'Вкладки MkDocs',
+          'MkDocs Details': 'Раскрываемый блок',
+          'MkDocs Checklist': 'Чеклист MkDocs',
         },
         tools: {
           header: {

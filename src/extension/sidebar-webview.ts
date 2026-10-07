@@ -29,8 +29,8 @@ export async function getSidebarHtml(
           <div class="menu-panel">
             <div class="actions-row">
               <slash-button id="create-page" size="small" variant="primary">Создать страницу</slash-button>
-              <slash-tooltip class="import-tooltip" content="Импорт">
-                <slash-button id="import-page" size="small" variant="default" aria-label="Импорт">
+              <slash-tooltip class="import-tooltip" content="Импорт страницы или MkDocs ZIP">
+                <slash-button id="import-page" size="small" variant="default" aria-label="Импорт страницы или MkDocs ZIP">
                   <svg class="import-icon" viewBox="0 0 20 20" aria-hidden="true">
                     <path d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5M4 11.5V16h12v-4.5" />
                   </svg>

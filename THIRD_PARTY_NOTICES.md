@@ -12,11 +12,14 @@ Slash Doc включает стороннее программное обесп�
 | bpmn-js 9.0.0                                                  | MIT-подобная лицензия с обязательным видимым watermark bpmn.io |
 | csv                                                            | MIT                                                            |
 | Express                                                        | MIT                                                            |
+| fflate                                                         | MIT                                                            |
 | highlight.js                                                   | BSD-3-Clause                                                   |
 | Lit                                                            | BSD-3-Clause                                                   |
 | Lucide Icons                                                   | ISC; отдельные Feather-derived иконки — MIT                    |
 | Mermaid                                                        | MIT                                                            |
+| Model Context Protocol TypeScript SDK                          | MIT                                                            |
 | Puppeteer                                                      | Apache-2.0                                                     |
+| Zod                                                            | MIT                                                            |
 
 ## Транзитивные зависимости
 

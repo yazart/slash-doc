@@ -15,6 +15,7 @@ import { readSettings, writeSettings } from './settings-store';
 import { importDocumentContent } from './document-import';
 import { searchDocumentation } from './documentation-search';
 import { saveStoredPageContent } from './page-storage';
+import { importMkDocsZip } from './mkdocs-zip-import';
 import { getSidebarHtml } from './sidebar-webview';
 import type { ApiServerManager } from './api-server';
 import { compileDocumentation, initializeDocumentation } from './sidebar-provider-actions';
@@ -363,6 +364,7 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
       canSelectMany: false,
       filters: {
         'Markdown / HTML': ['md', 'markdown', 'html', 'htm'],
+        'Проект MkDocs': ['zip'],
       },
       openLabel: 'Импортировать',
     });
@@ -374,6 +376,17 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     }
 
     const bytes = await vscode.workspace.fs.readFile(file);
+    if (file.fsPath.toLowerCase().endsWith('.zip')) {
+      try {
+        const result = await importMkDocsZip(workspaceRoot, bytes, parentId);
+        void vscode.window.showInformationMessage(`Импортировано страниц MkDocs: ${result.pageCount}.`);
+        return result.firstPageId;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        void vscode.window.showErrorMessage(`Не удалось импортировать MkDocs ZIP: ${message}`);
+        return undefined;
+      }
+    }
     const text = new TextDecoder().decode(bytes);
     const imported = importDocumentContent(text, file);
     return createSidebarPageWithContent(imported.title, imported.content, parentId);

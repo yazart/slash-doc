@@ -35,4 +35,13 @@ describe('Vite target configuration', () => {
     expect(typeof library === 'object' && library.fileName()).toBe('slash-doc-compile.js');
     expect(typeof library === 'object' && library.formats).toEqual(['cjs']);
   });
+
+  it('builds the MCP stdio server as a Node executable', () => {
+    const config = createSlashDocViteConfig('mcp');
+    const library = config.build?.lib;
+
+    expect(config.resolve).toMatchObject({ conditions: ['node'] });
+    expect(typeof library === 'object' && library.fileName()).toBe('slash-doc-mcp.js');
+    expect(typeof library === 'object' && library.formats).toEqual(['cjs']);
+  });
 });

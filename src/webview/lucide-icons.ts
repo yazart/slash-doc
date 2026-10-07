@@ -80,4 +80,17 @@ export const LUCIDE_ICONS = {
   ),
   history: lucideIcon('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>'),
   x: lucideIcon('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+  messageSquareWarning: lucideIcon(
+    '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M12 7v4"/><path d="M12 15h.01"/>',
+  ),
+  panelsTopLeft: lucideIcon('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>'),
+  chevronsUpDown: lucideIcon('<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>'),
+  listChecks: lucideIcon(
+    '<path d="m3 5 2 2 4-4"/><path d="m3 12 2 2 4-4"/><path d="m3 19 2 2 4-4"/><path d="M11 6h10"/><path d="M11 13h10"/><path d="M11 20h10"/>',
+  ),
+  indentIncrease: lucideIcon('<path d="M3 5h18"/><path d="M3 12h11"/><path d="M3 19h18"/><path d="m14 9 3 3-3 3"/>'),
+  indentDecrease: lucideIcon('<path d="M3 5h18"/><path d="M10 12h11"/><path d="M3 19h18"/><path d="m10 9-3 3 3 3"/>'),
+  trash2: lucideIcon(
+    '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+  ),
 } as const;

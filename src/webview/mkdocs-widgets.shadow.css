@@ -1,0 +1,151 @@
+.mkdocs-widget {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  color: var(--vscode-editor-foreground);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 8px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+}
+
+.mkdocs-widget-header,
+.mkdocs-widget-row,
+.mkdocs-tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mkdocs-widget-header {
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+.mkdocs-widget input,
+.mkdocs-widget select,
+.mkdocs-widget textarea,
+.mkdocs-widget button {
+  color: var(--vscode-input-foreground, var(--vscode-editor-foreground));
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: 4px;
+  background: var(--vscode-input-background, var(--vscode-editor-background));
+  font: inherit;
+}
+
+.mkdocs-widget input,
+.mkdocs-widget select,
+.mkdocs-widget button {
+  min-height: 30px;
+  padding: 4px 8px;
+}
+
+.mkdocs-widget input[type='text'] {
+  flex: 1;
+  min-width: 100px;
+}
+
+.mkdocs-widget textarea {
+  width: 100%;
+  min-height: 132px;
+  padding: 9px 10px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.mkdocs-widget button {
+  cursor: pointer;
+}
+
+.mkdocs-widget button:hover {
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.mkdocs-widget button:focus-visible,
+.mkdocs-widget input:focus-visible,
+.mkdocs-widget select:focus-visible,
+.mkdocs-widget textarea:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.mkdocs-widget-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.mkdocs-widget-check input {
+  min-height: auto;
+}
+
+.mkdocs-tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.mkdocs-tabs-list button[aria-selected='true'] {
+  color: var(--vscode-button-foreground);
+  border-color: var(--vscode-button-background);
+  background: var(--vscode-button-background);
+}
+
+.mkdocs-tab-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.mkdocs-tab-actions {
+  justify-content: flex-end;
+}
+
+.mkdocs-danger-button {
+  color: var(--vscode-errorForeground) !important;
+}
+
+.mkdocs-checklist {
+  display: grid;
+  gap: 6px;
+}
+
+.mkdocs-checklist-row {
+  display: grid;
+  grid-template-columns: auto minmax(100px, 1fr) auto auto auto;
+  align-items: center;
+  gap: 6px;
+  margin-left: min(calc(var(--checklist-level, 0) * 24px), 50%);
+}
+
+.mkdocs-checklist-row > input[type='checkbox'] {
+  width: 17px;
+  min-height: auto;
+  height: 17px;
+  margin: 0;
+}
+
+.mkdocs-checklist-row > input[type='text'] {
+  width: 100%;
+}
+
+.mkdocs-icon-button {
+  display: inline-grid;
+  width: 30px;
+  min-height: 30px !important;
+  padding: 4px !important;
+  place-items: center;
+}
+
+.mkdocs-icon-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+@media (max-width: 650px) {
+  .mkdocs-widget-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

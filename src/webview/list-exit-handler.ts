@@ -10,7 +10,7 @@ type ListBlocksApi = {
 };
 
 type CaretApi = {
-  setToBlock(index: number, position?: 'end'|'start'|'default', offset?: number): boolean;
+  setToBlock(index: number, position?: 'end' | 'start' | 'default', offset?: number): boolean;
 };
 
 export function installListExitHandler(holder: Element, blocks: ListBlocksApi, caret: CaretApi): void {

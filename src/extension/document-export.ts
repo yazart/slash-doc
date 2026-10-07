@@ -6,6 +6,16 @@ import { createFlowDesignerDataUri, createNetworkCanvasDataUri } from './documen
 import { exportImageAnnotationToHtml, exportImageAnnotationToMarkdown } from './document-export-annotation';
 import { exportMermaidFigure } from './document-export-mermaid';
 import { exportTableToHtml } from './document-export-table';
+import {
+  exportMkDocsAdmonitionToHtml,
+  exportMkDocsAdmonitionToMarkdown,
+  exportMkDocsChecklistToHtml,
+  exportMkDocsChecklistToMarkdown,
+  exportMkDocsDetailsToHtml,
+  exportMkDocsDetailsToMarkdown,
+  exportMkDocsTabsToHtml,
+  exportMkDocsTabsToMarkdown,
+} from './document-export-mkdocs';
 import baseExportStyles from './styles/document-base.embedded.css?raw';
 import codeExportStyles from './styles/document-code.embedded.css?raw';
 import exportLayoutStyles from './styles/document-layout.embedded.css?raw';
@@ -42,7 +52,9 @@ export async function exportPageContent(
   customBlockExporter?: CustomBlockExporter,
 ): Promise<string> {
   const blocks = getEditorBlocks(data);
-  const rendered = await Promise.all(blocks.map((block) => exportBlock(block, format, settings, customBlockExporter)));
+  const rendered = await Promise.all(
+    blocks.map((block, index) => exportBlock(block, format, settings, customBlockExporter, index)),
+  );
 
   if (format === 'html') {
     return `<!DOCTYPE html>
@@ -68,6 +80,7 @@ async function exportBlock(
   format: ExportFormat,
   settings: SlashDocSettings,
   customBlockExporter?: CustomBlockExporter,
+  blockIndex = 0,
 ): Promise<string> {
   const sourceType = typeof block.type === 'string' ? block.type : '';
   const normalizedBlock =
@@ -84,7 +97,7 @@ async function exportBlock(
   const data = isRecord(normalizedBlock.data) ? normalizedBlock.data : {};
 
   if (format === 'html') {
-    return wrapHtmlExportBlock(type, exportBuiltInBlockToHtml(type, data));
+    return wrapHtmlExportBlock(type, exportBuiltInBlockToHtml(type, data, blockIndex));
   }
 
   return exportBuiltInBlockToMarkdown(type, data);
@@ -96,7 +109,7 @@ function wrapHtmlExportBlock(type: string, html: string): string {
   return `<div class="slash-doc-export-block slash-doc-export-block-${escapeAttribute(normalizedType)}" data-slash-doc-block-type="${escapeAttribute(type)}">${html}</div>`;
 }
 
-function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>): string {
+function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>, blockIndex: number): string {
   if (type === 'header') {
     const level = clampHeadingLevel(data.level);
     return `<h${level}>${data.text ?? ''}</h${level}>`;
@@ -167,6 +180,11 @@ function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>): 
   if (type === 'bpmnModeler' || type === 'bpmnPreview') {
     return exportBpmnSvg(type, data);
   }
+
+  if (type === 'mkdocsAdmonition') return exportMkDocsAdmonitionToHtml(data);
+  if (type === 'mkdocsTabs') return exportMkDocsTabsToHtml(data, blockIndex);
+  if (type === 'mkdocsDetails') return exportMkDocsDetailsToHtml(data);
+  if (type === 'mkdocsChecklist') return exportMkDocsChecklistToHtml(data);
 
   return `<pre><code>${escapeHtml(JSON.stringify(data, null, 2))}</code></pre>`;
 }
@@ -246,6 +264,11 @@ function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown
   if (type === 'bpmnModeler' || type === 'bpmnPreview') {
     return exportBpmnSvg(type, data);
   }
+
+  if (type === 'mkdocsAdmonition') return exportMkDocsAdmonitionToMarkdown(data);
+  if (type === 'mkdocsTabs') return exportMkDocsTabsToMarkdown(data);
+  if (type === 'mkdocsDetails') return exportMkDocsDetailsToMarkdown(data);
+  if (type === 'mkdocsChecklist') return exportMkDocsChecklistToMarkdown(data);
 
   return `\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
 }

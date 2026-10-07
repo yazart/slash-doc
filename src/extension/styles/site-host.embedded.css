@@ -1,8 +1,17 @@
 :root {
+  --host-background: #fff;
+  --host-foreground: #172033;
+  --host-sidebar: #f7f8fa;
+  --host-border: #dfe3ea;
+  --host-input: #fff;
+  --host-text: #263247;
+  --host-muted: #6b7280;
+  --host-hover: #e9edf3;
+  --host-scroll: #aeb7c5;
   height: 100%;
   overflow: hidden;
-  color: #172033;
-  background: #fff;
+  color: var(--host-foreground);
+  background: var(--host-background);
   font-family:
     Inter,
     ui-sans-serif,
@@ -11,6 +20,19 @@
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
+}
+
+:root[data-slash-doc-theme='dark'] {
+  --host-background: #0d1117;
+  --host-foreground: #e6edf3;
+  --host-sidebar: #161b22;
+  --host-border: #30363d;
+  --host-input: #0d1117;
+  --host-text: #c9d1d9;
+  --host-muted: #8b949e;
+  --host-hover: #21262d;
+  --host-scroll: #484f58;
+  color-scheme: dark;
 }
 
 * {
@@ -45,7 +67,7 @@ body.resizing-sidebar .content {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
-  background: #f7f8fa;
+  background: var(--host-sidebar);
 }
 
 .sidebar-resizer {
@@ -55,7 +77,7 @@ body.resizing-sidebar .content {
   height: 100%;
   cursor: col-resize;
   touch-action: none;
-  background: #dfe3ea;
+  background: var(--host-border);
   background-clip: content-box;
   border-inline: 3px solid transparent;
 }
@@ -70,10 +92,33 @@ body.resizing-sidebar .sidebar-resizer {
 }
 
 .sidebar-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 18px 16px 14px;
-  border-bottom: 1px solid #dfe3ea;
+  border-bottom: 1px solid var(--host-border);
   font-size: 16px;
   font-weight: 700;
+}
+
+.theme-toggle {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  color: var(--host-text);
+  cursor: pointer;
+  border: 1px solid var(--host-border);
+  border-radius: 6px;
+  background: var(--host-input);
+  font-size: 17px;
+}
+
+.theme-toggle:hover {
+  background: var(--host-hover);
 }
 
 .documentation-search {
@@ -83,11 +128,11 @@ body.resizing-sidebar .sidebar-resizer {
 .documentation-search input {
   width: 100%;
   padding: 7px 9px;
-  color: #172033;
-  border: 1px solid #cfd5df;
+  color: var(--host-foreground);
+  border: 1px solid var(--host-border);
   border-radius: 5px;
   outline: none;
-  background: #fff;
+  background: var(--host-input);
 }
 
 .documentation-search input:focus {
@@ -126,7 +171,7 @@ body.resizing-sidebar .sidebar-resizer {
   overflow-x: hidden;
   overflow-y: auto;
   padding: 10px 8px 24px;
-  color: #6b7280;
+  color: var(--host-muted);
   font-size: 12px;
 }
 
@@ -137,27 +182,27 @@ body.resizing-sidebar .sidebar-resizer {
 
 .navigation::-webkit-scrollbar-thumb,
 .search-results::-webkit-scrollbar-thumb {
-  border: 2px solid #f7f8fa;
+  border: 2px solid var(--host-sidebar);
   border-radius: 8px;
-  background: #aeb7c5;
+  background: var(--host-scroll);
 }
 
 .navigation::-webkit-scrollbar-track,
 .search-results::-webkit-scrollbar-track {
-  background: #f7f8fa;
+  background: var(--host-sidebar);
 }
 
 .search-result {
   display: grid;
   gap: 3px;
   padding: 7px 8px;
-  color: #263247;
+  color: var(--host-text);
   border-radius: 5px;
   text-decoration: none;
 }
 
 .search-result:hover {
-  background: #e9edf3;
+  background: var(--host-hover);
 }
 
 .search-result strong {
@@ -169,7 +214,7 @@ body.resizing-sidebar .sidebar-resizer {
 .search-result span {
   display: -webkit-box;
   overflow: hidden;
-  color: #6b7280;
+  color: var(--host-muted);
   font-size: 11px;
   line-height: 1.35;
   -webkit-box-orient: vertical;
@@ -182,14 +227,14 @@ body.resizing-sidebar .sidebar-resizer {
 }
 
 .navigation summary::marker {
-  color: #7b8495;
+  color: var(--host-muted);
 }
 
 .page-link {
   display: block;
   overflow: hidden;
   padding: 6px 8px;
-  color: #263247;
+  color: var(--host-text);
   border-radius: 5px;
   text-decoration: none;
   text-overflow: ellipsis;
@@ -201,7 +246,7 @@ body.resizing-sidebar .sidebar-resizer {
 }
 
 .page-link:hover {
-  background: #e9edf3;
+  background: var(--host-hover);
 }
 
 .page-link.active {
@@ -213,12 +258,12 @@ body.resizing-sidebar .sidebar-resizer {
   width: 100%;
   height: 100%;
   border: 0;
-  background: #fff;
+  background: var(--host-background);
 }
 
 .empty {
   padding: 8px;
-  color: #6b7280;
+  color: var(--host-muted);
 }
 
 @media (max-width: 760px) {

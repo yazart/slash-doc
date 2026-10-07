@@ -5,11 +5,31 @@ describe('export settings', () => {
   it('keeps document files embedded by default', () => {
     expect(getDefaultSettings().exportOptions.separateFiles).toBe(false);
     expect(normalizeSettings({ version: 1 }).exportOptions.separateFiles).toBe(false);
+    expect(getDefaultSettings().exportOptions.repositoryUrl).toBe('');
+    expect(getDefaultSettings().exportOptions.markdownRootFileName).toBe('README.md');
+  });
+
+  it('stores a GitLab repository URL for edit links', () => {
+    expect(
+      normalizeSettings({ exportOptions: { repositoryUrl: ' https://gitlab.example/group/project ' } }).exportOptions,
+    ).toMatchObject({ repositoryUrl: 'https://gitlab.example/group/project' });
   });
 
   it('enables file separation and migrates the legacy image setting', () => {
     expect(normalizeSettings({ exportOptions: { separateFiles: true } }).exportOptions.separateFiles).toBe(true);
     expect(normalizeSettings({ exportOptions: { extractImages: true } }).exportOptions.separateFiles).toBe(true);
+  });
+
+  it('normalizes the configurable Markdown root file name', () => {
+    expect(normalizeSettings({ exportOptions: { markdownRootFileName: ' SUMMARY ' } }).exportOptions).toMatchObject({
+      markdownRootFileName: 'SUMMARY.md',
+    });
+    expect(normalizeSettings({ exportOptions: { markdownRootFileName: '../docs?.md' } }).exportOptions).toMatchObject({
+      markdownRootFileName: 'docs-.md',
+    });
+    expect(normalizeSettings({ exportOptions: { markdownRootFileName: '' } }).exportOptions).toMatchObject({
+      markdownRootFileName: 'README.md',
+    });
   });
 });
 

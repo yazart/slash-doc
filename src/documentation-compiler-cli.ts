@@ -8,6 +8,7 @@ type CliOptions = {
   addonsRoot?: string;
   projectName?: string;
   format?: 'html' | 'md';
+  repositoryUrl?: string;
   help: boolean;
 };
 
@@ -25,6 +26,8 @@ export function parseCompilerArguments(args: string[], currentDirectory = proces
       options.addonsRoot = readOptionValue(args, ++index, argument);
     } else if (argument === '--name') {
       options.projectName = readOptionValue(args, ++index, argument);
+    } else if (argument === '--repository') {
+      options.repositoryUrl = readOptionValue(args, ++index, argument);
     } else if (argument === '--format') {
       const format = readOptionValue(args, ++index, argument);
       if (format !== 'html' && format !== 'md') throw new Error(`Неизвестный формат: ${format}`);
@@ -61,6 +64,7 @@ export function getCompilerHelp(): string {
   -o, --output <папка>  Папка результата (slash-doc-site или slash-doc-markdown)
       --addons <папка>  Каталог модулей пользовательских Editor.js-виджетов
       --name <название> Название документации в сайдбаре
+      --repository <url> URL GitLab-репозитория для ссылок редактирования
       --format <html|md> Формат сборки (по умолчанию html)
   -h, --help            Показать справку
 `;

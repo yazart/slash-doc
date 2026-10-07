@@ -1,10 +1,10 @@
 .slash-api-export {
   margin: 1em 0;
   padding: 18px;
-  color: #202124;
-  border: 1px solid #d0d7de;
+  color: var(--slash-page-foreground);
+  border: 1px solid var(--slash-page-border);
   border-radius: 7px;
-  background: #fff;
+  background: var(--slash-page-background);
   font: 14px/1.5 sans-serif;
 }
 
@@ -47,7 +47,7 @@
 .slash-api-export th,
 .slash-api-export td {
   padding: 7px;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--slash-page-border);
   text-align: left;
   vertical-align: top;
 }

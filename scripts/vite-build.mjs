@@ -4,7 +4,7 @@ import { build } from 'vite';
 import { createSlashDocViteConfig } from '../vite.config.mjs';
 
 const watch = process.argv.includes('--watch');
-const targets = ['extension', 'webview', 'sidebar', 'runner', 'compiler'];
+const targets = ['extension', 'webview', 'sidebar', 'runner', 'compiler', 'mcp'];
 await rm(resolve('dist'), { recursive: true, force: true });
 
 if (watch) {
@@ -26,9 +26,11 @@ async function validateBuildOutput() {
     'sidebar.css',
     'file-processor-runner.js',
     'slash-doc-compile.js',
+    'slash-doc-mcp.js',
   ];
   await Promise.all(expectedFiles.map((fileName) => access(resolve('dist', fileName))));
   await chmod(resolve('dist', 'slash-doc-compile.js'), 0o755);
+  await chmod(resolve('dist', 'slash-doc-mcp.js'), 0o755);
   const extensionBundle = await readFile(resolve('dist', 'extension.js'), 'utf8');
   if (extensionBundle.includes('__viteBrowserExternal')) {
     throw new Error('The extension host bundle contains a Vite browser external shim.');

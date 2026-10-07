@@ -1,11 +1,14 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { compileDocumentation } from '../src/compiler/documentation-compiler';
 import { encodeStoredPage } from '../src/shared/page-storage-format';
 
 const temporaryDirectories: string[] = [];
+const execFileAsync = promisify(execFile);
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
@@ -14,8 +17,14 @@ afterEach(async () => {
 describe('standalone documentation compiler', () => {
   it('builds a searchable static site without VS Code', async () => {
     const projectRoot = await createProject();
+    await initializeGitProject(projectRoot);
     const outputRoot = join(projectRoot, 'public-docs');
-    const result = await compileDocumentation({ projectRoot, outputRoot, projectName: 'Test docs' });
+    const result = await compileDocumentation({
+      projectRoot,
+      outputRoot,
+      projectName: 'Test docs',
+      repositoryUrl: 'https://gitlab.example/group/project.git',
+    });
     const index = await readFile(result.indexPath, 'utf8');
     const firstPage = await readFile(join(outputRoot, 'pages', 'start.html'), 'utf8');
 
@@ -26,6 +35,8 @@ describe('standalone documentation compiler', () => {
     expect(index).toContain('class="sidebar-resizer"');
     expect(index).toContain("'#page/' + encodeURIComponent(pageId)");
     expect(index).toContain('slash-doc-sidebar-width');
+    expect(index).toContain('slash-doc-theme');
+    expect(index).toContain('class="theme-toggle"');
     expect(index).toContain('data-page-id="start"');
     const hostScript = /<script>([\s\S]*?)<\/script>/.exec(index)?.[1] ?? '';
     expect(() => new Function(hostScript)).not.toThrow();
@@ -35,6 +46,23 @@ describe('standalone documentation compiler', () => {
     expect(firstPage).toContain('target="_blank" rel="noopener noreferrer"');
     expect(firstPage).toContain('slash-doc-page-id');
     expect(firstPage).toContain("type:'slash-doc-page'");
+    expect(firstPage).toContain("data-slash-doc-theme='dark'");
+    expect(firstPage.match(/Изменено:[\s\S]*?<\/p>/)?.[0]).toBe(
+      'Изменено: <time datetime="2024-05-06T12:00:00Z">06/05/2024</time> <span class="slash-doc-page-revision-user">Test User</span> <a href="https://gitlab.example/group/project/-/edit/main/.slash-doc/docs/pages/start/content.json" target="_blank" rel="noopener noreferrer">Редактировать</a></p>',
+    );
+    expect(firstPage).toContain('<span class="slash-doc-page-revision-user">Test User</span>');
+    expect(firstPage).toContain(
+      'href="https://gitlab.example/group/project/-/edit/main/.slash-doc/docs/pages/start/content.json"',
+    );
+    expect(firstPage.indexOf('<p class="slash-doc-page-revision">')).toBeGreaterThan(
+      firstPage.indexOf('<h1>Start</h1>'),
+    );
+    expect(firstPage).toContain('data-slash-doc-copy-control');
+    expect(firstPage).toContain('Скопировать HTML');
+    expect(firstPage).toContain('navigator.clipboard?.writeText');
+    expect(firstPage).toContain("document.execCommand('copy')");
+    const copyScript = /<script data-slash-doc-copy-script>([\s\S]*?)<\/script>/.exec(firstPage)?.[1] ?? '';
+    expect(() => new Function(copyScript)).not.toThrow();
   });
 
   it('uses the default output directory and creates a page when content is missing', async () => {
@@ -96,15 +124,15 @@ describe('standalone documentation compiler', () => {
     await writeFile(startContentPath, JSON.stringify(startContent));
 
     const result = await compileDocumentation({ projectRoot, outputRoot, format: 'md' });
-    const contents = await readFile(join(outputRoot, 'contents.md'), 'utf8');
-    const parent = await readFile(join(outputRoot, 'Start page', 'content.md'), 'utf8');
-    const child = await readFile(join(outputRoot, 'Start page', 'Child page', 'content.md'), 'utf8');
+    const contents = await readFile(join(outputRoot, 'README.md'), 'utf8');
+    const parent = await readFile(join(outputRoot, 'Start page', 'Start page.md'), 'utf8');
+    const child = await readFile(join(outputRoot, 'Start page', 'Child page', 'Child page.md'), 'utf8');
     const image = await readFile(join(outputRoot, 'Start page', 'image-1.png'));
 
-    expect(result.indexPath).toBe(join(outputRoot, 'contents.md'));
-    expect(contents).toContain('- [Start page](Start%20page/content.md)');
-    expect(contents).toContain('  - [Child page](Start%20page/Child%20page/content.md)');
-    expect(parent).toContain('[inside](Child%20page/content.md#section)');
+    expect(result.indexPath).toBe(join(outputRoot, 'README.md'));
+    expect(contents).toContain('- [Start page](Start%20page/Start%20page.md)');
+    expect(contents).toContain('  - [Child page](Start%20page/Child%20page/Child%20page.md)');
+    expect(parent).toContain('[inside](Child%20page/Child%20page.md#section)');
     expect(parent).toContain('![Picture](image-1.png)');
     expect(child).toContain('## Details');
     expect(image.toString('utf8')).toBe('hello');
@@ -168,4 +196,19 @@ async function createProject(includeSecondPage = true): Promise<string> {
     );
   }
   return projectRoot;
+}
+
+async function initializeGitProject(projectRoot: string): Promise<void> {
+  await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectRoot });
+  await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: projectRoot });
+  await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: projectRoot });
+  await execFileAsync('git', ['add', '.'], { cwd: projectRoot });
+  await execFileAsync('git', ['commit', '-m', 'Initial documentation'], {
+    cwd: projectRoot,
+    env: {
+      ...process.env,
+      GIT_AUTHOR_DATE: '2024-05-06T12:00:00+00:00',
+      GIT_COMMITTER_DATE: '2024-05-06T12:00:00+00:00',
+    },
+  });
 }

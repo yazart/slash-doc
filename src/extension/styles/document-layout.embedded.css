@@ -28,3 +28,8 @@
   text-decoration: none;
   white-space: nowrap;
 }
+
+:root[data-slash-doc-theme='dark'] .slash-user-mention {
+  color: #79c0ff;
+  background: #0c2d4a;
+}

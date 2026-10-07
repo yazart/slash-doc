@@ -1,9 +1,9 @@
 .task-table-export {
   margin: 1em 0;
   padding: 14px;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--slash-page-border);
   border-radius: 7px;
-  background: #f6f8fa;
+  background: var(--slash-page-surface);
   font: 14px/1.4 sans-serif;
 }
 
@@ -22,7 +22,7 @@
   flex: 1 0 220px;
   padding: 10px;
   border-radius: 6px;
-  background: #eaeef2;
+  background: color-mix(in srgb, var(--slash-page-surface) 80%, var(--slash-page-border));
 }
 
 .task-table-column h3 {
@@ -37,13 +37,13 @@
 
 .task-table-card {
   padding: 9px;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--slash-page-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--slash-page-background);
 }
 
 .task-table-card p {
   margin: 5px 0 0;
-  color: #57606a;
+  color: var(--slash-page-muted);
   white-space: pre-wrap;
 }

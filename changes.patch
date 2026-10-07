@@ -1,148 +1,4431 @@
 diff --git a/.vscode/launch.json b/.vscode/launch.json
-index 31ac563..c2c33b5 100644
+index c2c33b5..58b2441 100644
 --- a/.vscode/launch.json
 +++ b/.vscode/launch.json
-@@ -11,7 +11,6 @@
+@@ -5,12 +5,14 @@
+       "name": "Run Extension",
+       "type": "extensionHost",
+       "request": "launch",
++      "noDebug": true,
++      "timeout": 60000,
+       "args": [
+         "--extensionDevelopmentPath=${workspaceFolder}",
+         "--enable-proposed-api",
          "vscode.mermaid-markdown-features"
        ],
-       "outFiles": ["${workspaceFolder}/dist/**/*.js"],
--      "preLaunchTask": "npm: compile"
+-      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
++      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
      }
    ]
  }
-diff --git a/src/webview/editor-tool-registry.ts b/src/webview/editor-tool-registry.ts
-index d8ff070..9a75e15 100644
---- a/src/webview/editor-tool-registry.ts
-+++ b/src/webview/editor-tool-registry.ts
-@@ -46,7 +46,7 @@ export function createEditorTools(
-     tools.list = {
-       class: NestedListTool as unknown as ToolConstructable,
-       inlineToolbar: false,
--      toolbox: { title: 'Список', icon: LUCIDE_ICONS.list },
-+      toolbox: { title: 'Многоуровневый список', icon: LUCIDE_ICONS.list },
-     };
+diff --git a/README.md b/README.md
+index ca02e8f..f6bf657 100644
+--- a/README.md
++++ b/README.md
+@@ -6,9 +6,9 @@ Slash Doc — расширение для Visual Studio Code, предназна
+ 
+ - древовидная структура страниц с переименованием, вложенностью и drag-and-drop;
+ - полнотекстовый поиск по документации;
+-- импорт HTML и Markdown;
++- импорт HTML и Markdown, а также массовый импорт MkDocs-проектов из ZIP с сохранением `nav` или структуры каталогов;
+ - экспорт отдельных страниц в HTML и Markdown;
+-- сборка статического HTML-сайта с меню, поиском и внутренними ссылками;
++- сборка статического HTML-сайта с меню, поиском, внутренними ссылками и переключателем светлой/тёмной темы;
+ - внутренние ссылки между страницами и внешние ссылки, открывающиеся в новой вкладке;
+ - форматирование текста, таблицы в стиле Confluence, блоки кода и diff с подсветкой синтаксиса;
+ - Mermaid, Flow Designer, Network Canvas, BPMN Modeler и BPMN Preview;
+@@ -16,7 +16,9 @@ Slash Doc — расширение для Visual Studio Code, предназна
+ - описание API-эндпоинтов с примерами запросов и моделями TypeScript;
+ - доска задач в стиле Trello;
+ - обработка локальных CSV и JSON-файлов пользовательским JavaScript;
+-- подключаемые Editor.js-аддоны и локальные HTTP API-модули.
++- MkDocs-совместимые примечания (`admonition`), вкладки контента, раскрываемые блоки и многоуровневые чеклисты с Markdown-содержимым;
++- подключаемые Editor.js-аддоны и локальные HTTP API-модули;
++- локальный MCP-сервер для чтения, поиска, изменения и сборки документации внешними AI-клиентами.
+ 
+ ## Требования
+ 
+@@ -32,6 +34,12 @@ Slash Doc — расширение для Visual Studio Code, предназна
+ 4. Добавляйте блоки через меню Editor.js. Изменения сохраняются автоматически.
+ 5. Используйте иконочные кнопки в панели страниц для импорта документа или сборки HTML-документации.
+ 
++Для переноса существующего MkDocs-проекта нажмите кнопку импорта и выберите ZIP-архив. Импортёр ищет
++`mkdocs.yml`/`mkdocs.yaml`, учитывает `docs_dir` и `nav`, переносит все Markdown-страницы в штатные
++`content.yaml` и сохраняет вложенность меню. Если конфигурации или `nav` нет, иерархия строится по
++каталогам; `index.md`/`README.md` становится страницей соответствующего раздела. Локальные изображения
++из Markdown извлекаются из архива и сохраняются как ресурсы рядом с YAML-файлом страницы.
++
+ ### Хранение данных
+ 
+ Документация находится внутри рабочей папки:
+@@ -72,16 +80,27 @@ HTML-сайт можно собрать без VS Code и без запуска
+ ```sh
+ node dist/slash-doc-compile.js /path/to/project
+ node dist/slash-doc-compile.js /path/to/project --output /path/to/site
++node dist/slash-doc-compile.js /path/to/project --repository https://gitlab.example/group/project
+ node dist/slash-doc-compile.js /path/to/project --format md --output /path/to/markdown
+ ```
+ 
+ По умолчанию HTML сохраняется в `<проект>/slash-doc-site`. В режиме `--format md` результат
+-сохраняется в `<проект>/slash-doc-markdown`: в корне создаётся `contents.md`, а страницы получают
+-иерархические каталоги `<Название страницы>/content.md`, повторяющие меню. Утилита читает
++сохраняется в `<проект>/slash-doc-markdown`: в корне создаётся `README.md`, а страницы получают
++иерархические пути `<Название страницы>/<Название страницы>.md`, повторяющие меню. Имя корневого
++файла можно изменить в настройке «Корневой Markdown-файл». Утилита читает
+ `.slash-doc/docs/menu.json`, содержимое страниц и `.slash-doc/sdsettings.json`. Настройка
+ «Сохранять файлы документа отдельно» действует для HTML и Markdown: если она выключена, ресурсы
+-встраиваются в документ; если включена — сохраняются рядом с экспортируемой страницей. Для экспорта
+-пользовательских аддонов передайте каталог с их модулями:
++встраиваются в документ; если включена — сохраняются рядом с экспортируемой страницей. В собранном
++HTML-сайте переключатель в заголовке меню меняет светлую и тёмную тему. Выбор сохраняется в
++`localStorage` браузера и применяется также к страницам внутри iframe.
++
++В HTML под первым заголовком страницы выводятся дата и автор последнего изменения из Git. Параметр
++`--repository` задаёт HTTP(S) URL GitLab-проекта; компилятор определяет текущую ветку и формирует
++ссылку вида `<repository>/-/edit/<branch>/.slash-doc/docs/pages/<page-id>/content.yaml`. Для сборки из
++расширения тот же URL задаётся в настройке «GitLab-репозиторий». Если файл изменён, но ещё не
++закоммичен, используются его дата изменения и имя текущего Git-пользователя.
++
++Для экспорта пользовательских аддонов передайте каталог с их модулями:
+ 
+ ```sh
+ node dist/slash-doc-compile.js /path/to/project --addons /path/to/addons
+@@ -90,6 +109,35 @@ node dist/slash-doc-compile.js /path/to/project --addons /path/to/addons
+ Файл компилятора можно скопировать отдельно от расширения на машину с Node.js 20.19 или новее.
+ После `npm link` та же команда доступна как `slash-doc-compile`.
+ 
++### MCP-сервер
++
++После сборки запускается отдельный stdio-сервер:
++
++```sh
++node dist/slash-doc-mcp.js /path/to/project
++# или после npm link
++slash-doc-mcp --project /path/to/project
++```
++
++Пример конфигурации MCP-клиента:
++
++```json
++{
++  "mcpServers": {
++    "slash-doc": {
++      "command": "node",
++      "args": ["/path/to/slash-doc/dist/slash-doc-mcp.js", "/path/to/documented-project"]
++    }
++  }
++}
++```
++
++Путь также можно задать переменной `SLASH_DOC_PROJECT_ROOT`. Сервер публикует дерево и страницы как
++MCP resources и предоставляет tools `list_pages`, `read_page`, `search_pages`, `create_page`,
++`replace_page`, `append_blocks`, `rename_page`, `move_page`, `delete_page` и
++`compile_documentation`. Изменения записываются в штатный формат `content.yaml`; изображения, SVG и
++BPMN остаются отдельными hash-файлами рядом со страницей.
++
+ ## Разработка
+ 
+ ```sh
+@@ -97,8 +145,8 @@ npm install
+ npm run compile
+ ```
+ 
+-Сборка выполняется Vite и формирует в `dist/` пять точек входа: extension host, основной webview,
+-sidebar, обработчик файлов и автономный компилятор документации. Откройте проект в VS Code, нажмите
++Сборка выполняется Vite и формирует в `dist/` точки входа для extension host, основного webview,
++sidebar, обработчика файлов, автономного компилятора и MCP-сервера. Откройте проект в VS Code, нажмите
+ `F5` и запустите расширение в Extension Development Host.
+ 
+ Основные команды:
+@@ -108,6 +156,7 @@ sidebar, обработчик файлов и автономный компил
+ | `npm run compile`                      | Собрать расширение и автономный компилятор      |
+ | `npm run compile:docs -- <project>`    | Собрать HTML-сайт указанного проекта            |
+ | `npm run compile:docs:md -- <project>` | Собрать Markdown указанного проекта             |
++| `npm run mcp -- <project>`             | Запустить MCP-сервер документации через stdio   |
+ | `npm run watch`                        | Запустить Vite в режиме наблюдения              |
+ | `npm run test`                         | Однократно выполнить тесты Vitest               |
+ | `npm run test:watch`                   | Запустить Vitest в интерактивном режиме         |
+diff --git a/THIRD_PARTY_NOTICES.md b/THIRD_PARTY_NOTICES.md
+index facaba0..f3a6fa4 100644
+--- a/THIRD_PARTY_NOTICES.md
++++ b/THIRD_PARTY_NOTICES.md
+@@ -12,11 +12,14 @@ Slash Doc включает стороннее программное обесп
+ | bpmn-js 9.0.0                                                  | MIT-подобная лицензия с обязательным видимым watermark bpmn.io |
+ | csv                                                            | MIT                                                            |
+ | Express                                                        | MIT                                                            |
++| fflate                                                         | MIT                                                            |
+ | highlight.js                                                   | BSD-3-Clause                                                   |
+ | Lit                                                            | BSD-3-Clause                                                   |
+ | Lucide Icons                                                   | ISC; отдельные Feather-derived иконки — MIT                    |
+ | Mermaid                                                        | MIT                                                            |
++| Model Context Protocol TypeScript SDK                          | MIT                                                            |
+ | Puppeteer                                                      | Apache-2.0                                                     |
++| Zod                                                            | MIT                                                            |
+ 
+ ## Транзитивные зависимости
+ 
+diff --git a/package-lock.json b/package-lock.json
+index 7a4a84d..640c8cf 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -16,17 +16,21 @@
+         "@editorjs/list": "^1.10.0",
+         "@editorjs/marker": "^1.4.0",
+         "@editorjs/underline": "^1.2.1",
++        "@modelcontextprotocol/server": "2.1.0",
+         "bpmn-js": "9.0.0",
+         "csv": "6.0.5",
+         "express": "4.21.1",
++        "fflate": "0.8.3",
+         "highlight.js": "^11.11.1",
+         "lit": "2.8.0",
+         "mermaid": "8.14.0",
+         "puppeteer": "13.3.2",
+-        "yaml": "2.9.0"
++        "yaml": "2.9.0",
++        "zod": "4.6.5"
+       },
+       "bin": {
+-        "slash-doc-compile": "dist/slash-doc-compile.js"
++        "slash-doc-compile": "dist/slash-doc-compile.js",
++        "slash-doc-mcp": "dist/slash-doc-mcp.js"
+       },
+       "devDependencies": {
+         "@eslint/js": "^9.39.5",
+@@ -903,6 +907,31 @@
+         "@lit-labs/ssr-dom-shim": "^1.0.0"
+       }
+     },
++    "node_modules/@modelcontextprotocol/core": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/@modelcontextprotocol/core/-/core-2.1.0.tgz",
++      "integrity": "sha512-YdFj5gMRHr0gYNAhTbQDgjLHiEJdIAUYxomhKseUNye7ZGlISQmUoLh2sveFFCiQ7j2YMffT1kgSND0FSfIFjQ==",
++      "license": "MIT",
++      "dependencies": {
++        "zod": "^4.2.0"
++      },
++      "engines": {
++        "node": ">=20"
++      }
++    },
++    "node_modules/@modelcontextprotocol/server": {
++      "version": "2.1.0",
++      "resolved": "https://registry.npmjs.org/@modelcontextprotocol/server/-/server-2.1.0.tgz",
++      "integrity": "sha512-FdvwZU5N03O77Suh35JqjAqq5R1ZTEPFtwu6N4BgBq28qrQtrCnpbLL5U2pwYCuE194jAw0xnlOVmIqhfoYuUQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@modelcontextprotocol/core": "2.1.0",
++        "zod": "^4.2.0"
++      },
++      "engines": {
++        "node": ">=20"
++      }
++    },
+     "node_modules/@rollup/rollup-android-arm-eabi": {
+       "version": "4.62.2",
+       "resolved": "https://registry.npmjs.org/@rollup/rollup-android-arm-eabi/-/rollup-android-arm-eabi-4.62.2.tgz",
+@@ -4218,6 +4247,12 @@
+         }
+       }
+     },
++    "node_modules/fflate": {
++      "version": "0.8.3",
++      "resolved": "https://registry.npmjs.org/fflate/-/fflate-0.8.3.tgz",
++      "integrity": "sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==",
++      "license": "MIT"
++    },
+     "node_modules/file-entry-cache": {
+       "version": "8.0.0",
+       "resolved": "https://registry.npmjs.org/file-entry-cache/-/file-entry-cache-8.0.0.tgz",
+@@ -6673,6 +6708,15 @@
+       "funding": {
+         "url": "https://github.com/sponsors/sindresorhus"
+       }
++    },
++    "node_modules/zod": {
++      "version": "4.6.5",
++      "resolved": "https://registry.npmjs.org/zod/-/zod-4.6.5.tgz",
++      "integrity": "sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==",
++      "license": "MIT",
++      "funding": {
++        "url": "https://github.com/sponsors/colinhacks"
++      }
+     }
    }
-   if (addons?.confluenceTable !== false) {
-diff --git a/src/webview/lucide-icons.ts b/src/webview/lucide-icons.ts
-index 3ea4e93..ccda9f2 100644
---- a/src/webview/lucide-icons.ts
-+++ b/src/webview/lucide-icons.ts
-@@ -19,6 +19,9 @@ export const LUCIDE_ICONS = {
-   list: lucideIcon(
-     '<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
-   ),
-+  listOrdered: lucideIcon(
-+    '<path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 6h1V2"/><path d="M4 10h2l-2 2h2"/><path d="M4 16h2l-2 2h2"/>',
-+  ),
-   table: lucideIcon(
-     '<path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>',
-   ),
-diff --git a/src/webview/nested-list-tool.css b/src/webview/nested-list-tool.css
-index 31f78da..0fe2c91 100644
---- a/src/webview/nested-list-tool.css
-+++ b/src/webview/nested-list-tool.css
-@@ -5,3 +5,12 @@
- .slash-nested-list-item > :is(ol, ul) {
-   margin: 2px 0 2px 22px;
  }
-+.slash-list-settings {
+diff --git a/package.json b/package.json
+index 0df8dac..c041dc4 100644
+--- a/package.json
++++ b/package.json
+@@ -22,7 +22,8 @@
+   ],
+   "main": "./dist/extension.js",
+   "bin": {
+-    "slash-doc-compile": "./dist/slash-doc-compile.js"
++    "slash-doc-compile": "./dist/slash-doc-compile.js",
++    "slash-doc-mcp": "./dist/slash-doc-mcp.js"
+   },
+   "contributes": {
+     "viewsContainers": {
+@@ -54,6 +55,7 @@
+     "compile": "node scripts/vite-build.mjs",
+     "compile:docs": "node dist/slash-doc-compile.js",
+     "compile:docs:md": "node dist/slash-doc-compile.js --format md",
++    "mcp": "node dist/slash-doc-mcp.js",
+     "watch": "node scripts/vite-build.mjs --watch",
+     "vscode:prepublish": "npm run compile",
+     "check:structure": "node scripts/check-source-structure.mjs",
+@@ -78,14 +80,17 @@
+     "@editorjs/list": "^1.10.0",
+     "@editorjs/marker": "^1.4.0",
+     "@editorjs/underline": "^1.2.1",
++    "@modelcontextprotocol/server": "2.1.0",
+     "bpmn-js": "9.0.0",
+     "csv": "6.0.5",
+     "express": "4.21.1",
++    "fflate": "0.8.3",
+     "highlight.js": "^11.11.1",
+     "lit": "2.8.0",
+     "mermaid": "8.14.0",
+     "puppeteer": "13.3.2",
+-    "yaml": "2.9.0"
++    "yaml": "2.9.0",
++    "zod": "4.6.5"
+   },
+   "devDependencies": {
+     "@eslint/js": "^9.39.5",
+diff --git a/scripts/vite-build.mjs b/scripts/vite-build.mjs
+index f61d452..109e7fd 100644
+--- a/scripts/vite-build.mjs
++++ b/scripts/vite-build.mjs
+@@ -4,7 +4,7 @@ import { build } from 'vite';
+ import { createSlashDocViteConfig } from '../vite.config.mjs';
+ 
+ const watch = process.argv.includes('--watch');
+-const targets = ['extension', 'webview', 'sidebar', 'runner', 'compiler'];
++const targets = ['extension', 'webview', 'sidebar', 'runner', 'compiler', 'mcp'];
+ await rm(resolve('dist'), { recursive: true, force: true });
+ 
+ if (watch) {
+@@ -26,9 +26,11 @@ async function validateBuildOutput() {
+     'sidebar.css',
+     'file-processor-runner.js',
+     'slash-doc-compile.js',
++    'slash-doc-mcp.js',
+   ];
+   await Promise.all(expectedFiles.map((fileName) => access(resolve('dist', fileName))));
+   await chmod(resolve('dist', 'slash-doc-compile.js'), 0o755);
++  await chmod(resolve('dist', 'slash-doc-mcp.js'), 0o755);
+   const extensionBundle = await readFile(resolve('dist', 'extension.js'), 'utf8');
+   if (extensionBundle.includes('__viteBrowserExternal')) {
+     throw new Error('The extension host bundle contains a Vite browser external shim.');
+diff --git a/src/compiler/documentation-compiler.ts b/src/compiler/documentation-compiler.ts
+index 20e1ae6..1ed1aa0 100644
+--- a/src/compiler/documentation-compiler.ts
++++ b/src/compiler/documentation-compiler.ts
+@@ -2,6 +2,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+ import { basename, resolve } from 'node:path';
+ import {
+   createDocumentationTree,
++  getMarkdownPagePath,
+   renderMarkdownContents,
+   rewriteMarkdownPageLinks,
+ } from '../shared/documentation-tree';
+@@ -14,6 +15,7 @@ import { getDefaultSettings, normalizeSettings } from '../extension/settings';
+ import { flattenPages, prepareCompiledPage, renderHostHtml } from '../extension/site-renderer';
+ import type { SlashDocMenuItem } from '../extension/types';
+ import { isRecord } from '../extension/utils';
++import { readPageRevisionMetadata, resolvePageRevisionFile } from '../shared/page-revision';
+ 
+ export type DocumentationCompilerOptions = {
+   projectRoot: string;
+@@ -21,6 +23,7 @@ export type DocumentationCompilerOptions = {
+   addonsRoot?: string;
+   projectName?: string;
+   format?: 'html' | 'md';
++  repositoryUrl?: string;
+ };
+ 
+ export type DocumentationCompilerResult = {
+@@ -56,8 +59,14 @@ export async function compileDocumentation(
+   await mkdir(pagesOutputRoot, { recursive: true });
+   for (const page of pages) {
+     const data = await readPage(docsRoot, page);
++    const revisionFile = await resolvePageRevisionFile(projectRoot, page.id);
++    const revision = await readPageRevisionMetadata(
++      projectRoot,
++      revisionFile,
++      options.repositoryUrl ?? settings.exportOptions.repositoryUrl,
++    );
+     searchIndex.push({ pageId: page.id, title: page.title, text: getDocumentationSearchText(data) });
+-    await writeCompiledPage(outputRoot, page, pageIds, data, settings, customExporter);
++    await writeCompiledPage(outputRoot, page, pageIds, data, settings, customExporter, revision);
+   }
+ 
+   const indexPath = resolve(outputRoot, 'index.html');
+@@ -73,10 +82,11 @@ async function writeCompiledPage(
+   data: unknown,
+   settings: ReturnType<typeof getDefaultSettings>,
+   customExporter: CustomBlockExporter | undefined,
++  revision: Awaited<ReturnType<typeof readPageRevisionMetadata>>,
+ ): Promise<void> {
+   const exported = await exportPageContent(data, 'html', settings, customExporter);
+   const outputPath = resolveInside(resolve(outputRoot, 'pages'), `${page.id}.html`);
+-  const html = prepareCompiledPage(exported, page.id, pageIds);
++  const html = prepareCompiledPage(exported, page.id, pageIds, revision);
+   const result = settings.exportOptions.separateFiles
+     ? extractEmbeddedImages(html, `${page.id}-image`)
+     : { content: html, images: [] };
+@@ -107,10 +117,11 @@ async function compileMarkdownDocumentation(
+     const result = settings.exportOptions.separateFiles
+       ? extractEmbeddedImages(markdown)
+       : { content: markdown, images: [] };
+-    await writeFile(resolve(pageRoot, 'content.md'), result.content, 'utf8');
++    const pageFileName = getMarkdownPagePath(current).at(-1) ?? 'Страница.md';
++    await writeFile(resolve(pageRoot, pageFileName), result.content, 'utf8');
+     await Promise.all(result.images.map((image) => writeFile(resolve(pageRoot, image.fileName), image.data)));
+   }
+-  const indexPath = resolve(outputRoot, 'contents.md');
++  const indexPath = resolve(outputRoot, settings.exportOptions.markdownRootFileName);
+   await writeFile(indexPath, renderMarkdownContents(items, pages), 'utf8');
+   return { indexPath, outputRoot, pageCount: pages.length };
+ }
+diff --git a/src/documentation-compiler-cli.ts b/src/documentation-compiler-cli.ts
+index a0c0c47..51c9bcc 100644
+--- a/src/documentation-compiler-cli.ts
++++ b/src/documentation-compiler-cli.ts
+@@ -8,6 +8,7 @@ type CliOptions = {
+   addonsRoot?: string;
+   projectName?: string;
+   format?: 'html' | 'md';
++  repositoryUrl?: string;
+   help: boolean;
+ };
+ 
+@@ -25,6 +26,8 @@ export function parseCompilerArguments(args: string[], currentDirectory = proces
+       options.addonsRoot = readOptionValue(args, ++index, argument);
+     } else if (argument === '--name') {
+       options.projectName = readOptionValue(args, ++index, argument);
++    } else if (argument === '--repository') {
++      options.repositoryUrl = readOptionValue(args, ++index, argument);
+     } else if (argument === '--format') {
+       const format = readOptionValue(args, ++index, argument);
+       if (format !== 'html' && format !== 'md') throw new Error(`Неизвестный формат: ${format}`);
+@@ -61,6 +64,7 @@ export function getCompilerHelp(): string {
+   -o, --output <папка>  Папка результата (slash-doc-site или slash-doc-markdown)
+       --addons <папка>  Каталог модулей пользовательских Editor.js-виджетов
+       --name <название> Название документации в сайдбаре
++      --repository <url> URL GitLab-репозитория для ссылок редактирования
+       --format <html|md> Формат сборки (по умолчанию html)
+   -h, --help            Показать справку
+ `;
+diff --git a/src/extension/document-export-mkdocs.ts b/src/extension/document-export-mkdocs.ts
+new file mode 100644
+index 0000000..73ea3df
+--- /dev/null
++++ b/src/extension/document-export-mkdocs.ts
+@@ -0,0 +1,158 @@
++import { createHash } from 'node:crypto';
++import { renderSafeMarkdown } from '../shared/markdown';
++import mkdocsStyles from './styles/mkdocs-widgets-export.embedded.css?raw';
++import { escapeAttribute, escapeHtml, isRecord } from './utils';
++
++export function exportMkDocsAdmonitionToHtml(data: Record<string, unknown>): string {
++  const kind = normalizeKind(data.kind);
++  const title = typeof data.title === 'string' ? data.title : '';
++  const content = typeof data.content === 'string' ? data.content : '';
++  const state = encodeState({
++    kind,
++    title,
++    content,
++    collapsible: data.collapsible === true,
++    open: data.open !== false,
++  });
++  const body = `<div class="slash-mkdocs-admonition-body">${renderSafeMarkdown(content)}</div>`;
++  const titleHtml = `<div class="slash-mkdocs-admonition-title">${escapeHtml(title || kind)}</div>`;
++  const className = `slash-mkdocs-admonition slash-mkdocs-admonition-${escapeAttribute(kind)}`;
++  const rendered =
++    data.collapsible === true
++      ? `<details class="${className}" data-slash-doc-mkdocs-admonition="${state}"${data.open !== false ? ' open' : ''}><summary>${escapeHtml(title || kind)}</summary>${body}</details>`
++      : `<aside class="${className}" data-slash-doc-mkdocs-admonition="${state}">${titleHtml}${body}</aside>`;
++  return `<style>${mkdocsStyles}</style>${rendered}`;
++}
++
++export function exportMkDocsTabsToHtml(data: Record<string, unknown>, blockIndex = 0): string {
++  const tabs = normalizeTabs(data.tabs);
++  if (tabs.length === 0) return '';
++  const state = encodeState({ tabs });
++  const group = `slash-tabs-${createHash('sha256').update(`${blockIndex}:${state}`).digest('hex').slice(0, 12)}`;
++  const labels = tabs
++    .map(
++      (tab, index) =>
++        `<button type="button" role="tab" id="${group}-tab-${index}" aria-controls="${group}-panel-${index}" aria-selected="${index === 0}">${escapeHtml(tab.title || `Вкладка ${index + 1}`)}</button>`,
++    )
++    .join('');
++  const panels = tabs
++    .map(
++      (tab, index) =>
++        `<section class="slash-mkdocs-tab-panel" role="tabpanel" id="${group}-panel-${index}" aria-labelledby="${group}-tab-${index}"${index === 0 ? '' : ' hidden'}>${renderSafeMarkdown(tab.content)}</section>`,
++    )
++    .join('');
++  const behavior = `<script>(()=>{const root=document.currentScript.previousElementSibling;if(!root)return;const buttons=[...root.querySelectorAll('[role="tab"]')];const panels=[...root.querySelectorAll('[role="tabpanel"]')];buttons.forEach((button,index)=>button.addEventListener('click',()=>{buttons.forEach((item,itemIndex)=>item.setAttribute('aria-selected',String(itemIndex===index)));panels.forEach((panel,itemIndex)=>panel.hidden=itemIndex!==index)}))})()</script>`;
++  return `<style>${mkdocsStyles}</style><div class="slash-mkdocs-tabs" data-slash-doc-mkdocs-tabs="${state}"><div class="slash-mkdocs-tab-labels" role="tablist">${labels}</div><div class="slash-mkdocs-tab-panels">${panels}</div></div>${behavior}`;
++}
++
++export function exportMkDocsDetailsToHtml(data: Record<string, unknown>): string {
++  const summary = typeof data.summary === 'string' ? data.summary : 'Подробнее';
++  const content = typeof data.content === 'string' ? data.content : '';
++  const state = encodeState({ summary, content, open: data.open === true });
++  return `<style>${mkdocsStyles}</style><details class="slash-mkdocs-details" data-slash-doc-mkdocs-details="${state}"${data.open === true ? ' open' : ''}><summary>${escapeHtml(summary)}</summary><div class="slash-mkdocs-details-body">${renderSafeMarkdown(content)}</div></details>`;
++}
++
++export function exportMkDocsChecklistToHtml(data: Record<string, unknown>): string {
++  const items = normalizeChecklistItems(data.items);
++  if (items.length === 0) return '';
++  const state = encodeState({ items });
++  return `<style>${mkdocsStyles}</style><section class="slash-mkdocs-checklist" data-slash-doc-mkdocs-checklist="${state}">${renderChecklistTree(buildChecklistTree(items))}</section>`;
++}
++
++export function exportMkDocsAdmonitionToMarkdown(data: Record<string, unknown>): string {
++  const marker = data.collapsible === true ? (data.open !== false ? '???+' : '???') : '!!!';
++  const kind = normalizeKind(data.kind);
++  const title = typeof data.title === 'string' && data.title.trim() ? ` "${escapeTitle(data.title)}"` : '';
++  return `${marker} ${kind}${title}\n\n${indentMarkdown(typeof data.content === 'string' ? data.content : '')}`;
++}
++
++export function exportMkDocsTabsToMarkdown(data: Record<string, unknown>): string {
++  return normalizeTabs(data.tabs)
++    .map((tab) => `=== "${escapeTitle(tab.title)}"\n\n${indentMarkdown(tab.content)}`)
++    .join('\n\n');
++}
++
++export function exportMkDocsDetailsToMarkdown(data: Record<string, unknown>): string {
++  const summary = typeof data.summary === 'string' ? data.summary : 'Подробнее';
++  const content = typeof data.content === 'string' ? data.content : '';
++  const state = encodeState({ summary, content, open: data.open === true });
++  return `<details data-slash-doc-mkdocs-details="${state}"${data.open === true ? ' open' : ''}>\n<summary>${escapeHtml(summary)}</summary>\n\n${content}\n\n</details>`;
++}
++
++export function exportMkDocsChecklistToMarkdown(data: Record<string, unknown>): string {
++  return normalizeChecklistItems(data.items)
++    .map((item) => `${'    '.repeat(item.level)}- [${item.checked ? 'x' : ' '}] ${item.text}`)
++    .join('\n');
++}
++
++function normalizeTabs(value: unknown): Array<{ id: string; title: string; content: string }> {
++  return Array.isArray(value)
++    ? value.filter(isRecord).map((tab, index) => ({
++        id: typeof tab.id === 'string' ? tab.id : `tab-${index + 1}`,
++        title: typeof tab.title === 'string' ? tab.title : `Вкладка ${index + 1}`,
++        content: typeof tab.content === 'string' ? tab.content : '',
++      }))
++    : [];
++}
++
++type ChecklistItem = { id: string; text: string; checked: boolean; level: number };
++type ChecklistNode = ChecklistItem & { children: ChecklistNode[] };
++
++function normalizeChecklistItems(value: unknown): ChecklistItem[] {
++  if (!Array.isArray(value)) return [];
++  let previousLevel = 0;
++  return value.filter(isRecord).map((item, index) => {
++    const requested = typeof item.level === 'number' ? Math.max(0, Math.floor(item.level)) : 0;
++    const level = index === 0 ? 0 : Math.min(requested, previousLevel + 1);
++    previousLevel = level;
++    return {
++      id: typeof item.id === 'string' ? item.id : `task-${index + 1}`,
++      text: typeof item.text === 'string' ? item.text : '',
++      checked: item.checked === true,
++      level,
++    };
++  });
++}
++
++function buildChecklistTree(items: ChecklistItem[]): ChecklistNode[] {
++  const roots: ChecklistNode[] = [];
++  const stack: ChecklistNode[] = [];
++  for (const item of items) {
++    const node: ChecklistNode = { ...item, children: [] };
++    if (item.level === 0 || !stack[item.level - 1]) roots.push(node);
++    else stack[item.level - 1].children.push(node);
++    stack[item.level] = node;
++    stack.length = item.level + 1;
++  }
++  return roots;
++}
++
++function renderChecklistTree(nodes: ChecklistNode[]): string {
++  return `<ul>${nodes
++    .map(
++      (node) =>
++        `<li><label><input type="checkbox"${node.checked ? ' checked' : ''} disabled><span>${renderSafeMarkdown(node.text)}</span></label>${node.children.length ? renderChecklistTree(node.children) : ''}</li>`,
++    )
++    .join('')}</ul>`;
++}
++
++function normalizeKind(value: unknown): string {
++  const kind = typeof value === 'string' ? value.toLowerCase().replaceAll(/[^a-z-]/g, '') : '';
++  return kind || 'note';
++}
++
++function encodeState(value: unknown): string {
++  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
++}
++
++function indentMarkdown(value: string): string {
++  return value
++    .replaceAll('\r\n', '\n')
++    .split('\n')
++    .map((line) => `    ${line}`)
++    .join('\n');
++}
++
++function escapeTitle(value: string): string {
++  return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
++}
+diff --git a/src/extension/document-export.ts b/src/extension/document-export.ts
+index ad1ff45..6809f25 100644
+--- a/src/extension/document-export.ts
++++ b/src/extension/document-export.ts
+@@ -6,6 +6,16 @@ import { createFlowDesignerDataUri, createNetworkCanvasDataUri } from './documen
+ import { exportImageAnnotationToHtml, exportImageAnnotationToMarkdown } from './document-export-annotation';
+ import { exportMermaidFigure } from './document-export-mermaid';
+ import { exportTableToHtml } from './document-export-table';
++import {
++  exportMkDocsAdmonitionToHtml,
++  exportMkDocsAdmonitionToMarkdown,
++  exportMkDocsChecklistToHtml,
++  exportMkDocsChecklistToMarkdown,
++  exportMkDocsDetailsToHtml,
++  exportMkDocsDetailsToMarkdown,
++  exportMkDocsTabsToHtml,
++  exportMkDocsTabsToMarkdown,
++} from './document-export-mkdocs';
+ import baseExportStyles from './styles/document-base.embedded.css?raw';
+ import codeExportStyles from './styles/document-code.embedded.css?raw';
+ import exportLayoutStyles from './styles/document-layout.embedded.css?raw';
+@@ -42,7 +52,9 @@ export async function exportPageContent(
+   customBlockExporter?: CustomBlockExporter,
+ ): Promise<string> {
+   const blocks = getEditorBlocks(data);
+-  const rendered = await Promise.all(blocks.map((block) => exportBlock(block, format, settings, customBlockExporter)));
++  const rendered = await Promise.all(
++    blocks.map((block, index) => exportBlock(block, format, settings, customBlockExporter, index)),
++  );
+ 
+   if (format === 'html') {
+     return `<!DOCTYPE html>
+@@ -68,6 +80,7 @@ async function exportBlock(
+   format: ExportFormat,
+   settings: SlashDocSettings,
+   customBlockExporter?: CustomBlockExporter,
++  blockIndex = 0,
+ ): Promise<string> {
+   const sourceType = typeof block.type === 'string' ? block.type : '';
+   const normalizedBlock =
+@@ -84,7 +97,7 @@ async function exportBlock(
+   const data = isRecord(normalizedBlock.data) ? normalizedBlock.data : {};
+ 
+   if (format === 'html') {
+-    return wrapHtmlExportBlock(type, exportBuiltInBlockToHtml(type, data));
++    return wrapHtmlExportBlock(type, exportBuiltInBlockToHtml(type, data, blockIndex));
+   }
+ 
+   return exportBuiltInBlockToMarkdown(type, data);
+@@ -96,7 +109,7 @@ function wrapHtmlExportBlock(type: string, html: string): string {
+   return `<div class="slash-doc-export-block slash-doc-export-block-${escapeAttribute(normalizedType)}" data-slash-doc-block-type="${escapeAttribute(type)}">${html}</div>`;
+ }
+ 
+-function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>): string {
++function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>, blockIndex: number): string {
+   if (type === 'header') {
+     const level = clampHeadingLevel(data.level);
+     return `<h${level}>${data.text ?? ''}</h${level}>`;
+@@ -168,6 +181,11 @@ function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>):
+     return exportBpmnSvg(type, data);
+   }
+ 
++  if (type === 'mkdocsAdmonition') return exportMkDocsAdmonitionToHtml(data);
++  if (type === 'mkdocsTabs') return exportMkDocsTabsToHtml(data, blockIndex);
++  if (type === 'mkdocsDetails') return exportMkDocsDetailsToHtml(data);
++  if (type === 'mkdocsChecklist') return exportMkDocsChecklistToHtml(data);
++
+   return `<pre><code>${escapeHtml(JSON.stringify(data, null, 2))}</code></pre>`;
+ }
+ 
+@@ -247,6 +265,11 @@ function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown
+     return exportBpmnSvg(type, data);
+   }
+ 
++  if (type === 'mkdocsAdmonition') return exportMkDocsAdmonitionToMarkdown(data);
++  if (type === 'mkdocsTabs') return exportMkDocsTabsToMarkdown(data);
++  if (type === 'mkdocsDetails') return exportMkDocsDetailsToMarkdown(data);
++  if (type === 'mkdocsChecklist') return exportMkDocsChecklistToMarkdown(data);
++
+   return `\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
+ }
+ 
+diff --git a/src/extension/document-import-html.ts b/src/extension/document-import-html.ts
+index 9b192cc..7136e4b 100644
+--- a/src/extension/document-import-html.ts
++++ b/src/extension/document-import-html.ts
+@@ -14,6 +14,7 @@ import {
+   readFileProcessorHtml,
+   readImageAnnotationHtml,
+   readMermaidSvg,
++  readMkDocsWidgetHtml,
+   readTaskTableHtml,
+ } from './document-import-readers';
+ 
+@@ -23,7 +24,7 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
+     .replaceAll(/<script[\s\S]*?<\/script>/gi, '')
+     .replaceAll(/<style[\s\S]*?<\/style>/gi, '');
+   const blockPattern =
+-    /<(h[1-6]|p|ul|ol|table|figure|section|div|article|main|blockquote|pre|svg)\b[^>]*>([\s\S]*?)<\/\1\s*>|<img\b([^>]*)>/gi;
++    /<(h[1-6]|p|ul|ol|table|figure|section|div|article|main|blockquote|pre|svg|aside|details)\b[^>]*>([\s\S]*?)<\/\1\s*>|<img\b([^>]*)>/gi;
+   let match: RegExpExecArray | null;
+   let consumedUntil = 0;
+ 
+@@ -33,6 +34,13 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
+     const tag = (match[1] ?? 'img').toLowerCase();
+     const outer = match[0];
+     const inner = match[2] ?? '';
++    const mkDocsWidget = readMkDocsWidgetHtml(outer);
++    if (mkDocsWidget) {
++      blocks.push(createEditorBlock(mkDocsWidget.type, mkDocsWidget.data));
++      skipUnclosedHtmlElement(body, outer, match.index, blockPattern, tag);
++      consumedUntil = blockPattern.lastIndex;
++      continue;
++    }
+ 
+     if (tag === 'section') {
+       const apiEndpoint = readApiEndpointHtml(outer);
+@@ -58,7 +66,14 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
+       continue;
+     }
+ 
+-    if (tag === 'div' || tag === 'article' || tag === 'main' || tag === 'blockquote') {
++    if (
++      tag === 'div' ||
++      tag === 'article' ||
++      tag === 'main' ||
++      tag === 'blockquote' ||
++      tag === 'aside' ||
++      tag === 'details'
++    ) {
+       blocks.push(...importHtmlBlocks(inner));
+       continue;
+     }
+diff --git a/src/extension/document-import-markdown.ts b/src/extension/document-import-markdown.ts
+index 5e52106..813800b 100644
+--- a/src/extension/document-import-markdown.ts
++++ b/src/extension/document-import-markdown.ts
+@@ -12,6 +12,7 @@ import {
+   readApprovalTableHtml,
+   readEmbeddedDiagramDataUri,
+   readFileProcessorHtml,
++  readMkDocsWidgetHtml,
+   readTaskTableHtml,
+ } from './document-import-readers';
+ 
+@@ -37,6 +38,44 @@ export function importMarkdownBlocks(markdown: string): Record<string, unknown>[
+     const line = lines[index];
+     const trimmed = line.trim();
+ 
++    if (trimmed.startsWith('<details') && trimmed.includes('data-slash-doc-mkdocs-details=')) {
++      const html = [line];
++      while (!html.at(-1)?.includes('</details>') && index + 1 < lines.length) {
++        index += 1;
++        html.push(lines[index]);
++      }
++      const widget = readMkDocsWidgetHtml(html.join('\n'));
++      if (widget) {
++        flushParagraph();
++        blocks.push(createEditorBlock(widget.type, widget.data));
++        continue;
++      }
++    }
++
++    const checklist = readMkDocsChecklist(lines, index);
++    if (checklist) {
++      flushParagraph();
++      blocks.push(createEditorBlock('mkdocsChecklist', { items: checklist.items }));
++      index = checklist.endIndex;
++      continue;
++    }
++
++    const tabs = readMkDocsTabs(lines, index);
++    if (tabs) {
++      flushParagraph();
++      blocks.push(createEditorBlock('mkdocsTabs', { tabs: tabs.tabs }));
++      index = tabs.endIndex;
++      continue;
++    }
++
++    const admonition = readMkDocsAdmonition(lines, index);
++    if (admonition) {
++      flushParagraph();
++      blocks.push(createEditorBlock('mkdocsAdmonition', admonition.data));
++      index = admonition.endIndex;
++      continue;
++    }
++
+     if (trimmed.includes('data-slash-doc-api-endpoint=')) {
+       flushParagraph();
+       const apiEndpoint = readApiEndpointHtml(trimmed);
+@@ -213,3 +252,98 @@ export function importMarkdownBlocks(markdown: string): Record<string, unknown>[
+   flushParagraph();
+   return blocks;
+ }
++
++function readMkDocsAdmonition(
++  lines: string[],
++  startIndex: number,
++): { data: Record<string, unknown>; endIndex: number } | undefined {
++  const match = /^(!!!|\?\?\?\+?)\s+([\w-]+)(?:\s+["'](.*)["'])?\s*$/.exec(lines[startIndex].trim());
++  if (!match) return undefined;
++  const body: string[] = [];
++  let index = startIndex + 1;
++  if (index < lines.length && !lines[index].trim()) index += 1;
++  while (index < lines.length) {
++    const line = lines[index];
++    if (line.startsWith('    ') || line.startsWith('\t')) {
++      body.push(line.startsWith('\t') ? line.slice(1) : line.slice(4));
++      index += 1;
++      continue;
++    }
++    if (!line.trim()) {
++      body.push('');
++      index += 1;
++      continue;
++    }
++    break;
++  }
++  while (body.at(-1) === '') body.pop();
++  return {
++    data: {
++      kind: match[2],
++      title: match[3] ?? match[2],
++      content: body.join('\n'),
++      collapsible: match[1].startsWith('???'),
++      open: match[1] === '???+',
++    },
++    endIndex: Math.max(startIndex, index - 1),
++  };
++}
++
++function readMkDocsChecklist(
++  lines: string[],
++  startIndex: number,
++): { items: Array<{ id: string; text: string; checked: boolean; level: number }>; endIndex: number } | undefined {
++  if (!/^[\t ]*[-*+]\s+\[[ xX]\]\s+/.test(lines[startIndex])) return undefined;
++  const items: Array<{ id: string; text: string; checked: boolean; level: number }> = [];
++  let index = startIndex;
++  let previousLevel = 0;
++  while (index < lines.length) {
++    const match = /^([\t ]*)[-*+]\s+\[([ xX])\]\s+(.*)$/.exec(lines[index]);
++    if (!match) break;
++    const width = match[1].replaceAll('\t', '    ').length;
++    const requested = Math.floor(width / 4);
++    const level = items.length === 0 ? 0 : Math.min(requested, previousLevel + 1);
++    previousLevel = level;
++    items.push({
++      id: `task-${startIndex}-${items.length}`,
++      text: match[3].trim(),
++      checked: match[2].toLowerCase() === 'x',
++      level,
++    });
++    index += 1;
++  }
++  return { items, endIndex: index - 1 };
++}
++
++function readMkDocsTabs(
++  lines: string[],
++  startIndex: number,
++): { tabs: Array<{ id: string; title: string; content: string }>; endIndex: number } | undefined {
++  if (!/^===\s+["'].+["']\s*$/.test(lines[startIndex].trim())) return undefined;
++  const tabs: Array<{ id: string; title: string; content: string }> = [];
++  let index = startIndex;
++  while (index < lines.length) {
++    const heading = /^===\s+["'](.+)["']\s*$/.exec(lines[index].trim());
++    if (!heading) break;
++    index += 1;
++    if (index < lines.length && !lines[index].trim()) index += 1;
++    const body: string[] = [];
++    while (index < lines.length) {
++      const line = lines[index];
++      if (line.startsWith('    ') || line.startsWith('\t')) {
++        body.push(line.startsWith('\t') ? line.slice(1) : line.slice(4));
++        index += 1;
++        continue;
++      }
++      if (!line.trim()) {
++        body.push('');
++        index += 1;
++        continue;
++      }
++      break;
++    }
++    while (body.at(-1) === '') body.pop();
++    tabs.push({ id: `tab-${startIndex}-${tabs.length}`, title: heading[1], content: body.join('\n') });
++  }
++  return tabs.length > 0 ? { tabs, endIndex: Math.max(startIndex, index - 1) } : undefined;
++}
+diff --git a/src/extension/document-import-readers.ts b/src/extension/document-import-readers.ts
+index efe2ee7..acc8303 100644
+--- a/src/extension/document-import-readers.ts
++++ b/src/extension/document-import-readers.ts
+@@ -129,6 +129,31 @@ export function readTaskTableHtml(sectionHtml: string): Record<string, unknown>
+   }
+ }
+ 
++export function readMkDocsWidgetHtml(html: string):
++  | {
++      type: 'mkdocsAdmonition' | 'mkdocsTabs' | 'mkdocsDetails' | 'mkdocsChecklist';
++      data: Record<string, unknown>;
++    }
++  | undefined {
++  const definitions = [
++    ['data-slash-doc-mkdocs-admonition', 'mkdocsAdmonition'],
++    ['data-slash-doc-mkdocs-tabs', 'mkdocsTabs'],
++    ['data-slash-doc-mkdocs-details', 'mkdocsDetails'],
++    ['data-slash-doc-mkdocs-checklist', 'mkdocsChecklist'],
++  ] as const;
++  for (const [attribute, type] of definitions) {
++    const encoded = getHtmlAttribute(html, attribute);
++    if (!encoded) continue;
++    try {
++      const parsed = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
++      if (isRecord(parsed)) return { type, data: parsed };
++    } catch {
++      return undefined;
++    }
++  }
++  return undefined;
++}
++
+ export function readApprovalTableHtml(tableHtml: string): Record<string, unknown> | undefined {
+   const encoded = getHtmlAttribute(tableHtml, 'data-slash-doc-approval-table');
+   if (!encoded) return undefined;
+diff --git a/src/extension/markdown-site-compiler.ts b/src/extension/markdown-site-compiler.ts
+index b6ce3ce..f85f33a 100644
+--- a/src/extension/markdown-site-compiler.ts
++++ b/src/extension/markdown-site-compiler.ts
+@@ -1,6 +1,7 @@
+ import * as vscode from 'vscode';
+ import {
+   createDocumentationTree,
++  getMarkdownPagePath,
+   renderMarkdownContents,
+   rewriteMarkdownPageLinks,
+ } from '../shared/documentation-tree';
+@@ -38,7 +39,8 @@ export async function compileMarkdownDocumentation(
+     const result = settings.exportOptions.separateFiles
+       ? extractEmbeddedImages(markdown)
+       : { content: markdown, images: [] };
+-    await writeText(vscode.Uri.joinPath(pageRoot, 'content.md'), result.content);
++    const pageFileName = getMarkdownPagePath(current).at(-1) ?? 'Страница.md';
++    await writeText(vscode.Uri.joinPath(pageRoot, pageFileName), result.content);
+     await Promise.all(
+       result.images.map((image) =>
+         vscode.workspace.fs.writeFile(vscode.Uri.joinPath(pageRoot, image.fileName), image.data),
+@@ -46,7 +48,7 @@ export async function compileMarkdownDocumentation(
+     );
+   }
+ 
+-  const contentsUri = vscode.Uri.joinPath(outputRoot, 'contents.md');
++  const contentsUri = vscode.Uri.joinPath(outputRoot, settings.exportOptions.markdownRootFileName);
+   await writeText(contentsUri, renderMarkdownContents(menu.items, pages));
+   return { contentsUri, pageCount: pages.length };
+ }
+diff --git a/src/extension/mkdocs-zip-import.ts b/src/extension/mkdocs-zip-import.ts
+new file mode 100644
+index 0000000..7e17c60
+--- /dev/null
++++ b/src/extension/mkdocs-zip-import.ts
+@@ -0,0 +1,273 @@
++import * as path from 'node:path';
++import * as vscode from 'vscode';
++import { unzipSync } from 'fflate';
++import { parse } from 'yaml';
++import { importDocumentContent } from './document-import';
++import { addChildToMenu, createDefaultPageContent, readMenu, writeMenu } from './pages';
++import { saveStoredPageContent } from './page-storage';
++import type { SlashDocMenuItem } from './types';
++import { createPageId, isRecord } from './utils';
++
++type ZipFiles = Map<string, Uint8Array>;
++type ImportedPage = { item: SlashDocMenuItem; content: unknown; pages: ImportedPage[] };
++type FolderNode = { name: string; indexPath?: string; files: string[]; folders: Map<string, FolderNode> };
++
++export type MkDocsZipImportResult = { firstPageId?: string; pageCount: number };
++
++export async function importMkDocsZip(
++  workspaceRoot: vscode.Uri,
++  archive: Uint8Array,
++  parentId?: string,
++): Promise<MkDocsZipImportResult> {
++  if (archive.byteLength > 100 * 1024 * 1024) {
++    throw new Error('ZIP-архив превышает допустимый размер 100 МБ.');
++  }
++  const files = readZipFiles(archive);
++  const configurationPath = findMkDocsConfiguration(files);
++  const configuration = readConfiguration(files, configurationPath);
++  const projectRoot = configurationPath ? path.posix.dirname(configurationPath) : findCommonProjectRoot(files);
++  const docsRoot = resolveDocsRoot(files, projectRoot, configuration);
++  const markdownPaths = [...files.keys()]
++    .filter((file) => isMarkdownFile(file) && isInside(file, docsRoot))
++    .sort(compareMarkdownPaths);
++  if (markdownPaths.length === 0) throw new Error('В архиве не найдены Markdown-файлы документации.');
++
++  const used = new Set<string>();
++  const nav = Array.isArray(configuration.nav) ? buildNavPages(configuration.nav, docsRoot, files, used) : [];
++  const remaining = markdownPaths.filter((file) => !used.has(file));
++  const pages = [...nav, ...buildFolderPages(remaining, docsRoot, files)];
++  const menu = await readMenu(workspaceRoot);
++  const items = pages.map((page) => page.item);
++  if (parentId) {
++    const added = items.map((item) => addChildToMenu(menu.items, parentId, item));
++    if (added.some((value) => !value)) menu.items.push(...items.filter((_item, index) => !added[index]));
++  } else {
++    menu.items.push(...items);
++  }
++  await Promise.all(
++    flattenImportedPages(pages).map((page) => saveStoredPageContent(workspaceRoot, page.item.id, page.content)),
++  );
++  await writeMenu(workspaceRoot, menu);
++  return { firstPageId: items[0]?.id, pageCount: flattenImportedPages(pages).length };
++}
++
++function readZipFiles(archive: Uint8Array): ZipFiles {
++  const unpacked = unzipSync(archive);
++  const entries = Object.entries(unpacked);
++  if (entries.length > 5000) throw new Error('ZIP-архив содержит более 5000 файлов.');
++  if (entries.reduce((total, [, data]) => total + data.byteLength, 0) > 500 * 1024 * 1024) {
++    throw new Error('Распакованный проект превышает допустимый размер 500 МБ.');
++  }
++  const files = new Map<string, Uint8Array>();
++  for (const [rawPath, data] of entries) {
++    const normalized = normalizeArchivePath(rawPath);
++    if (!normalized || rawPath.endsWith('/') || isIgnoredPath(normalized)) continue;
++    files.set(normalized, data);
++  }
++  return files;
++}
++
++function findMkDocsConfiguration(files: ZipFiles): string | undefined {
++  return [...files.keys()]
++    .filter((file) => /(?:^|\/)mkdocs\.ya?ml$/i.test(file))
++    .sort((left, right) => left.split('/').length - right.split('/').length)[0];
++}
++
++function findCommonProjectRoot(files: ZipFiles): string {
++  const paths = [...files.keys()];
++  if (paths.length === 0) return '';
++  const firstSegments = new Set(paths.map((file) => file.split('/')[0]));
++  return firstSegments.size === 1 && paths.some((file) => file.includes('/')) ? paths[0].split('/')[0] : '';
++}
++
++function readConfiguration(files: ZipFiles, configurationPath: string | undefined): Record<string, unknown> {
++  if (!configurationPath) return {};
++  try {
++    const value = parse(new TextDecoder().decode(files.get(configurationPath)));
++    return isRecord(value) ? value : {};
++  } catch {
++    return {};
++  }
++}
++
++function resolveDocsRoot(files: ZipFiles, projectRoot: string, configuration: Record<string, unknown>): string {
++  const configured = typeof configuration.docs_dir === 'string' ? configuration.docs_dir : 'docs';
++  const candidate = joinArchivePath(projectRoot, configured);
++  if ([...files.keys()].some((file) => isMarkdownFile(file) && isInside(file, candidate))) return candidate;
++  const docsCandidate = joinArchivePath(projectRoot, 'docs');
++  if ([...files.keys()].some((file) => isMarkdownFile(file) && isInside(file, docsCandidate))) return docsCandidate;
++  return projectRoot;
++}
++
++function buildNavPages(nav: unknown[], docsRoot: string, files: ZipFiles, used: Set<string>): ImportedPage[] {
++  return nav.flatMap((entry) => {
++    if (typeof entry === 'string') {
++      const file = resolveNavPath(entry, docsRoot, files);
++      if (!file) return [];
++      used.add(file);
++      return [createFilePage(file, undefined, files)];
++    }
++    if (!isRecord(entry)) return [];
++    return Object.entries(entry).flatMap(([title, value]) => {
++      if (typeof value === 'string') {
++        const file = resolveNavPath(value, docsRoot, files);
++        if (!file) return [];
++        used.add(file);
++        return [createFilePage(file, title, files)];
++      }
++      if (Array.isArray(value)) {
++        const children = buildNavPages(value, docsRoot, files, used);
++        return children.length > 0 ? [createGroupPage(title, children)] : [];
++      }
++      return [];
++    });
++  });
++}
++
++function buildFolderPages(markdownPaths: string[], docsRoot: string, files: ZipFiles): ImportedPage[] {
++  const root: FolderNode = { name: '', files: [], folders: new Map() };
++  for (const file of markdownPaths) {
++    const relative = relativeArchivePath(docsRoot, file);
++    const parts = relative.split('/');
++    const fileName = parts.pop() ?? relative;
++    let folder = root;
++    for (const part of parts) {
++      let child = folder.folders.get(part);
++      if (!child) {
++        child = { name: part, files: [], folders: new Map() };
++        folder.folders.set(part, child);
++      }
++      folder = child;
++    }
++    if (/^(index|readme)\.md$/i.test(fileName)) folder.indexPath = file;
++    else folder.files.push(file);
++  }
++  return renderFolder(root, files, true);
++}
++
++function renderFolder(folder: FolderNode, files: ZipFiles, root = false): ImportedPage[] {
++  const children = [
++    ...folder.files.sort(compareMarkdownPaths).map((file) => createFilePage(file, undefined, files)),
++    ...[...folder.folders.values()]
++      .sort((left, right) => left.name.localeCompare(right.name, 'ru'))
++      .flatMap((child) => renderFolder(child, files)),
++  ];
++  if (root) return [...(folder.indexPath ? [createFilePage(folder.indexPath, undefined, files)] : []), ...children];
++  const title = humanizeFileName(folder.name);
++  const page = folder.indexPath ? createFilePage(folder.indexPath, title, files) : createGroupPage(title, []);
++  page.item.children.push(...children.map((child) => child.item));
++  page.pages.push(...children);
++  return [page];
++}
++
++function createFilePage(file: string, title: string | undefined, files: ZipFiles): ImportedPage {
++  const source = replaceLocalImages(stripFrontMatter(new TextDecoder().decode(files.get(file))), file, files);
++  const virtualUri = vscode.Uri.file(`/${file}`);
++  const imported = importDocumentContent(source, virtualUri);
++  const pageTitle =
++    title?.trim() || imported.title || humanizeFileName(path.posix.basename(file, path.posix.extname(file)));
++  const id = createPageId();
++  return {
++    item: { id, title: pageTitle, file: `${id}/content.yaml`, children: [] },
++    content: imported.content,
++    pages: [],
++  };
++}
++
++function createGroupPage(title: string, children: ImportedPage[]): ImportedPage {
++  const id = createPageId();
++  return {
++    item: { id, title, file: `${id}/content.yaml`, children: children.map((child) => child.item) },
++    content: createDefaultPageContent(title),
++    pages: children,
++  };
++}
++
++function flattenImportedPages(pages: ImportedPage[]): ImportedPage[] {
++  const output: ImportedPage[] = [];
++  const visit = (page: ImportedPage) => {
++    output.push(page);
++    page.pages.forEach(visit);
++  };
++  pages.forEach(visit);
++  return output;
++}
++
++function replaceLocalImages(markdown: string, sourcePath: string, files: ZipFiles): string {
++  return markdown.replaceAll(/(!\[[^\]]*\]\()([^\s)]+)((?:\s+["'][^"']*["'])?\))/g, (full, prefix, target, suffix) => {
++    if (/^(?:[a-z][a-z0-9+.-]*:|#|\/\/)/i.test(target)) return full;
++    const cleanTarget = decodeUriPath(String(target).split(/[?#]/, 1)[0]);
++    const resourcePath = normalizeArchivePath(path.posix.join(path.posix.dirname(sourcePath), cleanTarget));
++    const resource = files.get(resourcePath);
++    if (!resource) return full;
++    const mime = imageMimeType(resourcePath);
++    if (!mime) return full;
++    return `${prefix}data:${mime};base64,${Buffer.from(resource).toString('base64')}${suffix}`;
++  });
++}
++
++function resolveNavPath(value: string, docsRoot: string, files: ZipFiles): string | undefined {
++  const resolved = normalizeArchivePath(joinArchivePath(docsRoot, decodeUriPath(value.split(/[?#]/, 1)[0])));
++  return files.has(resolved) && isMarkdownFile(resolved) ? resolved : undefined;
++}
++
++function stripFrontMatter(source: string): string {
++  return source.replace(/^---\s*\n[\s\S]*?\n---\s*(?:\n|$)/, '');
++}
++
++function normalizeArchivePath(value: string): string {
++  const normalized = path.posix.normalize(value.replaceAll('\\', '/')).replace(/^\.\//, '').replace(/^\/+/, '');
++  return normalized === '..' || normalized.startsWith('../') ? '' : normalized;
++}
++
++function joinArchivePath(...parts: string[]): string {
++  return normalizeArchivePath(path.posix.join(...parts.filter(Boolean)));
++}
++
++function relativeArchivePath(root: string, file: string): string {
++  return root ? path.posix.relative(root, file) : file;
++}
++
++function isInside(file: string, root: string): boolean {
++  return !root || file === root || file.startsWith(`${root}/`);
++}
++
++function isMarkdownFile(file: string): boolean {
++  return /\.(?:md|markdown)$/i.test(file);
++}
++
++function isIgnoredPath(file: string): boolean {
++  return file.split('/').some((part) => part === '__MACOSX' || part.startsWith('.') || part === 'site');
++}
++
++function compareMarkdownPaths(left: string, right: string): number {
++  const leftIndex = /\/(?:index|readme)\.md$/i.test(`/${left}`) ? 0 : 1;
++  const rightIndex = /\/(?:index|readme)\.md$/i.test(`/${right}`) ? 0 : 1;
++  return leftIndex - rightIndex || left.localeCompare(right, 'ru');
++}
++
++function humanizeFileName(value: string): string {
++  const decoded = decodeUriPath(value).replaceAll(/[-_]+/g, ' ').trim();
++  return decoded ? decoded.charAt(0).toLocaleUpperCase('ru') + decoded.slice(1) : 'Импортированная страница';
++}
++
++function decodeUriPath(value: string): string {
++  try {
++    return decodeURIComponent(value);
++  } catch {
++    return value;
++  }
++}
++
++function imageMimeType(file: string): string | undefined {
++  const extension = path.posix.extname(file).toLowerCase();
++  return {
++    '.png': 'image/png',
++    '.jpg': 'image/jpeg',
++    '.jpeg': 'image/jpeg',
++    '.gif': 'image/gif',
++    '.webp': 'image/webp',
++    '.svg': 'image/svg+xml',
++    '.avif': 'image/avif',
++  }[extension];
++}
+diff --git a/src/extension/settings.ts b/src/extension/settings.ts
+index d3dd397..26f01e7 100644
+--- a/src/extension/settings.ts
++++ b/src/extension/settings.ts
+@@ -6,7 +6,7 @@ export function getDefaultSettings(): SlashDocSettings {
+   return {
+     version: 1,
+     autoSave: { ...DEFAULT_AUTO_SAVE_SETTINGS },
+-    exportOptions: { separateFiles: false },
++    exportOptions: { separateFiles: false, repositoryUrl: '', markdownRootFileName: 'README.md' },
+     editorAddons: {
+       header: true,
+       list: true,
+@@ -28,6 +28,10 @@ export function getDefaultSettings(): SlashDocSettings {
+       bpmnModeler: true,
+       bpmnPreview: true,
+       userMention: true,
++      mkdocsAdmonition: true,
++      mkdocsTabs: true,
++      mkdocsDetails: true,
++      mkdocsChecklist: true,
+     },
+     customEditorAddons: [],
+     apiPrefix: '/api',
+@@ -53,6 +57,14 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
+         'separateFiles',
+         getBooleanSetting(value.exportOptions, 'extractImages', defaults.exportOptions.separateFiles),
+       ),
++      repositoryUrl:
++        isRecord(value.exportOptions) && typeof value.exportOptions.repositoryUrl === 'string'
++          ? value.exportOptions.repositoryUrl.trim()
++          : defaults.exportOptions.repositoryUrl,
++      markdownRootFileName:
++        isRecord(value.exportOptions) && typeof value.exportOptions.markdownRootFileName === 'string'
++          ? normalizeMarkdownRootFileName(value.exportOptions.markdownRootFileName)
++          : defaults.exportOptions.markdownRootFileName,
+     },
+     editorAddons: {
+       header: getBooleanSetting(value.editorAddons, 'header', defaults.editorAddons.header),
+@@ -79,6 +91,14 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
+       bpmnModeler: getBooleanSetting(value.editorAddons, 'bpmnModeler', defaults.editorAddons.bpmnModeler),
+       bpmnPreview: getBooleanSetting(value.editorAddons, 'bpmnPreview', defaults.editorAddons.bpmnPreview),
+       userMention: getBooleanSetting(value.editorAddons, 'userMention', defaults.editorAddons.userMention),
++      mkdocsAdmonition: getBooleanSetting(
++        value.editorAddons,
++        'mkdocsAdmonition',
++        defaults.editorAddons.mkdocsAdmonition,
++      ),
++      mkdocsTabs: getBooleanSetting(value.editorAddons, 'mkdocsTabs', defaults.editorAddons.mkdocsTabs),
++      mkdocsDetails: getBooleanSetting(value.editorAddons, 'mkdocsDetails', defaults.editorAddons.mkdocsDetails),
++      mkdocsChecklist: getBooleanSetting(value.editorAddons, 'mkdocsChecklist', defaults.editorAddons.mkdocsChecklist),
+     },
+     customEditorAddons: normalizeCustomEditorAddons(value.customEditorAddons),
+     apiPrefix: typeof value.apiPrefix === 'string' ? normalizeApiPrefix(value.apiPrefix) : defaults.apiPrefix,
+@@ -88,6 +108,13 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
+   };
+ }
+ 
++export function normalizeMarkdownRootFileName(value: string): string {
++  const source = value.trim().split(/[\\/]/).at(-1)?.trim() ?? '';
++  const sanitized = source.replaceAll(/[\u0000-\u001f<>:"|?*]/g, '-').replaceAll(/^[ .]+|[ .]+$/g, '');
++  const fileName = sanitized && !/^\.+$/.test(sanitized) ? sanitized : 'README.md';
++  return fileName.toLocaleLowerCase().endsWith('.md') ? fileName : `${fileName}.md`;
++}
++
+ export function normalizeApiPrefix(value: string): string {
+   const trimmed = value.trim();
+ 
+diff --git a/src/extension/sidebar-provider.ts b/src/extension/sidebar-provider.ts
+index d81852a..954bfe5 100644
+--- a/src/extension/sidebar-provider.ts
++++ b/src/extension/sidebar-provider.ts
+@@ -15,6 +15,7 @@ import { readSettings, writeSettings } from './settings-store';
+ import { importDocumentContent } from './document-import';
+ import { searchDocumentation } from './documentation-search';
+ import { saveStoredPageContent } from './page-storage';
++import { importMkDocsZip } from './mkdocs-zip-import';
+ import { getSidebarHtml } from './sidebar-webview';
+ import type { ApiServerManager } from './api-server';
+ import { compileDocumentation, initializeDocumentation } from './sidebar-provider-actions';
+@@ -363,6 +364,7 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
+       canSelectMany: false,
+       filters: {
+         'Markdown / HTML': ['md', 'markdown', 'html', 'htm'],
++        'Проект MkDocs': ['zip'],
+       },
+       openLabel: 'Импортировать',
+     });
+@@ -374,6 +376,17 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
+     }
+ 
+     const bytes = await vscode.workspace.fs.readFile(file);
++    if (file.fsPath.toLowerCase().endsWith('.zip')) {
++      try {
++        const result = await importMkDocsZip(workspaceRoot, bytes, parentId);
++        void vscode.window.showInformationMessage(`Импортировано страниц MkDocs: ${result.pageCount}.`);
++        return result.firstPageId;
++      } catch (error) {
++        const message = error instanceof Error ? error.message : String(error);
++        void vscode.window.showErrorMessage(`Не удалось импортировать MkDocs ZIP: ${message}`);
++        return undefined;
++      }
++    }
+     const text = new TextDecoder().decode(bytes);
+     const imported = importDocumentContent(text, file);
+     return createSidebarPageWithContent(imported.title, imported.content, parentId);
+diff --git a/src/extension/sidebar-render.ts b/src/extension/sidebar-render.ts
+index e0514b2..305c781 100644
+--- a/src/extension/sidebar-render.ts
++++ b/src/extension/sidebar-render.ts
+@@ -25,6 +25,14 @@ export function renderSettingsPanel(settings: SlashDocSettings): string {
+           <span>Сохранять файлы документа отдельно</span>
+           <slash-switch id="separate-files" ${settings.exportOptions.separateFiles ? 'checked' : ''}></slash-switch>
+         </label>
++        <label class="settings-row repository-settings-row">
++          <span>GitLab-репозиторий</span>
++          <input class="settings-input" id="repository-url" type="url" value="${escapeAttribute(settings.exportOptions.repositoryUrl)}" placeholder="https://gitlab.example/group/project">
++        </label>
++        <label class="settings-row repository-settings-row">
++          <span>Корневой Markdown-файл</span>
++          <input class="settings-input" id="markdown-root-file-name" value="${escapeAttribute(settings.exportOptions.markdownRootFileName)}" placeholder="README.md">
++        </label>
+       </div>
+       <div class="settings-group">
+         <div class="settings-group-title">Свои Editor.js аддоны</div>
+diff --git a/src/extension/sidebar-webview.ts b/src/extension/sidebar-webview.ts
+index 82bec88..be90595 100644
+--- a/src/extension/sidebar-webview.ts
++++ b/src/extension/sidebar-webview.ts
+@@ -29,8 +29,8 @@ export async function getSidebarHtml(
+           <div class="menu-panel">
+             <div class="actions-row">
+               <slash-button id="create-page" size="small" variant="primary">Создать страницу</slash-button>
+-              <slash-tooltip class="import-tooltip" content="Импорт">
+-                <slash-button id="import-page" size="small" variant="default" aria-label="Импорт">
++              <slash-tooltip class="import-tooltip" content="Импорт страницы или MkDocs ZIP">
++                <slash-button id="import-page" size="small" variant="default" aria-label="Импорт страницы или MkDocs ZIP">
+                   <svg class="import-icon" viewBox="0 0 20 20" aria-hidden="true">
+                     <path d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5M4 11.5V16h12v-4.5" />
+                   </svg>
+diff --git a/src/extension/site-compiler.ts b/src/extension/site-compiler.ts
+index c066c9c..3eabe38 100644
+--- a/src/extension/site-compiler.ts
++++ b/src/extension/site-compiler.ts
+@@ -6,6 +6,7 @@ import { getDocumentationSearchText } from './documentation-search-text';
+ import { readMenu, readPageContent } from './pages';
+ import { readSettings } from './settings-store';
+ import { flattenPages, prepareCompiledPage, renderHostHtml } from './site-renderer';
++import { readPageRevisionMetadata, resolvePageRevisionFile } from '../shared/page-revision';
+ 
+ export type CompiledDocumentation = {
+   indexUri: vscode.Uri;
+@@ -29,11 +30,17 @@ export async function compileDocumentationSite(
+ 
+   for (const page of pages) {
+     const data = await readPageContent(workspaceRoot, page.id, page.title);
++    const revision = await readPageRevisionMetadata(
++      workspaceRoot.fsPath,
++      await resolvePageRevisionFile(workspaceRoot.fsPath, page.id),
++      settings.exportOptions.repositoryUrl,
++    );
+     searchIndex.push({ pageId: page.id, title: page.title, text: getDocumentationSearchText(data) });
+     const exported = prepareCompiledPage(
+       await exportPageContent(data, 'html', settings, customExporter),
+       page.id,
+       pageIds,
++      revision,
+     );
+     const result = settings.exportOptions.separateFiles
+       ? extractEmbeddedImages(exported, `${page.id}-image`)
+diff --git a/src/extension/site-renderer.ts b/src/extension/site-renderer.ts
+index f705590..7bfaac4 100644
+--- a/src/extension/site-renderer.ts
++++ b/src/extension/site-renderer.ts
+@@ -1,4 +1,5 @@
+ import type { SlashDocMenuItem } from './types';
++import type { PageRevisionMetadata } from '../shared/page-revision';
+ import { escapeAttribute, escapeHtml, escapeScriptJson } from './utils';
+ import hostStyles from './styles/site-host.embedded.css?raw';
+ import pageStyles from './styles/site-page.embedded.css?raw';
+@@ -9,12 +10,78 @@ export function flattenPages(items: SlashDocMenuItem[]): SlashDocMenuItem[] {
+   return items.flatMap((item) => [item, ...flattenPages(item.children)]);
+ }
+ 
+-export function prepareCompiledPage(html: string, pageId: string, pageIds: Set<string>): string {
+-  const withLinks = rewriteDocumentationLinks(html, pageIds);
++export function prepareCompiledPage(
++  html: string,
++  pageId: string,
++  pageIds: Set<string>,
++  revision?: PageRevisionMetadata,
++): string {
++  const withLinks = injectPageRevision(rewriteDocumentationLinks(html, pageIds), revision);
+   const additions = `<meta name="slash-doc-page-id" content="${escapeAttribute(pageId)}">
+   <style>${pageStyles}</style>
+-  <script>window.parent.postMessage({type:'slash-doc-page',pageId:${escapeScriptJson(pageId)}}, '*');</script>`;
+-  return withLinks.replace('</head>', `${additions}\n  </head>`);
++  <script>try{const theme=window.parent.document.documentElement.dataset.slashDocTheme;if(theme)document.documentElement.dataset.slashDocTheme=theme}catch{}window.parent.postMessage({type:'slash-doc-page',pageId:${escapeScriptJson(pageId)}}, '*');</script>`;
++  const prepared = withLinks.replace('</head>', `${additions}\n  </head>`);
++  const copyControl = `<button class="slash-doc-copy-html" type="button" data-slash-doc-copy-control aria-label="Скопировать HTML страницы" title="Скопировать HTML страницы">
++    <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
++    <span>Скопировать HTML</span>
++  </button>
++  <script data-slash-doc-copy-script>${getCopyPageScript()}</script>`;
++  return prepared.replace('</body>', `${copyControl}\n  </body>`);
++}
++
++function injectPageRevision(html: string, revision: PageRevisionMetadata | undefined): string {
++  if (!revision) return html;
++  const date = formatRevisionDate(revision.changedAt);
++  const editLink =
++    revision.editUrl && /^https?:\/\//i.test(revision.editUrl)
++      ? ` <a href="${escapeAttribute(revision.editUrl)}" target="_blank" rel="noopener noreferrer">Редактировать</a>`
++      : '';
++  const metadata = `<p class="slash-doc-page-revision">Изменено: <time datetime="${escapeAttribute(revision.changedAt)}">${escapeHtml(date)}</time> <span class="slash-doc-page-revision-user">${escapeHtml(revision.user)}</span>${editLink}</p>`;
++  const heading = /<h([1-6])\b[^>]*>[\s\S]*?<\/h\1\s*>/i;
++  if (heading.test(html)) return html.replace(heading, (value) => `${value}\n${metadata}`);
++  return html.replace(/<body\b[^>]*>/i, (value) => `${value}\n${metadata}`);
++}
++
++function formatRevisionDate(value: string): string {
++  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
++  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
++}
++
++function getCopyPageScript(): string {
++  return `(() => {
++    const button = document.querySelector('[data-slash-doc-copy-control]');
++    if (!button) return;
++    const writeClipboard = async (value) => {
++      if (navigator.clipboard?.writeText) {
++        try { await navigator.clipboard.writeText(value); return true; } catch {}
++      }
++      const textarea = document.createElement('textarea');
++      textarea.value = value;
++      textarea.setAttribute('readonly', '');
++      textarea.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
++      document.body.append(textarea);
++      textarea.select();
++      let copied = false;
++      try { copied = document.execCommand('copy'); } catch {}
++      textarea.remove();
++      return copied;
++    };
++    button.addEventListener('click', async () => {
++      const clone = document.documentElement.cloneNode(true);
++      clone.removeAttribute('data-slash-doc-theme');
++      clone.querySelectorAll('[data-slash-doc-copy-control],script[data-slash-doc-copy-script]').forEach((item) => item.remove());
++      const source = '<!DOCTYPE html>\\n' + clone.outerHTML;
++      const copied = await writeClipboard(source);
++      const label = button.querySelector('span');
++      const original = 'Скопировать HTML';
++      if (label) label.textContent = copied ? 'Скопировано' : 'Не удалось скопировать';
++      button.classList.toggle('copied', copied);
++      window.setTimeout(() => {
++        if (label) label.textContent = original;
++        button.classList.remove('copied');
++      }, 1800);
++    });
++  })();`;
+ }
+ 
+ function rewriteDocumentationLinks(html: string, pageIds: Set<string>): string {
+@@ -99,7 +166,7 @@ export function renderHostHtml(
+ </head>
+ <body>
+   <aside class="sidebar">
+-    <header class="sidebar-title">${escapeHtml(projectName)}</header>
++    <header class="sidebar-title"><span>${escapeHtml(projectName)}</span><button class="theme-toggle" type="button" aria-label="Включить тёмную тему" title="Включить тёмную тему">☾</button></header>
+     <div class="documentation-search"><input type="search" placeholder="Поиск по документации" aria-label="Поиск по документации"></div>
+     <nav class="navigation" aria-label="Страницы документации">${renderHostMenu(items)}</nav>
+     <div class="search-results" hidden></div>
+@@ -109,6 +176,24 @@ export function renderHostHtml(
+   <script>
+     const links = Array.from(document.querySelectorAll('.page-link'));
+     const content = document.querySelector('.content');
++    const themeToggle = document.querySelector('.theme-toggle');
++    const themeStorageKey = 'slash-doc-theme';
++    let currentTheme = 'light';
++    try { currentTheme = localStorage.getItem(themeStorageKey) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch {}
++    const applyTheme = (theme) => {
++      currentTheme = theme === 'dark' ? 'dark' : 'light';
++      document.documentElement.dataset.slashDocTheme = currentTheme;
++      themeToggle.textContent = currentTheme === 'dark' ? '☀' : '☾';
++      const label = currentTheme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему';
++      themeToggle.setAttribute('aria-label', label);
++      themeToggle.title = label;
++      try { content.contentDocument.documentElement.dataset.slashDocTheme = currentTheme; } catch {}
++    };
++    applyTheme(currentTheme);
++    themeToggle.addEventListener('click', () => {
++      applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
++      try { localStorage.setItem(themeStorageKey, currentTheme); } catch {}
++    });
+     const pageLinks = new Map(links.map((link) => [link.dataset.pageId, link]));
+     let activePageId = '';
+     let expectedPageId = '';
+@@ -137,6 +222,7 @@ export function renderHostHtml(
+     };
+     content.addEventListener('load', () => {
+       try {
++        content.contentDocument.documentElement.dataset.slashDocTheme = currentTheme;
+         const pageId = content.contentDocument?.querySelector('meta[name="slash-doc-page-id"]')?.content;
+         if (pageId) acceptLoadedPage(pageId);
+       } catch {}
+diff --git a/src/extension/styles/api-export.embedded.css b/src/extension/styles/api-export.embedded.css
+index e9dbcc3..e6889d0 100644
+--- a/src/extension/styles/api-export.embedded.css
++++ b/src/extension/styles/api-export.embedded.css
+@@ -1,10 +1,10 @@
+ .slash-api-export {
+   margin: 1em 0;
+   padding: 18px;
+-  color: #202124;
+-  border: 1px solid #d0d7de;
++  color: var(--slash-page-foreground);
++  border: 1px solid var(--slash-page-border);
+   border-radius: 7px;
+-  background: #fff;
++  background: var(--slash-page-background);
+   font: 14px/1.5 sans-serif;
+ }
+ 
+@@ -47,7 +47,7 @@
+ .slash-api-export th,
+ .slash-api-export td {
+   padding: 7px;
+-  border: 1px solid #d0d7de;
++  border: 1px solid var(--slash-page-border);
+   text-align: left;
+   vertical-align: top;
+ }
+diff --git a/src/extension/styles/document-base.embedded.css b/src/extension/styles/document-base.embedded.css
+index b4f64bf..4d42ab5 100644
+--- a/src/extension/styles/document-base.embedded.css
++++ b/src/extension/styles/document-base.embedded.css
+@@ -19,6 +19,30 @@
+   line-height: 1.55;
+ }
+ 
++:root[data-slash-doc-theme='dark'] {
++  --slash-page-background: #0d1117;
++  --slash-page-foreground: #e6edf3;
++  --slash-page-muted: #9aa7b5;
++  --slash-page-border: #30363d;
++  --slash-page-surface: #161b22;
++  --slash-page-link: #58a6ff;
++  --slash-inline-code-background: rgba(110, 118, 129, 0.4);
++  color-scheme: dark;
++}
++
++@media (prefers-color-scheme: dark) {
++  :root:not([data-slash-doc-theme]) {
++    --slash-page-background: #0d1117;
++    --slash-page-foreground: #e6edf3;
++    --slash-page-muted: #9aa7b5;
++    --slash-page-border: #30363d;
++    --slash-page-surface: #161b22;
++    --slash-page-link: #58a6ff;
++    --slash-inline-code-background: rgba(110, 118, 129, 0.4);
++    color-scheme: dark;
++  }
++}
++
+ * {
+   box-sizing: border-box;
+ }
+diff --git a/src/extension/styles/document-code.embedded.css b/src/extension/styles/document-code.embedded.css
+index 9fc28de..02cca4d 100644
+--- a/src/extension/styles/document-code.embedded.css
++++ b/src/extension/styles/document-code.embedded.css
+@@ -73,3 +73,61 @@
+ .hljs-emphasis {
+   font-style: italic;
+ }
++
++:root[data-slash-doc-theme='dark'] .slash-code-export {
++  color: #e6edf3;
++  border-color: #30363d;
++  background: #161b22;
++}
++
++:root[data-slash-doc-theme='dark'] .hljs-comment,
++:root[data-slash-doc-theme='dark'] .hljs-quote {
++  color: #8b949e;
++}
++
++:root[data-slash-doc-theme='dark'] .hljs-keyword,
++:root[data-slash-doc-theme='dark'] .hljs-selector-tag,
++:root[data-slash-doc-theme='dark'] .hljs-literal,
++:root[data-slash-doc-theme='dark'] .hljs-section,
++:root[data-slash-doc-theme='dark'] .hljs-link {
++  color: #ff7b72;
++}
++
++:root[data-slash-doc-theme='dark'] .hljs-string,
++:root[data-slash-doc-theme='dark'] .hljs-title,
++:root[data-slash-doc-theme='dark'] .hljs-name,
++:root[data-slash-doc-theme='dark'] .hljs-type,
++:root[data-slash-doc-theme='dark'] .hljs-attribute,
++:root[data-slash-doc-theme='dark'] .hljs-symbol,
++:root[data-slash-doc-theme='dark'] .hljs-bullet {
++  color: #a5d6ff;
++}
++
++:root[data-slash-doc-theme='dark'] .hljs-number,
++:root[data-slash-doc-theme='dark'] .hljs-meta,
++:root[data-slash-doc-theme='dark'] .hljs-built_in,
++:root[data-slash-doc-theme='dark'] .hljs-builtin-name,
++:root[data-slash-doc-theme='dark'] .hljs-params {
++  color: #79c0ff;
++}
++
++:root[data-slash-doc-theme='dark'] .hljs-variable,
++:root[data-slash-doc-theme='dark'] .hljs-template-variable,
++:root[data-slash-doc-theme='dark'] .hljs-selector-id,
++:root[data-slash-doc-theme='dark'] .hljs-selector-class {
++  color: #ffa657;
++}
++
++:root[data-slash-doc-theme='dark'] .hljs-addition {
++  color: #aff5b4;
++  background: #033a16;
++}
++
++:root[data-slash-doc-theme='dark'] .hljs-regexp,
++:root[data-slash-doc-theme='dark'] .hljs-deletion {
++  color: #ffdcd7;
++}
++
++:root[data-slash-doc-theme='dark'] .hljs-deletion {
++  background: #67060c;
++}
+diff --git a/src/extension/styles/document-layout.embedded.css b/src/extension/styles/document-layout.embedded.css
+index e3f6e79..a8929ee 100644
+--- a/src/extension/styles/document-layout.embedded.css
++++ b/src/extension/styles/document-layout.embedded.css
+@@ -28,3 +28,8 @@
+   text-decoration: none;
+   white-space: nowrap;
+ }
++
++:root[data-slash-doc-theme='dark'] .slash-user-mention {
++  color: #79c0ff;
++  background: #0c2d4a;
++}
+diff --git a/src/extension/styles/image-annotation-export.embedded.css b/src/extension/styles/image-annotation-export.embedded.css
+index 05da577..411c552 100644
+--- a/src/extension/styles/image-annotation-export.embedded.css
++++ b/src/extension/styles/image-annotation-export.embedded.css
+@@ -96,7 +96,7 @@
+ .slash-annotation-table th,
+ .slash-annotation-table td {
+   padding: 7px 9px;
+-  border: 1px solid #bbb;
++  border: 1px solid var(--slash-page-border);
+   text-align: left;
+   vertical-align: top;
+ }
+diff --git a/src/extension/styles/mkdocs-widgets-export.embedded.css b/src/extension/styles/mkdocs-widgets-export.embedded.css
+new file mode 100644
+index 0000000..cc0ddf9
+--- /dev/null
++++ b/src/extension/styles/mkdocs-widgets-export.embedded.css
+@@ -0,0 +1,128 @@
++.slash-mkdocs-admonition,
++.slash-mkdocs-details {
++  --mkdocs-accent: #448aff;
++  margin: 1em 0;
++  overflow: hidden;
++  border: 1px solid color-mix(in srgb, var(--mkdocs-accent) 55%, var(--slash-page-border));
++  border-left: 4px solid var(--mkdocs-accent);
++  border-radius: 6px;
++  background: color-mix(in srgb, var(--mkdocs-accent) 7%, var(--slash-page-background));
++}
++
++.slash-mkdocs-admonition-title,
++.slash-mkdocs-admonition > summary,
++.slash-mkdocs-details > summary {
++  padding: 10px 13px;
++  font-weight: 700;
++  background: color-mix(in srgb, var(--mkdocs-accent) 14%, transparent);
++}
++
++.slash-mkdocs-admonition > summary,
++.slash-mkdocs-details > summary {
++  cursor: pointer;
++}
++
++.slash-mkdocs-admonition-body,
++.slash-mkdocs-details-body {
++  padding: 12px 14px 2px;
++}
++
++.slash-mkdocs-admonition-tip,
++.slash-mkdocs-admonition-success {
++  --mkdocs-accent: #16a085;
++}
++
++.slash-mkdocs-admonition-warning,
++.slash-mkdocs-admonition-question {
++  --mkdocs-accent: #f59e0b;
++}
++
++.slash-mkdocs-admonition-danger,
++.slash-mkdocs-admonition-failure,
++.slash-mkdocs-admonition-bug {
++  --mkdocs-accent: #ef4444;
++}
++
++.slash-mkdocs-admonition-example,
++.slash-mkdocs-admonition-quote {
++  --mkdocs-accent: #8b5cf6;
++}
++
++.slash-mkdocs-tabs {
++  position: relative;
++  margin: 1em 0;
++}
++
++.slash-mkdocs-tab-labels {
 +  display: flex;
 +  gap: 3px;
-+  padding: 3px;
++  overflow-x: auto;
++  border-bottom: 1px solid var(--slash-page-border);
 +}
-+.slash-list-style-button svg {
-+  width: 20px;
-+  height: 20px;
++
++.slash-mkdocs-tab-labels button {
++  padding: 9px 13px;
++  color: var(--slash-page-foreground);
++  cursor: pointer;
++  white-space: nowrap;
++  border: 0;
++  border-bottom: 2px solid transparent;
++  background: transparent;
++  font: inherit;
 +}
-diff --git a/src/webview/nested-list-tool.ts b/src/webview/nested-list-tool.ts
-index 9268c45..51e1703 100644
---- a/src/webview/nested-list-tool.ts
-+++ b/src/webview/nested-list-tool.ts
-@@ -1,4 +1,5 @@
- import type { API, BlockToolConstructorOptions } from '@editorjs/editorjs/types';
-+import { LUCIDE_ICONS } from './lucide-icons';
++
++.slash-mkdocs-tab-panels {
++  padding-top: 14px;
++}
++
++.slash-mkdocs-tab-labels button[aria-selected='true'] {
++  color: var(--slash-page-link);
++  border-bottom-color: var(--slash-page-link);
++}
++
++.slash-mkdocs-tab-labels button:focus-visible {
++  outline: 2px solid var(--slash-page-link);
++  outline-offset: -2px;
++}
++
++.slash-mkdocs-checklist {
++  margin: 1em 0;
++}
++
++.slash-mkdocs-checklist ul {
++  margin: 0;
++  padding-left: 24px;
++  list-style: none;
++}
++
++.slash-mkdocs-checklist > ul {
++  padding-left: 0;
++}
++
++.slash-mkdocs-checklist li {
++  margin: 6px 0;
++}
++
++.slash-mkdocs-checklist label {
++  display: flex;
++  align-items: flex-start;
++  gap: 8px;
++}
++
++.slash-mkdocs-checklist input {
++  flex: 0 0 auto;
++  width: 17px;
++  height: 17px;
++  margin-top: 3px;
++  accent-color: var(--slash-page-link);
++}
++
++.slash-mkdocs-checklist label > span > p {
++  display: inline;
++  margin: 0;
++}
++
++.slash-mkdocs-checklist input:checked + span {
++  color: var(--slash-page-muted);
++  text-decoration: line-through;
++}
+diff --git a/src/extension/styles/site-host.embedded.css b/src/extension/styles/site-host.embedded.css
+index 1108e7a..ad10453 100644
+--- a/src/extension/styles/site-host.embedded.css
++++ b/src/extension/styles/site-host.embedded.css
+@@ -1,8 +1,17 @@
+ :root {
++  --host-background: #fff;
++  --host-foreground: #172033;
++  --host-sidebar: #f7f8fa;
++  --host-border: #dfe3ea;
++  --host-input: #fff;
++  --host-text: #263247;
++  --host-muted: #6b7280;
++  --host-hover: #e9edf3;
++  --host-scroll: #aeb7c5;
+   height: 100%;
+   overflow: hidden;
+-  color: #172033;
+-  background: #fff;
++  color: var(--host-foreground);
++  background: var(--host-background);
+   font-family:
+     Inter,
+     ui-sans-serif,
+@@ -13,6 +22,19 @@
+     sans-serif;
+ }
  
- export type NestedListItem = { content: string; items: NestedListItem[] };
- export type NestedListData = { style: 'ordered' | 'unordered'; items: NestedListItem[] };
-@@ -9,6 +10,10 @@ export default class NestedListTool {
-   private data: NestedListData;
-   private root?: HTMLOListElement | HTMLUListElement;
++:root[data-slash-doc-theme='dark'] {
++  --host-background: #0d1117;
++  --host-foreground: #e6edf3;
++  --host-sidebar: #161b22;
++  --host-border: #30363d;
++  --host-input: #0d1117;
++  --host-text: #c9d1d9;
++  --host-muted: #8b949e;
++  --host-hover: #21262d;
++  --host-scroll: #484f58;
++  color-scheme: dark;
++}
++
+ * {
+   box-sizing: border-box;
+ }
+@@ -45,7 +67,7 @@ body.resizing-sidebar .content {
+   min-height: 0;
+   min-width: 0;
+   overflow: hidden;
+-  background: #f7f8fa;
++  background: var(--host-sidebar);
+ }
  
-+  static get toolbox() {
-+    return { title: 'Многоуровневый список', icon: LUCIDE_ICONS.list };
+ .sidebar-resizer {
+@@ -55,7 +77,7 @@ body.resizing-sidebar .content {
+   height: 100%;
+   cursor: col-resize;
+   touch-action: none;
+-  background: #dfe3ea;
++  background: var(--host-border);
+   background-clip: content-box;
+   border-inline: 3px solid transparent;
+ }
+@@ -70,12 +92,35 @@ body.resizing-sidebar .sidebar-resizer {
+ }
+ 
+ .sidebar-title {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 10px;
+   padding: 18px 16px 14px;
+-  border-bottom: 1px solid #dfe3ea;
++  border-bottom: 1px solid var(--host-border);
+   font-size: 16px;
+   font-weight: 700;
+ }
+ 
++.theme-toggle {
++  display: inline-grid;
++  flex: 0 0 auto;
++  width: 30px;
++  height: 30px;
++  padding: 0;
++  place-items: center;
++  color: var(--host-text);
++  cursor: pointer;
++  border: 1px solid var(--host-border);
++  border-radius: 6px;
++  background: var(--host-input);
++  font-size: 17px;
++}
++
++.theme-toggle:hover {
++  background: var(--host-hover);
++}
++
+ .documentation-search {
+   padding: 10px 10px 0;
+ }
+@@ -83,11 +128,11 @@ body.resizing-sidebar .sidebar-resizer {
+ .documentation-search input {
+   width: 100%;
+   padding: 7px 9px;
+-  color: #172033;
+-  border: 1px solid #cfd5df;
++  color: var(--host-foreground);
++  border: 1px solid var(--host-border);
+   border-radius: 5px;
+   outline: none;
+-  background: #fff;
++  background: var(--host-input);
+ }
+ 
+ .documentation-search input:focus {
+@@ -126,7 +171,7 @@ body.resizing-sidebar .sidebar-resizer {
+   overflow-x: hidden;
+   overflow-y: auto;
+   padding: 10px 8px 24px;
+-  color: #6b7280;
++  color: var(--host-muted);
+   font-size: 12px;
+ }
+ 
+@@ -137,27 +182,27 @@ body.resizing-sidebar .sidebar-resizer {
+ 
+ .navigation::-webkit-scrollbar-thumb,
+ .search-results::-webkit-scrollbar-thumb {
+-  border: 2px solid #f7f8fa;
++  border: 2px solid var(--host-sidebar);
+   border-radius: 8px;
+-  background: #aeb7c5;
++  background: var(--host-scroll);
+ }
+ 
+ .navigation::-webkit-scrollbar-track,
+ .search-results::-webkit-scrollbar-track {
+-  background: #f7f8fa;
++  background: var(--host-sidebar);
+ }
+ 
+ .search-result {
+   display: grid;
+   gap: 3px;
+   padding: 7px 8px;
+-  color: #263247;
++  color: var(--host-text);
+   border-radius: 5px;
+   text-decoration: none;
+ }
+ 
+ .search-result:hover {
+-  background: #e9edf3;
++  background: var(--host-hover);
+ }
+ 
+ .search-result strong {
+@@ -169,7 +214,7 @@ body.resizing-sidebar .sidebar-resizer {
+ .search-result span {
+   display: -webkit-box;
+   overflow: hidden;
+-  color: #6b7280;
++  color: var(--host-muted);
+   font-size: 11px;
+   line-height: 1.35;
+   -webkit-box-orient: vertical;
+@@ -182,14 +227,14 @@ body.resizing-sidebar .sidebar-resizer {
+ }
+ 
+ .navigation summary::marker {
+-  color: #7b8495;
++  color: var(--host-muted);
+ }
+ 
+ .page-link {
+   display: block;
+   overflow: hidden;
+   padding: 6px 8px;
+-  color: #263247;
++  color: var(--host-text);
+   border-radius: 5px;
+   text-decoration: none;
+   text-overflow: ellipsis;
+@@ -201,7 +246,7 @@ body.resizing-sidebar .sidebar-resizer {
+ }
+ 
+ .page-link:hover {
+-  background: #e9edf3;
++  background: var(--host-hover);
+ }
+ 
+ .page-link.active {
+@@ -213,12 +258,12 @@ body.resizing-sidebar .sidebar-resizer {
+   width: 100%;
+   height: 100%;
+   border: 0;
+-  background: #fff;
++  background: var(--host-background);
+ }
+ 
+ .empty {
+   padding: 8px;
+-  color: #6b7280;
++  color: var(--host-muted);
+ }
+ 
+ @media (max-width: 760px) {
+diff --git a/src/extension/styles/site-page.embedded.css b/src/extension/styles/site-page.embedded.css
+index ee9f7c0..f291ea1 100644
+--- a/src/extension/styles/site-page.embedded.css
++++ b/src/extension/styles/site-page.embedded.css
+@@ -1,3 +1,88 @@
+ body {
+   max-width: 1940px;
++  padding-top: 72px;
++}
++
++.slash-doc-page-revision {
++  display: flex;
++  flex-wrap: wrap;
++  align-items: baseline;
++  gap: 4px;
++  margin: -0.25em 0 1.5em;
++  color: var(--slash-page-muted);
++  font-size: 13px;
++}
++
++.slash-doc-page-revision time,
++.slash-doc-page-revision-user {
++  color: inherit;
++}
++
++.slash-doc-page-revision a {
++  margin-left: 4px;
++  font-weight: 600;
++}
++
++.slash-doc-copy-html {
++  position: fixed;
++  z-index: 100;
++  top: 14px;
++  right: 18px;
++  display: inline-flex;
++  align-items: center;
++  gap: 7px;
++  min-height: 34px;
++  padding: 7px 11px;
++  color: var(--slash-page-foreground);
++  cursor: pointer;
++  border: 1px solid var(--slash-page-border);
++  border-radius: 6px;
++  background: var(--slash-page-surface);
++  box-shadow: 0 2px 8px rgb(0 0 0 / 12%);
++  font-family: inherit;
++  font-size: 12px;
++  font-weight: 600;
++  line-height: 1.2;
++}
++
++.slash-doc-copy-html:hover {
++  border-color: var(--slash-page-link);
++}
++
++.slash-doc-copy-html:focus-visible {
++  outline: 2px solid var(--slash-page-link);
++  outline-offset: 2px;
++}
++
++.slash-doc-copy-html.copied {
++  color: #fff;
++  border-color: #1a7f37;
++  background: #1a7f37;
++}
++
++.slash-doc-copy-html svg {
++  width: 16px;
++  height: 16px;
++  fill: none;
++  stroke: currentColor;
++  stroke-width: 2;
++  stroke-linecap: round;
++  stroke-linejoin: round;
++}
++
++@media (max-width: 650px) {
++  body {
++    padding-top: 64px;
 +  }
 +
-   static get isReadOnlySupported(): boolean {
-     return true;
-   }
-@@ -50,20 +55,40 @@ export default class NestedListTool {
-     return true;
-   }
++  .slash-doc-copy-html {
++    top: 10px;
++    right: 12px;
++  }
++}
++
++@media print {
++  .slash-doc-copy-html {
++    display: none;
++  }
+ }
+diff --git a/src/extension/styles/task-table-export.embedded.css b/src/extension/styles/task-table-export.embedded.css
+index 065d025..364b417 100644
+--- a/src/extension/styles/task-table-export.embedded.css
++++ b/src/extension/styles/task-table-export.embedded.css
+@@ -1,9 +1,9 @@
+ .task-table-export {
+   margin: 1em 0;
+   padding: 14px;
+-  border: 1px solid #d0d7de;
++  border: 1px solid var(--slash-page-border);
+   border-radius: 7px;
+-  background: #f6f8fa;
++  background: var(--slash-page-surface);
+   font: 14px/1.4 sans-serif;
+ }
  
--  renderSettings() {
--    return [
--      this.setting('unordered', 'Маркированный'),
--      this.setting('ordered', 'Нумерованный'),
--    ];
-+  renderSettings(): HTMLElement {
-+    const panel = document.createElement('div');
-+    panel.className = 'slash-list-settings';
-+    panel.append(
-+      this.settingButton(panel, 'unordered', 'Маркированный список', LUCIDE_ICONS.list),
-+      this.settingButton(panel, 'ordered', 'Нумерованный список', LUCIDE_ICONS.listOrdered),
+@@ -22,7 +22,7 @@
+   flex: 1 0 220px;
+   padding: 10px;
+   border-radius: 6px;
+-  background: #eaeef2;
++  background: color-mix(in srgb, var(--slash-page-surface) 80%, var(--slash-page-border));
+ }
+ 
+ .task-table-column h3 {
+@@ -37,13 +37,13 @@
+ 
+ .task-table-card {
+   padding: 9px;
+-  border: 1px solid #d0d7de;
++  border: 1px solid var(--slash-page-border);
+   border-radius: 5px;
+-  background: #fff;
++  background: var(--slash-page-background);
+ }
+ 
+ .task-table-card p {
+   margin: 5px 0 0;
+-  color: #57606a;
++  color: var(--slash-page-muted);
+   white-space: pre-wrap;
+ }
+diff --git a/src/extension/types.ts b/src/extension/types.ts
+index 201ad74..85eb8a7 100644
+--- a/src/extension/types.ts
++++ b/src/extension/types.ts
+@@ -41,6 +41,8 @@ export type SlashDocSettings = {
+   autoSave: AutoSaveSettings;
+   exportOptions: {
+     separateFiles: boolean;
++    repositoryUrl: string;
++    markdownRootFileName: string;
+   };
+   editorAddons: {
+     header: boolean;
+@@ -63,6 +65,10 @@ export type SlashDocSettings = {
+     bpmnModeler: boolean;
+     bpmnPreview: boolean;
+     userMention: boolean;
++    mkdocsAdmonition: boolean;
++    mkdocsTabs: boolean;
++    mkdocsDetails: boolean;
++    mkdocsChecklist: boolean;
+   };
+   customEditorAddons: CustomEditorAddon[];
+   apiPrefix: string;
+diff --git a/src/mcp/menu.ts b/src/mcp/menu.ts
+new file mode 100644
+index 0000000..862eb55
+--- /dev/null
++++ b/src/mcp/menu.ts
+@@ -0,0 +1,111 @@
++export type McpMenuItem = {
++  id: string;
++  title: string;
++  file: string;
++  children: McpMenuItem[];
++};
++
++export type FlatMcpPage = { id: string; title: string; depth: number; path: string[] };
++export type MovePosition = 'before' | 'inside' | 'after' | 'root';
++
++export function normalizeMcpMenu(value: unknown): McpMenuItem[] {
++  if (!Array.isArray(value)) return [];
++  return value.filter(isRecord).map((item) => {
++    const id = typeof item.id === 'string' ? item.id.trim() : '';
++    if (!id || /[\\/]/.test(id)) throw new Error(`Некорректный идентификатор страницы: ${id || '(пусто)'}`);
++    return {
++      id,
++      title: typeof item.title === 'string' ? item.title : 'Без названия',
++      file: `${id}/content.yaml`,
++      children: normalizeMcpMenu(item.children),
++    };
++  });
++}
++
++export function flattenMcpMenu(items: McpMenuItem[], parents: string[] = []): FlatMcpPage[] {
++  return items.flatMap((item) => {
++    const path = [...parents, item.title];
++    return [{ id: item.id, title: item.title, depth: parents.length, path }, ...flattenMcpMenu(item.children, path)];
++  });
++}
++
++export function findMcpPage(items: McpMenuItem[], pageId: string): McpMenuItem | undefined {
++  for (const item of items) {
++    if (item.id === pageId) return item;
++    const child = findMcpPage(item.children, pageId);
++    if (child) return child;
++  }
++  return undefined;
++}
++
++export function addMcpPage(items: McpMenuItem[], page: McpMenuItem, parentId?: string): void {
++  if (!parentId) {
++    items.push(page);
++    return;
++  }
++  const parent = findMcpPage(items, parentId);
++  if (!parent) throw new Error(`Родительская страница не найдена: ${parentId}`);
++  parent.children.push(page);
++}
++
++export function removeMcpPage(items: McpMenuItem[], pageId: string): McpMenuItem | undefined {
++  const index = items.findIndex((item) => item.id === pageId);
++  if (index >= 0) return items.splice(index, 1)[0];
++  for (const item of items) {
++    const removed = removeMcpPage(item.children, pageId);
++    if (removed) return removed;
++  }
++  return undefined;
++}
++
++export function moveMcpPage(
++  items: McpMenuItem[],
++  pageId: string,
++  targetId: string | undefined,
++  position: MovePosition,
++): void {
++  const page = findMcpPage(items, pageId);
++  if (!page) throw new Error(`Страница не найдена: ${pageId}`);
++  if (targetId === pageId || (targetId && findMcpPage(page.children, targetId))) {
++    throw new Error('Нельзя переместить страницу внутрь самой себя или её потомка.');
++  }
++  const removed = removeMcpPage(items, pageId);
++  if (!removed) throw new Error(`Страница не найдена: ${pageId}`);
++  try {
++    if (position === 'root') {
++      items.push(removed);
++      return;
++    }
++    if (!targetId) throw new Error(`Для позиции ${position} требуется targetId.`);
++    if (position === 'inside') {
++      const target = findMcpPage(items, targetId);
++      if (!target) throw new Error(`Целевая страница не найдена: ${targetId}`);
++      target.children.push(removed);
++      return;
++    }
++    const location = findLocation(items, targetId);
++    if (!location) throw new Error(`Целевая страница не найдена: ${targetId}`);
++    location.items.splice(location.index + (position === 'after' ? 1 : 0), 0, removed);
++  } catch (error) {
++    items.push(removed);
++    throw error;
++  }
++}
++
++export function collectMcpPageIds(page: McpMenuItem): string[] {
++  return [page.id, ...page.children.flatMap(collectMcpPageIds)];
++}
++
++function findLocation(items: McpMenuItem[], pageId: string): { items: McpMenuItem[]; index: number } | undefined {
++  const index = items.findIndex((item) => item.id === pageId);
++  if (index >= 0) return { items, index };
++  for (const item of items) {
++    const result = findLocation(item.children, pageId);
++    if (result) return result;
++  }
++  return undefined;
++}
++
++function isRecord(value: unknown): value is Record<string, unknown> {
++  return typeof value === 'object' && value !== null && !Array.isArray(value);
++}
+diff --git a/src/mcp/repository.ts b/src/mcp/repository.ts
+new file mode 100644
+index 0000000..f331cb5
+--- /dev/null
++++ b/src/mcp/repository.ts
+@@ -0,0 +1,285 @@
++import { randomUUID } from 'node:crypto';
++import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
++import { resolve } from 'node:path';
++import { decodeStoredPage, encodeStoredPage, isManagedPageResource } from '../shared/page-storage-format';
++import { removePageTime } from '../shared/page-content';
++import { getDocumentationSearchText } from '../extension/documentation-search-text';
++import {
++  addMcpPage,
++  collectMcpPageIds,
++  findMcpPage,
++  flattenMcpMenu,
++  moveMcpPage,
++  normalizeMcpMenu,
++  removeMcpPage,
++  type McpMenuItem,
++  type MovePosition,
++} from './menu';
++
++export class SlashDocRepository {
++  readonly projectRoot: string;
++  private readonly docsRoot: string;
++  private mutation = Promise.resolve();
++
++  constructor(projectRoot: string) {
++    this.projectRoot = resolve(projectRoot);
++    this.docsRoot = resolve(this.projectRoot, '.slash-doc', 'docs');
++  }
++
++  async listPages(): Promise<McpMenuItem[]> {
++    return (await this.readMenu()).items;
++  }
++
++  async readPage(pageId: string): Promise<{ page: McpMenuItem; content: unknown }> {
++    const menu = await this.readMenu();
++    const page = findMcpPage(menu.items, pageId);
++    if (!page) throw new Error(`Страница не найдена: ${pageId}`);
++    return { page, content: await this.readPageContent(page) };
++  }
++
++  async search(
++    query: string,
++    limit = 20,
++  ): Promise<Array<{ pageId: string; title: string; path: string; snippet: string }>> {
++    const needle = normalizeText(query);
++    if (needle.length < 2) throw new Error('Поисковый запрос должен содержать не менее двух символов.');
++    const menu = await this.readMenu();
++    const pages = flattenMcpMenu(menu.items);
++    const results = await Promise.all(
++      pages.map(async (page) => {
++        const content = getDocumentationSearchText((await this.readPage(page.id)).content);
++        const haystack = normalizeText(`${page.title} ${content}`);
++        const index = haystack.indexOf(needle);
++        if (index < 0) return undefined;
++        return {
++          pageId: page.id,
++          title: page.title,
++          path: page.path.join(' / '),
++          snippet: createSnippet(content, Math.max(0, normalizeText(content).indexOf(needle)), needle.length),
++          score: normalizeText(page.title).includes(needle) ? 2 : 1,
++        };
++      }),
 +    );
-+    return panel;
-   }
++    return results
++      .filter((item): item is NonNullable<typeof item> => Boolean(item))
++      .sort((left, right) => right.score - left.score || left.title.localeCompare(right.title, 'ru'))
++      .slice(0, Math.max(1, Math.min(limit, 50)))
++      .map(({ score: _score, ...item }) => item);
++  }
++
++  createPage(title: string, parentId?: string, content?: unknown): Promise<{ pageId: string }> {
++    return this.mutate(async () => {
++      const normalizedTitle = requireTitle(title);
++      const menu = await this.readMenu();
++      const pageId = `page-${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
++      const page: McpMenuItem = { id: pageId, title: normalizedTitle, file: `${pageId}/content.yaml`, children: [] };
++      addMcpPage(menu.items, page, parentId);
++      await this.savePageContent(pageId, content ?? createPageContent(normalizedTitle));
++      await this.writeMenu(menu);
++      return { pageId };
++    });
++  }
++
++  replacePage(pageId: string, content: unknown): Promise<void> {
++    return this.mutate(async () => {
++      await this.requirePage(pageId);
++      validateEditorContent(content);
++      await this.savePageContent(pageId, content);
++    });
++  }
++
++  appendBlocks(pageId: string, blocks: unknown[]): Promise<{ blockCount: number }> {
++    return this.mutate(async () => {
++      const current = await this.readPage(pageId);
++      if (!isRecord(current.content) || !Array.isArray(current.content.blocks)) {
++        throw new Error('Страница не содержит корректный массив Editor.js blocks.');
++      }
++      blocks.forEach(validateBlock);
++      const content = { ...current.content, blocks: [...current.content.blocks, ...blocks] };
++      await this.savePageContent(pageId, content);
++      return { blockCount: content.blocks.length };
++    });
++  }
++
++  renamePage(pageId: string, title: string): Promise<void> {
++    return this.mutate(async () => {
++      const normalizedTitle = requireTitle(title);
++      const menu = await this.readMenu();
++      const page = findMcpPage(menu.items, pageId);
++      if (!page) throw new Error(`Страница не найдена: ${pageId}`);
++      page.title = normalizedTitle;
++      const stored = await this.readPageContent(page);
++      await this.savePageContent(pageId, updateFirstHeader(stored, normalizedTitle));
++      await this.writeMenu(menu);
++    });
++  }
++
++  movePage(pageId: string, targetId: string | undefined, position: MovePosition): Promise<void> {
++    return this.mutate(async () => {
++      const menu = await this.readMenu();
++      moveMcpPage(menu.items, pageId, targetId, position);
++      await this.writeMenu(menu);
++    });
++  }
++
++  deletePage(pageId: string): Promise<{ deletedPageIds: string[] }> {
++    return this.mutate(async () => {
++      const menu = await this.readMenu();
++      const removed = removeMcpPage(menu.items, pageId);
++      if (!removed) throw new Error(`Страница не найдена: ${pageId}`);
++      const deletedPageIds = collectMcpPageIds(removed);
++      await this.writeMenu(menu);
++      await Promise.all(deletedPageIds.map((id) => rm(this.pageRoot(id), { recursive: true, force: true })));
++      return { deletedPageIds };
++    });
++  }
++
++  private async requirePage(pageId: string): Promise<void> {
++    const menu = await this.readMenu();
++    if (!findMcpPage(menu.items, pageId)) throw new Error(`Страница не найдена: ${pageId}`);
++  }
++
++  private async readMenu(): Promise<{ items: McpMenuItem[] }> {
++    try {
++      const value = JSON.parse(await readFile(resolve(this.docsRoot, 'menu.json'), 'utf8')) as unknown;
++      return { items: normalizeMcpMenu(isRecord(value) ? value.items : undefined) };
++    } catch (error) {
++      if (isMissing(error)) return { items: [] };
++      throw error;
++    }
++  }
++
++  private async writeMenu(menu: { items: McpMenuItem[] }): Promise<void> {
++    await mkdir(this.docsRoot, { recursive: true });
++    await atomicWrite(resolve(this.docsRoot, 'menu.json'), `${JSON.stringify(menu, null, 2)}\n`);
++  }
++
++  private async readPageContent(page: McpMenuItem): Promise<unknown> {
++    const root = this.pageRoot(page.id);
++    try {
++      const source = await readFile(resolve(root, 'content.yaml'), 'utf8');
++      return removePageTime(await decodeStoredPage(source, (name) => readFile(resolveInside(root, name))));
++    } catch (error) {
++      if (!isMissing(error)) throw error;
++    }
++    try {
++      return removePageTime(JSON.parse(await readFile(resolve(root, 'content.json'), 'utf8')));
++    } catch (error) {
++      if (!isMissing(error)) throw error;
++      return createPageContent(page.title);
++    }
++  }
++
++  private async savePageContent(pageId: string, content: unknown): Promise<void> {
++    validateEditorContent(content);
++    const root = this.pageRoot(pageId);
++    const stored = encodeStoredPage(removePageTime(content));
++    await mkdir(root, { recursive: true });
++    await Promise.all(stored.resources.map((item) => writeFile(resolve(root, item.fileName), item.data)));
++    await atomicWrite(resolve(root, 'content.yaml'), stored.yaml);
++    await rm(resolve(root, 'content.json'), { force: true });
++    const used = new Set(stored.resources.map((item) => item.fileName));
++    const entries = await readdir(root, { withFileTypes: true });
++    await Promise.all(
++      entries
++        .filter((entry) => entry.isFile() && isManagedPageResource(entry.name) && !used.has(entry.name))
++        .map((entry) => rm(resolve(root, entry.name), { force: true })),
++    );
++  }
++
++  private pageRoot(pageId: string): string {
++    if (!/^page-[a-z0-9-]+$/i.test(pageId)) throw new Error(`Некорректный идентификатор страницы: ${pageId}`);
++    return resolveInside(resolve(this.docsRoot, 'pages'), pageId);
++  }
++
++  private mutate<T>(operation: () => Promise<T>): Promise<T> {
++    const result = this.mutation.then(operation, operation);
++    this.mutation = result.then(
++      () => undefined,
++      () => undefined,
++    );
++    return result;
++  }
++}
++
++function createPageContent(title: string): unknown {
++  return {
++    version: '2.23.2',
++    blocks: [
++      { type: 'header', data: { text: escapeHtml(title), level: 2 } },
++      { type: 'paragraph', data: { text: '' } },
++    ],
++  };
++}
++
++function updateFirstHeader(content: unknown, title: string): unknown {
++  if (!isRecord(content) || !Array.isArray(content.blocks)) return createPageContent(title);
++  const blocks = [...content.blocks];
++  const first = blocks[0];
++  const header = { type: 'header', data: { text: escapeHtml(title), level: 2 } };
++  blocks[0] =
++    isRecord(first) && first.type === 'header' && isRecord(first.data)
++      ? { ...first, data: { ...first.data, text: escapeHtml(title) } }
++      : header;
++  if (blocks[0] === header && first) blocks.splice(1, 0, first);
++  return { ...content, blocks };
++}
++
++function validateEditorContent(content: unknown): void {
++  if (!isRecord(content) || !Array.isArray(content.blocks)) {
++    throw new Error('content должен быть объектом Editor.js с массивом blocks.');
++  }
++  content.blocks.forEach(validateBlock);
++}
++
++function validateBlock(block: unknown): void {
++  if (!isRecord(block) || typeof block.type !== 'string' || !isRecord(block.data)) {
++    throw new Error('Каждый блок должен содержать строковый type и объект data.');
++  }
++}
++
++function requireTitle(title: string): string {
++  const value = title.trim();
++  if (!value) throw new Error('Название страницы не может быть пустым.');
++  return value;
++}
++
++function resolveInside(root: string, child: string): string {
++  const resolvedRoot = resolve(root);
++  const result = resolve(resolvedRoot, child);
++  if (result !== resolvedRoot && !result.startsWith(`${resolvedRoot}/`)) throw new Error(`Недопустимый путь: ${child}`);
++  return result;
++}
++
++async function atomicWrite(filePath: string, content: string): Promise<void> {
++  const temporary = `${filePath}.${process.pid}.tmp`;
++  await writeFile(temporary, content, 'utf8');
++  await rename(temporary, filePath);
++}
++
++function normalizeText(value: string): string {
++  return value.toLocaleLowerCase('ru').replaceAll(/\s+/g, ' ').trim();
++}
++
++function createSnippet(content: string, index: number, length: number): string {
++  const start = Math.max(0, index - 80);
++  const end = Math.min(content.length, index + Math.max(length, 1) + 80);
++  return `${start ? '…' : ''}${content.slice(start, end).trim()}${end < content.length ? '…' : ''}`;
++}
++
++function escapeHtml(value: string): string {
++  return value
++    .replaceAll('&', '&amp;')
++    .replaceAll('<', '&lt;')
++    .replaceAll('>', '&gt;')
++    .replaceAll('"', '&quot;')
++    .replaceAll("'", '&#39;');
++}
++
++function isMissing(error: unknown): boolean {
++  return isRecord(error) && error.code === 'ENOENT';
++}
++
++function isRecord(value: unknown): value is Record<string, unknown> {
++  return typeof value === 'object' && value !== null && !Array.isArray(value);
++}
+diff --git a/src/mcp/server.ts b/src/mcp/server.ts
+new file mode 100644
+index 0000000..65a9389
+--- /dev/null
++++ b/src/mcp/server.ts
+@@ -0,0 +1,224 @@
++import { McpServer, ResourceTemplate } from '@modelcontextprotocol/server';
++import { z } from 'zod/v4';
++import { compileDocumentation } from '../compiler/documentation-compiler';
++import { flattenMcpMenu, type MovePosition } from './menu';
++import { SlashDocRepository } from './repository';
++
++const pageId = z.string().min(1).describe('Идентификатор страницы из list_pages');
++const editorContent = z
++  .object({ blocks: z.array(z.record(z.string(), z.unknown())) })
++  .passthrough()
++  .describe('Полное состояние Editor.js');
++const editorBlock = z.object({ type: z.string().min(1), data: z.record(z.string(), z.unknown()) }).passthrough();
++
++export function createSlashDocMcpServer(repository: SlashDocRepository): McpServer {
++  const server = new McpServer({ name: 'slash-doc', version: '0.0.1' });
++  registerResources(server, repository);
++  registerReadTools(server, repository);
++  registerWriteTools(server, repository);
++  registerCompileTool(server, repository);
++  return server;
++}
++
++function registerResources(server: McpServer, repository: SlashDocRepository): void {
++  server.registerResource(
++    'slash-doc-menu',
++    'slash-doc://menu',
++    { title: 'Дерево документации Slash Doc', mimeType: 'application/json' },
++    async (uri) => resource(uri, await repository.listPages()),
++  );
++
++  server.registerResource(
++    'slash-doc-page',
++    new ResourceTemplate('slash-doc://pages/{pageId}', {
++      list: async () => ({
++        resources: flattenMcpMenu(await repository.listPages()).map((page) => ({
++          uri: `slash-doc://pages/${encodeURIComponent(page.id)}`,
++          name: page.title,
++          title: page.path.join(' / '),
++          mimeType: 'application/json',
++        })),
++      }),
++      complete: {
++        pageId: async (value) =>
++          flattenMcpMenu(await repository.listPages())
++            .filter(
++              (page) =>
++                page.id.includes(value) || page.title.toLocaleLowerCase('ru').includes(value.toLocaleLowerCase('ru')),
++            )
++            .slice(0, 50)
++            .map((page) => page.id),
++      },
++    }),
++    { title: 'Страница Slash Doc', mimeType: 'application/json' },
++    async (uri, variables) => resource(uri, await repository.readPage(String(variables.pageId))),
++  );
++}
++
++function registerReadTools(server: McpServer, repository: SlashDocRepository): void {
++  server.registerTool(
++    'list_pages',
++    {
++      title: 'Список страниц Slash Doc',
++      description: 'Возвращает иерархию страниц и плоский список с путями.',
++      inputSchema: z.object({}),
++      annotations: { readOnlyHint: true, idempotentHint: true },
++    },
++    async () => {
++      const tree = await repository.listPages();
++      return toolResult({ tree, pages: flattenMcpMenu(tree) });
++    },
++  );
++
++  server.registerTool(
++    'read_page',
++    {
++      title: 'Прочитать страницу Slash Doc',
++      description: 'Возвращает метаданные страницы и полное состояние Editor.js, включая восстановленные ресурсы.',
++      inputSchema: z.object({ pageId }),
++      annotations: { readOnlyHint: true, idempotentHint: true },
++    },
++    async ({ pageId: id }) => toolResult(await repository.readPage(id)),
++  );
++
++  server.registerTool(
++    'search_pages',
++    {
++      title: 'Поиск по Slash Doc',
++      description: 'Ищет текст в названиях и содержимом всех страниц.',
++      inputSchema: z.object({
++        query: z.string().min(2),
++        limit: z.number().int().min(1).max(50).default(20),
++      }),
++      annotations: { readOnlyHint: true, idempotentHint: true },
++    },
++    async ({ query, limit }) => toolResult({ results: await repository.search(query, limit) }),
++  );
++}
++
++function registerWriteTools(server: McpServer, repository: SlashDocRepository): void {
++  server.registerTool(
++    'create_page',
++    {
++      title: 'Создать страницу Slash Doc',
++      description: 'Создаёт корневую или дочернюю страницу. Без content создаётся заголовок и пустой paragraph.',
++      inputSchema: z.object({
++        title: z.string().min(1),
++        parentId: pageId.optional(),
++        content: editorContent.optional(),
++      }),
++      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
++    },
++    async ({ title, parentId, content }) => toolResult(await repository.createPage(title, parentId, content)),
++  );
++
++  server.registerTool(
++    'replace_page',
++    {
++      title: 'Заменить содержимое страницы Slash Doc',
++      description: 'Полностью заменяет состояние Editor.js указанной страницы.',
++      inputSchema: z.object({ pageId, content: editorContent }),
++      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
++    },
++    async ({ pageId: id, content }) => {
++      await repository.replacePage(id, content);
++      return toolResult({ pageId: id, updated: true });
++    },
++  );
++
++  server.registerTool(
++    'append_blocks',
++    {
++      title: 'Добавить блоки на страницу Slash Doc',
++      description: 'Добавляет Editor.js-блоки в конец существующей страницы.',
++      inputSchema: z.object({ pageId, blocks: z.array(editorBlock).min(1) }),
++      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
++    },
++    async ({ pageId: id, blocks }) => toolResult({ pageId: id, ...(await repository.appendBlocks(id, blocks)) }),
++  );
++
++  server.registerTool(
++    'rename_page',
++    {
++      title: 'Переименовать страницу Slash Doc',
++      description: 'Меняет название в меню и первый header страницы.',
++      inputSchema: z.object({ pageId, title: z.string().min(1) }),
++      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
++    },
++    async ({ pageId: id, title }) => {
++      await repository.renamePage(id, title);
++      return toolResult({ pageId: id, title });
++    },
++  );
++
++  server.registerTool(
++    'move_page',
++    {
++      title: 'Переместить страницу Slash Doc',
++      description: 'Перемещает страницу в корень, внутрь другой страницы, до или после неё.',
++      inputSchema: z.object({
++        pageId,
++        targetId: pageId.optional(),
++        position: z.enum(['before', 'inside', 'after', 'root']),
++      }),
++      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
++    },
++    async ({ pageId: id, targetId, position }) => {
++      await repository.movePage(id, targetId, position as MovePosition);
++      return toolResult({ pageId: id, targetId, position });
++    },
++  );
++
++  server.registerTool(
++    'delete_page',
++    {
++      title: 'Удалить страницу Slash Doc',
++      description: 'Удаляет страницу, все дочерние страницы и их файлы.',
++      inputSchema: z.object({ pageId }),
++      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
++    },
++    async ({ pageId: id }) => toolResult(await repository.deletePage(id)),
++  );
++}
++
++function registerCompileTool(server: McpServer, repository: SlashDocRepository): void {
++  server.registerTool(
++    'compile_documentation',
++    {
++      title: 'Собрать документацию Slash Doc',
++      description: 'Компилирует всю документацию в статический HTML-сайт или иерархию Markdown.',
++      inputSchema: z.object({
++        format: z.enum(['html', 'md']).default('html'),
++        outputRoot: z.string().optional(),
++        projectName: z.string().optional(),
++        addonsRoot: z.string().optional(),
++        repositoryUrl: z.string().optional(),
++      }),
++      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
++    },
++    async ({ format, outputRoot, projectName, addonsRoot, repositoryUrl }) =>
++      toolResult(
++        await compileDocumentation({
++          projectRoot: repository.projectRoot,
++          format,
++          outputRoot,
++          projectName,
++          addonsRoot,
++          repositoryUrl,
++        }),
++      ),
++  );
++}
++
++function toolResult(value: Record<string, unknown>) {
++  return {
++    content: [{ type: 'text' as const, text: JSON.stringify(value, null, 2) }],
++    structuredContent: value,
++  };
++}
++
++function resource(uri: URL, value: unknown) {
++  return {
++    contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value, null, 2) }],
++  };
++}
+diff --git a/src/shared/documentation-tree.ts b/src/shared/documentation-tree.ts
+index 9e21a63..6a9bad5 100644
+--- a/src/shared/documentation-tree.ts
++++ b/src/shared/documentation-tree.ts
+@@ -6,12 +6,17 @@ export type DocumentationTreePage = {
+   directories: string[];
+ };
  
--  private setting(style: NestedListData['style'], label: string) {
--    return {
--      label,
--      isActive: this.data.style === style,
--      closeOnActivate: true,
--      onActivate: () => this.changeStyle(style),
--    };
-+  private settingButton(
-+    panel: HTMLElement,
-+    style: NestedListData['style'],
-+    label: string,
-+    icon: string,
-+  ): HTMLButtonElement {
++export function getMarkdownPagePath(page: DocumentationTreePage): string[] {
++  const directoryName = page.directories.at(-1) ?? 'Страница';
++  return [...page.directories, `${directoryName}.md`];
++}
++
+ export function createDocumentationTree(items: SlashDocMenuItem[]): DocumentationTreePage[] {
+   return collectPages(items, []);
+ }
+ 
+ export function renderMarkdownContents(items: SlashDocMenuItem[], pages: DocumentationTreePage[]): string {
+-  const paths = new Map(pages.map(({ page, directories }) => [page.id, [...directories, 'content.md']]));
++  const paths = new Map(pages.map((item) => [item.page.id, getMarkdownPagePath(item)]));
+   const lines = ['# Содержание', '', ...renderItems(items, paths, 0)];
+   return `${lines.join('\n')}\n`;
+ }
+@@ -21,12 +26,13 @@ export function rewriteMarkdownPageLinks(
+   currentPage: DocumentationTreePage,
+   pages: DocumentationTreePage[],
+ ): string {
+-  const targets = new Map(pages.map((item) => [item.page.id, [...item.directories, 'content.md']]));
++  const targets = new Map(pages.map((item) => [item.page.id, getMarkdownPagePath(item)]));
+   const rewrite = (href: string) => {
+     const reference = readPageReference(href);
+     const target = reference ? targets.get(reference.pageId) : undefined;
+     if (!reference || !target) return href;
+-    const relative = posix.relative(currentPage.directories.join('/'), target.join('/')) || 'content.md';
++    const currentFileName = `${currentPage.directories.at(-1) ?? 'Страница'}.md`;
++    const relative = posix.relative(currentPage.directories.join('/'), target.join('/')) || currentFileName;
+     return `${encodePath(relative)}${reference.suffix}`;
+   };
+   return markdown
+@@ -49,7 +55,7 @@ function collectPages(items: SlashDocMenuItem[], parents: string[]): Documentati
+ 
+ function renderItems(items: SlashDocMenuItem[], paths: Map<string, string[]>, depth: number): string[] {
+   return items.flatMap((item) => {
+-    const path = paths.get(item.id) ?? ['content.md'];
++    const path = paths.get(item.id) ?? ['Страница', 'Страница.md'];
+     const line = `${'  '.repeat(depth)}- [${escapeMarkdownLabel(item.title)}](${encodePath(path.join('/'))})`;
+     return [line, ...renderItems(item.children, paths, depth + 1)];
+   });
+diff --git a/src/shared/page-revision.ts b/src/shared/page-revision.ts
+new file mode 100644
+index 0000000..f22727d
+--- /dev/null
++++ b/src/shared/page-revision.ts
+@@ -0,0 +1,124 @@
++import { execFile } from 'node:child_process';
++import { realpath, stat } from 'node:fs/promises';
++import { relative, resolve, sep } from 'node:path';
++import { promisify } from 'node:util';
++
++const execFileAsync = promisify(execFile);
++
++export type PageRevisionMetadata = {
++  changedAt: string;
++  user: string;
++  editUrl?: string;
++};
++
++export async function readPageRevisionMetadata(
++  projectRoot: string,
++  pageFile: string,
++  repositoryUrl = '',
++): Promise<PageRevisionMetadata> {
++  const gitRoot = await gitOptional(projectRoot, ['rev-parse', '--show-toplevel']);
++  const revisionRoot = await canonicalPath(gitRoot || projectRoot);
++  const revisionFile = await canonicalPath(pageFile);
++  const revisionPath = toGitPath(revisionRoot, revisionFile);
++  const dirty = gitRoot
++    ? await gitOptional(gitRoot, ['status', '--porcelain', '--untracked-files=all', '--', revisionPath])
++    : '';
++  const committed =
++    gitRoot && !dirty
++      ? await gitOptional(gitRoot, ['log', '-1', '--follow', '--format=%aI%x1f%an', '--', revisionPath])
++      : '';
++  const [commitDate, commitUser] = committed.split('\x1f');
++  const fallbackDate = await readFileDate(pageFile);
++  const fallbackUser =
++    (gitRoot ? await gitOptional(gitRoot, ['config', 'user.name']) : '') ||
++    process.env.GIT_AUTHOR_NAME ||
++    process.env.USER ||
++    '—';
++  const ref = gitRoot
++    ? (await gitOptional(gitRoot, ['symbolic-ref', '--quiet', '--short', 'HEAD'])) ||
++      (await gitOptional(gitRoot, ['rev-parse', 'HEAD']))
++    : 'main';
++  return {
++    changedAt: commitDate || fallbackDate,
++    user: commitUser || fallbackUser,
++    editUrl: repositoryUrl ? createGitLabEditUrl(repositoryUrl, ref || 'main', revisionPath) : undefined,
++  };
++}
++
++async function canonicalPath(value: string): Promise<string> {
++  try {
++    return await realpath(value);
++  } catch {
++    return resolve(value);
++  }
++}
++
++export async function resolvePageRevisionFile(projectRoot: string, pageId: string): Promise<string> {
++  const pageRoot = resolve(projectRoot, '.slash-doc', 'docs', 'pages', pageId);
++  const yaml = resolve(pageRoot, 'content.yaml');
++  if (await fileExists(yaml)) return yaml;
++  const json = resolve(pageRoot, 'content.json');
++  return (await fileExists(json)) ? json : yaml;
++}
++
++export function createGitLabEditUrl(repositoryUrl: string, ref: string, filePath: string): string {
++  const repository = normalizeRepositoryUrl(repositoryUrl);
++  const encodedRef = encodeURIComponent(ref.trim() || 'main');
++  const encodedPath = filePath
++    .split('/')
++    .filter(Boolean)
++    .map((part) => encodeURIComponent(part))
++    .join('/');
++  return `${repository}/-/edit/${encodedRef}/${encodedPath}`;
++}
++
++function normalizeRepositoryUrl(value: string): string {
++  const trimmed = value
++    .trim()
++    .replace(/\/+$/, '')
++    .replace(/\.git$/i, '');
++  const ssh = /^git@([^:]+):(.+)$/.exec(trimmed);
++  const candidate = ssh ? `https://${ssh[1]}/${ssh[2]}` : trimmed;
++  const repository = candidate.split('/-/')[0].replace(/\/+$/, '');
++  let parsed: URL;
++  try {
++    parsed = new URL(repository);
++  } catch {
++    throw new Error(`Некорректный URL GitLab-репозитория: ${value}`);
++  }
++  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
++    throw new Error(`URL GitLab-репозитория должен использовать HTTP(S): ${value}`);
++  }
++  return parsed.href.replace(/\/+$/, '');
++}
++
++async function readFileDate(filePath: string): Promise<string> {
++  try {
++    return (await stat(filePath)).mtime.toISOString();
++  } catch {
++    return new Date().toISOString();
++  }
++}
++
++async function fileExists(filePath: string): Promise<boolean> {
++  try {
++    await stat(filePath);
++    return true;
++  } catch {
++    return false;
++  }
++}
++
++async function gitOptional(cwd: string, args: string[]): Promise<string> {
++  try {
++    const result = await execFileAsync('git', ['-C', cwd, ...args], { encoding: 'utf8', maxBuffer: 1024 * 1024 });
++    return String(result.stdout).trim();
++  } catch {
++    return '';
++  }
++}
++
++function toGitPath(root: string, filePath: string): string {
++  const value = relative(root, filePath).split(sep).join('/');
++  return value === '..' || value.startsWith('../') ? relative(resolve(filePath, '..'), filePath) : value;
++}
+diff --git a/src/sidebar/settings-collector.ts b/src/sidebar/settings-collector.ts
+index 523d898..ed0cd20 100644
+--- a/src/sidebar/settings-collector.ts
++++ b/src/sidebar/settings-collector.ts
+@@ -7,7 +7,12 @@ export function collectSettings() {
+       enabled: isSwitchEnabled('auto-save-enabled', true),
+       intervalSeconds: Number(document.querySelector<HTMLInputElement>('#auto-save-interval')?.value ?? '1'),
+     },
+-    exportOptions: { separateFiles: isSwitchEnabled('separate-files', false) },
++    exportOptions: {
++      separateFiles: isSwitchEnabled('separate-files', false),
++      repositoryUrl: document.querySelector<HTMLInputElement>('#repository-url')?.value.trim() ?? '',
++      markdownRootFileName:
++        document.querySelector<HTMLInputElement>('#markdown-root-file-name')?.value.trim() ?? 'README.md',
++    },
+     editorAddons: {
+       header: isAddonEnabled('header'),
+       list: isAddonEnabled('list'),
+@@ -29,6 +34,10 @@ export function collectSettings() {
+       bpmnModeler: isAddonEnabled('bpmnModeler'),
+       bpmnPreview: isAddonEnabled('bpmnPreview'),
+       userMention: isAddonEnabled('userMention'),
++      mkdocsAdmonition: isAddonEnabled('mkdocsAdmonition'),
++      mkdocsTabs: isAddonEnabled('mkdocsTabs'),
++      mkdocsDetails: isAddonEnabled('mkdocsDetails'),
++      mkdocsChecklist: isAddonEnabled('mkdocsChecklist'),
+     },
+     customEditorAddons: Array.from(document.querySelectorAll<HTMLElement>('[data-custom-addon-id]')).map((row) => ({
+       id: row.dataset.customAddonId ?? createId('addon'),
+diff --git a/src/sidebar/sidebar-settings.css b/src/sidebar/sidebar-settings.css
+index 8eb1df2..a9c6663 100644
+--- a/src/sidebar/sidebar-settings.css
++++ b/src/sidebar/sidebar-settings.css
+@@ -10,6 +10,11 @@
+   grid-template-columns: minmax(0, 1fr) 72px;
+ }
+ 
++.repository-settings-row {
++  align-items: flex-start;
++  flex-direction: column;
++}
++
+ .settings-input {
+   box-sizing: border-box;
+   width: 100%;
+diff --git a/src/slash-doc-mcp-cli.ts b/src/slash-doc-mcp-cli.ts
+new file mode 100644
+index 0000000..1d85a42
+--- /dev/null
++++ b/src/slash-doc-mcp-cli.ts
+@@ -0,0 +1,67 @@
++#!/usr/bin/env node
++import { resolve } from 'node:path';
++import { serveStdio, StdioServerTransport } from '@modelcontextprotocol/server/stdio';
++import { createSlashDocMcpServer } from './mcp/server';
++import { SlashDocRepository } from './mcp/repository';
++
++export type McpCliOptions = { projectRoot: string; help: boolean };
++
++export function parseMcpArguments(args: string[], currentDirectory = process.cwd()): McpCliOptions {
++  let projectRoot = process.env.SLASH_DOC_PROJECT_ROOT || currentDirectory;
++  let projectWasSet = false;
++  let help = false;
++  for (let index = 0; index < args.length; index += 1) {
++    const argument = args[index];
++    if (argument === '--help' || argument === '-h') help = true;
++    else if (argument === '--project' || argument === '-p') projectRoot = readValue(args, ++index, argument);
++    else if (argument.startsWith('-')) throw new Error(`Неизвестный параметр: ${argument}`);
++    else if (!projectWasSet) {
++      projectRoot = argument;
++      projectWasSet = true;
++    } else throw new Error(`Лишний аргумент: ${argument}`);
++  }
++  return { projectRoot: resolve(currentDirectory, projectRoot), help };
++}
++
++export function getMcpHelp(): string {
++  return `Slash Doc MCP server
++
++Использование:
++  slash-doc-mcp [проект]
++  slash-doc-mcp --project /path/to/project
++
++Переменная окружения:
++  SLASH_DOC_PROJECT_ROOT=/path/to/project
++
++Сервер использует stdio. Не выводите служебные сообщения в stdout процесса.
++`;
++}
++
++function readValue(args: string[], index: number, option: string): string {
++  const value = args[index];
++  if (!value || value.startsWith('-')) throw new Error(`Для ${option} требуется значение.`);
++  return value;
++}
++
++function main(): void {
++  const options = parseMcpArguments(process.argv.slice(2));
++  if (options.help) {
++    process.stdout.write(getMcpHelp());
++    return;
++  }
++  const repository = new SlashDocRepository(options.projectRoot);
++  const transport = new StdioServerTransport(process.stdin, process.stdout, { maxBufferSize: 50 * 1024 * 1024 });
++  serveStdio(() => createSlashDocMcpServer(repository), {
++    transport,
++    onerror: (error) => process.stderr.write(`Slash Doc MCP: ${error.message}\n`),
++  });
++}
++
++try {
++  main();
++} catch (error) {
++  process.stderr.write(
++    `Не удалось запустить Slash Doc MCP: ${error instanceof Error ? error.message : String(error)}\n`,
++  );
++  process.exitCode = 1;
++}
+diff --git a/src/webview/editor-settings.ts b/src/webview/editor-settings.ts
+index 8ce3927..aa6fb3d 100644
+--- a/src/webview/editor-settings.ts
++++ b/src/webview/editor-settings.ts
+@@ -23,5 +23,9 @@ export type SlashDocWebviewSettings = {
+     bpmnModeler?: boolean;
+     bpmnPreview?: boolean;
+     userMention?: boolean;
++    mkdocsAdmonition?: boolean;
++    mkdocsTabs?: boolean;
++    mkdocsDetails?: boolean;
++    mkdocsChecklist?: boolean;
+   };
+ };
+diff --git a/src/webview/editor-tool-registry.ts b/src/webview/editor-tool-registry.ts
+index 9a75e15..591c31d 100644
+--- a/src/webview/editor-tool-registry.ts
++++ b/src/webview/editor-tool-registry.ts
+@@ -17,6 +17,10 @@ import LucideInlineCode from './lucide-inline-code';
+ import LucideMarker from './lucide-marker';
+ import LucideUnderline from './lucide-underline';
+ import MermaidTool from './mermaid-tool';
++import MkDocsAdmonitionTool from './mkdocs-admonition-tool';
++import MkDocsChecklistTool from './mkdocs-checklist-tool';
++import MkDocsDetailsTool from './mkdocs-details-tool';
++import MkDocsTabsTool from './mkdocs-tabs-tool';
+ import NetworkCanvasTool from './network-canvas-tool';
+ import NestedListTool from './nested-list-tool';
+ import PageLinkTool from './page-link-tool';
+@@ -96,6 +100,10 @@ export function createEditorTools(
+   if (addons?.diffBlock !== false) tools.diffBlock = DiffBlockTool;
+   if (addons?.bpmnModeler !== false) tools.bpmnModeler = BpmnModelerTool;
+   if (addons?.bpmnPreview !== false) tools.bpmnPreview = BpmnPreviewTool;
++  if (addons?.mkdocsAdmonition !== false) tools.mkdocsAdmonition = MkDocsAdmonitionTool;
++  if (addons?.mkdocsTabs !== false) tools.mkdocsTabs = MkDocsTabsTool;
++  if (addons?.mkdocsDetails !== false) tools.mkdocsDetails = MkDocsDetailsTool;
++  if (addons?.mkdocsChecklist !== false) tools.mkdocsChecklist = MkDocsChecklistTool;
+   return {
+     tools,
+     inlineToolbarTools: [
+diff --git a/src/webview/list-exit-handler.ts b/src/webview/list-exit-handler.ts
+index aba6f34..c9b2227 100644
+--- a/src/webview/list-exit-handler.ts
++++ b/src/webview/list-exit-handler.ts
+@@ -10,7 +10,7 @@ type ListBlocksApi = {
+ };
+ 
+ type CaretApi = {
+-  setToBlock(index: number, position?: 'end'|'start'|'default', offset?: number): boolean;
++  setToBlock(index: number, position?: 'end' | 'start' | 'default', offset?: number): boolean;
+ };
+ 
+ export function installListExitHandler(holder: Element, blocks: ListBlocksApi, caret: CaretApi): void {
+diff --git a/src/webview/lucide-icons.ts b/src/webview/lucide-icons.ts
+index ccda9f2..9b3d6a8 100644
+--- a/src/webview/lucide-icons.ts
++++ b/src/webview/lucide-icons.ts
+@@ -80,4 +80,17 @@ export const LUCIDE_ICONS = {
+   ),
+   history: lucideIcon('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>'),
+   x: lucideIcon('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
++  messageSquareWarning: lucideIcon(
++    '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M12 7v4"/><path d="M12 15h.01"/>',
++  ),
++  panelsTopLeft: lucideIcon('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/>'),
++  chevronsUpDown: lucideIcon('<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>'),
++  listChecks: lucideIcon(
++    '<path d="m3 5 2 2 4-4"/><path d="m3 12 2 2 4-4"/><path d="m3 19 2 2 4-4"/><path d="M11 6h10"/><path d="M11 13h10"/><path d="M11 20h10"/>',
++  ),
++  indentIncrease: lucideIcon('<path d="M3 5h18"/><path d="M3 12h11"/><path d="M3 19h18"/><path d="m14 9 3 3-3 3"/>'),
++  indentDecrease: lucideIcon('<path d="M3 5h18"/><path d="M10 12h11"/><path d="M3 19h18"/><path d="m10 9-3 3 3 3"/>'),
++  trash2: lucideIcon(
++    '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
++  ),
+ } as const;
+diff --git a/src/webview/main.ts b/src/webview/main.ts
+index c93de2d..ef81ce2 100644
+--- a/src/webview/main.ts
++++ b/src/webview/main.ts
+@@ -259,6 +259,10 @@ async function initEditor() {
+           Diff: 'Diff',
+           'BPMN Modeler': 'BPMN-редактор',
+           'BPMN Preview': 'Предпросмотр BPMN',
++          'MkDocs Admonition': 'Примечание MkDocs',
++          'MkDocs Tabs': 'Вкладки MkDocs',
++          'MkDocs Details': 'Раскрываемый блок',
++          'MkDocs Checklist': 'Чеклист MkDocs',
+         },
+         tools: {
+           header: {
+diff --git a/src/webview/mkdocs-admonition-tool.ts b/src/webview/mkdocs-admonition-tool.ts
+new file mode 100644
+index 0000000..7ab6122
+--- /dev/null
++++ b/src/webview/mkdocs-admonition-tool.ts
+@@ -0,0 +1,92 @@
++import { LUCIDE_ICONS } from './lucide-icons';
++import styles from './mkdocs-widgets.shadow.css?raw';
++import { MKDOCS_ADMONITION_KINDS, type MkDocsAdmonitionData, type MkDocsAdmonitionKind } from './mkdocs-widget-types';
++import { createToolSurface } from './tool-surface';
++
++type ToolArgs = { data?: Partial<MkDocsAdmonitionData> };
++
++export default class MkDocsAdmonitionTool {
++  private kind: MkDocsAdmonitionKind;
++  private title: string;
++  private content: string;
++  private collapsible: boolean;
++  private open: boolean;
++
++  static get toolbox() {
++    return { title: 'Примечание MkDocs', icon: LUCIDE_ICONS.messageSquareWarning };
++  }
++
++  constructor({ data }: ToolArgs) {
++    this.kind = MKDOCS_ADMONITION_KINDS.includes(data?.kind as MkDocsAdmonitionKind)
++      ? (data?.kind as MkDocsAdmonitionKind)
++      : 'note';
++    this.title = typeof data?.title === 'string' ? data.title : 'Примечание';
++    this.content = typeof data?.content === 'string' ? data.content : '';
++    this.collapsible = data?.collapsible === true;
++    this.open = data?.open !== false;
++  }
++
++  render(): HTMLElement {
++    const surface = createToolSurface(styles, 'mkdocs-widget-surface');
++    const root = document.createElement('section');
++    root.className = 'mkdocs-widget';
++    const header = document.createElement('header');
++    header.className = 'mkdocs-widget-header';
++    header.textContent = 'Примечание MkDocs';
++    const row = document.createElement('div');
++    row.className = 'mkdocs-widget-row';
++    const kind = document.createElement('select');
++    kind.setAttribute('aria-label', 'Тип примечания');
++    for (const value of MKDOCS_ADMONITION_KINDS) {
++      const option = document.createElement('option');
++      option.value = value;
++      option.textContent = value;
++      option.selected = value === this.kind;
++      kind.append(option);
++    }
++    kind.addEventListener('change', () => {
++      this.kind = kind.value as MkDocsAdmonitionKind;
++    });
++    const title = document.createElement('input');
++    title.type = 'text';
++    title.value = this.title;
++    title.placeholder = 'Заголовок';
++    title.addEventListener('input', () => (this.title = title.value));
++    const collapsible = this.createCheck('Сворачиваемое', this.collapsible, (checked) => {
++      this.collapsible = checked;
++      open.hidden = !checked;
++    });
++    const open = this.createCheck('Открыто', this.open, (checked) => (this.open = checked));
++    open.hidden = !this.collapsible;
++    row.append(kind, title, collapsible, open);
++    const content = document.createElement('textarea');
++    content.value = this.content;
++    content.placeholder = 'Описание в Markdown…';
++    content.setAttribute('aria-label', 'Текст примечания в Markdown');
++    content.addEventListener('input', () => (this.content = content.value));
++    root.append(header, row, content);
++    surface.content.append(root);
++    return surface;
++  }
++
++  save(): MkDocsAdmonitionData {
++    return {
++      kind: this.kind,
++      title: this.title.trim(),
++      content: this.content,
++      collapsible: this.collapsible,
++      open: this.open,
++    };
++  }
++
++  private createCheck(label: string, checked: boolean, onChange: (checked: boolean) => void): HTMLLabelElement {
++    const wrapper = document.createElement('label');
++    wrapper.className = 'mkdocs-widget-check';
++    const input = document.createElement('input');
++    input.type = 'checkbox';
++    input.checked = checked;
++    input.addEventListener('change', () => onChange(input.checked));
++    wrapper.append(input, document.createTextNode(label));
++    return wrapper;
++  }
++}
+diff --git a/src/webview/mkdocs-checklist-tool.ts b/src/webview/mkdocs-checklist-tool.ts
+new file mode 100644
+index 0000000..2bbabd4
+--- /dev/null
++++ b/src/webview/mkdocs-checklist-tool.ts
+@@ -0,0 +1,170 @@
++import { LUCIDE_ICONS } from './lucide-icons';
++import { createMkDocsChecklistItem, type MkDocsChecklistData, type MkDocsChecklistItem } from './mkdocs-widget-types';
++import styles from './mkdocs-widgets.shadow.css?raw';
++import { createToolSurface } from './tool-surface';
++
++type ToolArgs = { data?: Partial<MkDocsChecklistData> };
++
++export default class MkDocsChecklistTool {
++  private items: MkDocsChecklistItem[];
++  private list?: HTMLDivElement;
++
++  static get toolbox() {
++    return { title: 'Чеклист MkDocs', icon: LUCIDE_ICONS.listChecks };
++  }
++
++  constructor({ data }: ToolArgs) {
++    this.items = normalizeItems(data?.items);
++    if (this.items.length === 0) this.items = [createMkDocsChecklistItem()];
++  }
++
++  render(): HTMLElement {
++    const surface = createToolSurface(styles, 'mkdocs-widget-surface');
++    const root = document.createElement('section');
++    root.className = 'mkdocs-widget';
++    const header = document.createElement('header');
++    header.className = 'mkdocs-widget-header';
++    header.textContent = 'Чеклист MkDocs';
++    const add = document.createElement('button');
++    add.type = 'button';
++    add.textContent = '+ Пункт';
++    add.addEventListener('click', () => this.addItem(this.items.length));
++    header.append(add);
++    this.list = document.createElement('div');
++    this.list.className = 'mkdocs-checklist';
++    root.append(header, this.list);
++    surface.content.append(root);
++    this.refresh();
++    return surface;
++  }
++
++  save(): MkDocsChecklistData {
++    return { items: this.items.map((item) => ({ ...item, level: Math.max(0, Math.floor(item.level)) })) };
++  }
++
++  private refresh(focusId?: string): void {
++    if (!this.list) return;
++    this.list.replaceChildren(...this.items.map((item, index) => this.renderItem(item, index)));
++    if (focusId) this.list.querySelector<HTMLInputElement>(`[data-checklist-id="${CSS.escape(focusId)}"]`)?.focus();
++  }
++
++  private renderItem(item: MkDocsChecklistItem, index: number): HTMLElement {
++    const row = document.createElement('div');
++    row.className = 'mkdocs-checklist-row';
++    row.style.setProperty('--checklist-level', String(item.level));
++    const checked = document.createElement('input');
++    checked.type = 'checkbox';
++    checked.checked = item.checked;
++    checked.setAttribute('aria-label', `Отметить пункт ${index + 1}`);
++    checked.addEventListener('change', () => {
++      item.checked = checked.checked;
++      this.changed();
++    });
++    const text = document.createElement('input');
++    text.type = 'text';
++    text.value = item.text;
++    text.placeholder = 'Текст пункта в Markdown';
++    text.dataset.checklistId = item.id;
++    text.addEventListener('input', () => {
++      item.text = text.value;
++      this.changed();
++    });
++    text.addEventListener('keydown', (event) => this.handleTextKeydown(event, index));
++    row.append(
++      checked,
++      text,
++      this.iconButton('Уменьшить отступ', LUCIDE_ICONS.indentDecrease, () => this.changeLevel(index, -1)),
++      this.iconButton('Увеличить отступ', LUCIDE_ICONS.indentIncrease, () => this.changeLevel(index, 1)),
++      this.iconButton('Удалить пункт', LUCIDE_ICONS.trash2, () => this.removeItem(index), true),
++    );
++    return row;
++  }
++
++  private iconButton(label: string, icon: string, action: () => void, danger = false): HTMLButtonElement {
 +    const button = document.createElement('button');
 +    button.type = 'button';
-+    button.className = 'cdx-settings-button slash-list-style-button';
-+    button.classList.toggle('cdx-settings-button--active', this.data.style === style);
-+    button.dataset.style = style;
++    button.className = `mkdocs-icon-button${danger ? ' mkdocs-danger-button' : ''}`;
 +    button.title = label;
 +    button.setAttribute('aria-label', label);
-+    button.setAttribute('aria-pressed', String(this.data.style === style));
 +    button.innerHTML = icon;
-+    button.addEventListener('click', () => {
-+      this.changeStyle(style);
-+      panel.querySelectorAll<HTMLButtonElement>('.slash-list-style-button').forEach((item) => {
-+        const active = item.dataset.style === style;
-+        item.classList.toggle('cdx-settings-button--active', active);
-+        item.setAttribute('aria-pressed', String(active));
-+      });
-+    });
++    button.addEventListener('click', action);
 +    return button;
++  }
++
++  private handleTextKeydown(event: KeyboardEvent, index: number): void {
++    if (event.key === 'Tab') {
++      event.preventDefault();
++      event.stopPropagation();
++      this.changeLevel(index, event.shiftKey ? -1 : 1);
++    } else if (event.key === 'Enter' && !event.isComposing) {
++      event.preventDefault();
++      event.stopPropagation();
++      this.addItem(index + 1, this.items[index]?.level ?? 0);
++    }
++  }
++
++  private addItem(index: number, level = 0): void {
++    const item = createMkDocsChecklistItem('', level);
++    this.items.splice(index, 0, item);
++    this.refresh(item.id);
++    this.changed();
++  }
++
++  private removeItem(index: number): void {
++    const next = this.items[index + 1]?.id ?? this.items[index - 1]?.id;
++    const removed = this.items.splice(index, 1)[0];
++    if (removed) {
++      for (let cursor = index; cursor < this.items.length && this.items[cursor].level > removed.level; cursor += 1) {
++        this.items[cursor].level -= 1;
++      }
++    }
++    if (this.items.length === 0) this.items.push(createMkDocsChecklistItem());
++    this.refresh(next ?? this.items[0].id);
++    this.changed();
++  }
++
++  private changeLevel(index: number, direction: -1 | 1): void {
++    const item = this.items[index];
++    if (!item) return;
++    const maximum = index === 0 ? 0 : this.items[index - 1].level + 1;
++    const previousLevel = item.level;
++    item.level = Math.max(0, Math.min(maximum, item.level + direction));
++    const delta = item.level - previousLevel;
++    for (
++      let cursor = index + 1;
++      delta !== 0 && cursor < this.items.length && this.items[cursor].level > previousLevel;
++      cursor += 1
++    ) {
++      this.items[cursor].level = Math.max(0, this.items[cursor].level + delta);
++    }
++    this.refresh(item.id);
++    this.changed();
++  }
++
++  private changed(): void {
++    this.list?.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
++  }
++}
++
++function normalizeItems(value: unknown): MkDocsChecklistItem[] {
++  if (!Array.isArray(value)) return [];
++  let previousLevel = 0;
++  return value.flatMap((candidate, index) => {
++    if (!isRecord(candidate)) return [];
++    const requested = typeof candidate.level === 'number' ? Math.max(0, Math.floor(candidate.level)) : 0;
++    const level = index === 0 ? 0 : Math.min(requested, previousLevel + 1);
++    previousLevel = level;
++    return [
++      {
++        id: typeof candidate.id === 'string' ? candidate.id : createMkDocsChecklistItem().id,
++        text: typeof candidate.text === 'string' ? candidate.text : '',
++        checked: candidate.checked === true,
++        level,
++      },
++    ];
++  });
++}
++
++function isRecord(value: unknown): value is Record<string, unknown> {
++  return typeof value === 'object' && value !== null && !Array.isArray(value);
++}
+diff --git a/src/webview/mkdocs-details-tool.ts b/src/webview/mkdocs-details-tool.ts
+new file mode 100644
+index 0000000..c4281d6
+--- /dev/null
++++ b/src/webview/mkdocs-details-tool.ts
+@@ -0,0 +1,58 @@
++import { LUCIDE_ICONS } from './lucide-icons';
++import type { MkDocsDetailsData } from './mkdocs-widget-types';
++import styles from './mkdocs-widgets.shadow.css?raw';
++import { createToolSurface } from './tool-surface';
++
++type ToolArgs = { data?: Partial<MkDocsDetailsData> };
++
++export default class MkDocsDetailsTool {
++  private summary: string;
++  private content: string;
++  private open: boolean;
++
++  static get toolbox() {
++    return { title: 'Раскрываемый блок', icon: LUCIDE_ICONS.chevronsUpDown };
++  }
++
++  constructor({ data }: ToolArgs) {
++    this.summary = typeof data?.summary === 'string' ? data.summary : 'Подробнее';
++    this.content = typeof data?.content === 'string' ? data.content : '';
++    this.open = data?.open === true;
++  }
++
++  render(): HTMLElement {
++    const surface = createToolSurface(styles, 'mkdocs-widget-surface');
++    const root = document.createElement('section');
++    root.className = 'mkdocs-widget';
++    const header = document.createElement('header');
++    header.className = 'mkdocs-widget-header';
++    header.textContent = 'Раскрываемый блок';
++    const row = document.createElement('div');
++    row.className = 'mkdocs-widget-row';
++    const summary = document.createElement('input');
++    summary.type = 'text';
++    summary.value = this.summary;
++    summary.placeholder = 'Заголовок';
++    summary.addEventListener('input', () => (this.summary = summary.value));
++    const openLabel = document.createElement('label');
++    openLabel.className = 'mkdocs-widget-check';
++    const open = document.createElement('input');
++    open.type = 'checkbox';
++    open.checked = this.open;
++    open.addEventListener('change', () => (this.open = open.checked));
++    openLabel.append(open, document.createTextNode('Открыт по умолчанию'));
++    row.append(summary, openLabel);
++    const content = document.createElement('textarea');
++    content.value = this.content;
++    content.placeholder = 'Содержимое в Markdown…';
++    content.setAttribute('aria-label', 'Содержимое раскрываемого блока в Markdown');
++    content.addEventListener('input', () => (this.content = content.value));
++    root.append(header, row, content);
++    surface.content.append(root);
++    return surface;
++  }
++
++  save(): MkDocsDetailsData {
++    return { summary: this.summary.trim(), content: this.content, open: this.open };
++  }
++}
+diff --git a/src/webview/mkdocs-tabs-tool.ts b/src/webview/mkdocs-tabs-tool.ts
+new file mode 100644
+index 0000000..3b0f3f4
+--- /dev/null
++++ b/src/webview/mkdocs-tabs-tool.ts
+@@ -0,0 +1,114 @@
++import { LUCIDE_ICONS } from './lucide-icons';
++import styles from './mkdocs-widgets.shadow.css?raw';
++import { createMkDocsTab, type MkDocsTab, type MkDocsTabsData } from './mkdocs-widget-types';
++import { createToolSurface } from './tool-surface';
++
++type ToolArgs = { data?: Partial<MkDocsTabsData> };
++
++export default class MkDocsTabsTool {
++  private tabs: MkDocsTab[];
++  private activeId: string;
++  private tabsList?: HTMLDivElement;
++  private editor?: HTMLDivElement;
++
++  static get toolbox() {
++    return { title: 'Вкладки MkDocs', icon: LUCIDE_ICONS.panelsTopLeft };
++  }
++
++  constructor({ data }: ToolArgs) {
++    const sourceTabs = data?.tabs;
++    this.tabs = Array.isArray(sourceTabs)
++      ? sourceTabs
++          .filter((tab): tab is MkDocsTab => Boolean(tab && typeof tab.title === 'string'))
++          .map((tab) => ({ id: tab.id || createMkDocsTab().id, title: tab.title, content: tab.content || '' }))
++      : [];
++    if (this.tabs.length === 0) this.tabs = [createMkDocsTab('Вкладка 1'), createMkDocsTab('Вкладка 2')];
++    this.activeId = this.tabs[0].id;
++  }
++
++  render(): HTMLElement {
++    const surface = createToolSurface(styles, 'mkdocs-widget-surface');
++    const root = document.createElement('section');
++    root.className = 'mkdocs-widget';
++    const header = document.createElement('header');
++    header.className = 'mkdocs-widget-header';
++    header.textContent = 'Вкладки MkDocs';
++    const add = document.createElement('button');
++    add.type = 'button';
++    add.textContent = '+ Вкладка';
++    add.addEventListener('click', () => {
++      const tab = createMkDocsTab(`Вкладка ${this.tabs.length + 1}`);
++      this.tabs.push(tab);
++      this.activeId = tab.id;
++      this.refresh();
++      root.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
++    });
++    header.append(add);
++    this.tabsList = document.createElement('div');
++    this.tabsList.className = 'mkdocs-tabs-list';
++    this.editor = document.createElement('div');
++    this.editor.className = 'mkdocs-tab-editor';
++    root.append(header, this.tabsList, this.editor);
++    surface.content.append(root);
++    this.refresh();
++    return surface;
++  }
++
++  save(): MkDocsTabsData {
++    return { tabs: this.tabs.map((tab) => ({ ...tab, title: tab.title.trim() || 'Вкладка' })) };
++  }
++
++  private refresh(): void {
++    if (!this.tabsList || !this.editor) return;
++    this.tabsList.replaceChildren();
++    for (const tab of this.tabs) {
++      const button = document.createElement('button');
++      button.type = 'button';
++      button.textContent = tab.title || 'Вкладка';
++      button.setAttribute('aria-selected', String(tab.id === this.activeId));
++      button.addEventListener('click', () => {
++        this.activeId = tab.id;
++        this.refresh();
++      });
++      this.tabsList.append(button);
++    }
++    const tab = this.tabs.find((item) => item.id === this.activeId) ?? this.tabs[0];
++    if (!tab) return;
++    this.activeId = tab.id;
++    this.editor.replaceChildren();
++    const title = document.createElement('input');
++    title.type = 'text';
++    title.value = tab.title;
++    title.placeholder = 'Название вкладки';
++    title.addEventListener('input', () => {
++      tab.title = title.value;
++      this.refreshTabLabels();
++    });
++    const content = document.createElement('textarea');
++    content.value = tab.content;
++    content.placeholder = 'Содержимое вкладки в Markdown…';
++    content.addEventListener('input', () => (tab.content = content.value));
++    const actions = document.createElement('div');
++    actions.className = 'mkdocs-tab-actions';
++    const remove = document.createElement('button');
++    remove.type = 'button';
++    remove.className = 'mkdocs-danger-button';
++    remove.textContent = 'Удалить вкладку';
++    remove.disabled = this.tabs.length === 1;
++    remove.addEventListener('click', () => {
++      const index = this.tabs.indexOf(tab);
++      this.tabs.splice(index, 1);
++      this.activeId = this.tabs[Math.max(0, index - 1)]?.id ?? this.tabs[0].id;
++      this.refresh();
++    });
++    actions.append(remove);
++    this.editor.append(title, content, actions);
++  }
++
++  private refreshTabLabels(): void {
++    if (!this.tabsList) return;
++    Array.from(this.tabsList.children).forEach((item, index) => {
++      item.textContent = this.tabs[index]?.title || 'Вкладка';
++    });
++  }
++}
+diff --git a/src/webview/mkdocs-widget-types.ts b/src/webview/mkdocs-widget-types.ts
+new file mode 100644
+index 0000000..d74628c
+--- /dev/null
++++ b/src/webview/mkdocs-widget-types.ts
+@@ -0,0 +1,68 @@
++export const MKDOCS_ADMONITION_KINDS = [
++  'note',
++  'abstract',
++  'info',
++  'tip',
++  'success',
++  'question',
++  'warning',
++  'failure',
++  'danger',
++  'bug',
++  'example',
++  'quote',
++] as const;
++
++export type MkDocsAdmonitionKind = (typeof MKDOCS_ADMONITION_KINDS)[number];
++
++export type MkDocsAdmonitionData = {
++  kind: MkDocsAdmonitionKind;
++  title: string;
++  content: string;
++  collapsible: boolean;
++  open: boolean;
++};
++
++export type MkDocsTab = {
++  id: string;
++  title: string;
++  content: string;
++};
++
++export type MkDocsTabsData = {
++  tabs: MkDocsTab[];
++};
++
++export type MkDocsDetailsData = {
++  summary: string;
++  content: string;
++  open: boolean;
++};
++
++export type MkDocsChecklistItem = {
++  id: string;
++  text: string;
++  checked: boolean;
++  level: number;
++};
++
++export type MkDocsChecklistData = {
++  items: MkDocsChecklistItem[];
++};
++
++export function createMkDocsTab(title = 'Вкладка'): MkDocsTab {
++  return {
++    id: `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
++    title,
++    content: '',
++  };
++}
++
++export function createMkDocsChecklistItem(text = '', level = 0): MkDocsChecklistItem {
++  return {
++    id: `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
++    text,
++    checked: false,
++    level,
++  };
++}
+diff --git a/src/webview/mkdocs-widgets.shadow.css b/src/webview/mkdocs-widgets.shadow.css
+new file mode 100644
+index 0000000..c1c7687
+--- /dev/null
++++ b/src/webview/mkdocs-widgets.shadow.css
+@@ -0,0 +1,151 @@
++.mkdocs-widget {
++  display: grid;
++  gap: 10px;
++  padding: 14px;
++  color: var(--vscode-editor-foreground);
++  border: 1px solid var(--vscode-panel-border);
++  border-radius: 8px;
++  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
++}
++
++.mkdocs-widget-header,
++.mkdocs-widget-row,
++.mkdocs-tab-actions {
++  display: flex;
++  align-items: center;
++  gap: 8px;
++}
++
++.mkdocs-widget-header {
++  justify-content: space-between;
++  font-weight: 600;
++}
++
++.mkdocs-widget input,
++.mkdocs-widget select,
++.mkdocs-widget textarea,
++.mkdocs-widget button {
++  color: var(--vscode-input-foreground, var(--vscode-editor-foreground));
++  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
++  border-radius: 4px;
++  background: var(--vscode-input-background, var(--vscode-editor-background));
++  font: inherit;
++}
++
++.mkdocs-widget input,
++.mkdocs-widget select,
++.mkdocs-widget button {
++  min-height: 30px;
++  padding: 4px 8px;
++}
++
++.mkdocs-widget input[type='text'] {
++  flex: 1;
++  min-width: 100px;
++}
++
++.mkdocs-widget textarea {
++  width: 100%;
++  min-height: 132px;
++  padding: 9px 10px;
++  resize: vertical;
++  line-height: 1.5;
++}
++
++.mkdocs-widget button {
++  cursor: pointer;
++}
++
++.mkdocs-widget button:hover {
++  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
++}
++
++.mkdocs-widget button:focus-visible,
++.mkdocs-widget input:focus-visible,
++.mkdocs-widget select:focus-visible,
++.mkdocs-widget textarea:focus-visible {
++  outline: 1px solid var(--vscode-focusBorder);
++  outline-offset: 1px;
++}
++
++.mkdocs-widget-check {
++  display: inline-flex;
++  align-items: center;
++  gap: 5px;
++  white-space: nowrap;
++}
++
++.mkdocs-widget-check input {
++  min-height: auto;
++}
++
++.mkdocs-tabs-list {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 5px;
++  padding-bottom: 7px;
++  border-bottom: 1px solid var(--vscode-panel-border);
++}
++
++.mkdocs-tabs-list button[aria-selected='true'] {
++  color: var(--vscode-button-foreground);
++  border-color: var(--vscode-button-background);
++  background: var(--vscode-button-background);
++}
++
++.mkdocs-tab-editor {
++  display: grid;
++  gap: 8px;
++}
++
++.mkdocs-tab-actions {
++  justify-content: flex-end;
++}
++
++.mkdocs-danger-button {
++  color: var(--vscode-errorForeground) !important;
++}
++
++.mkdocs-checklist {
++  display: grid;
++  gap: 6px;
++}
++
++.mkdocs-checklist-row {
++  display: grid;
++  grid-template-columns: auto minmax(100px, 1fr) auto auto auto;
++  align-items: center;
++  gap: 6px;
++  margin-left: min(calc(var(--checklist-level, 0) * 24px), 50%);
++}
++
++.mkdocs-checklist-row > input[type='checkbox'] {
++  width: 17px;
++  min-height: auto;
++  height: 17px;
++  margin: 0;
++}
++
++.mkdocs-checklist-row > input[type='text'] {
++  width: 100%;
++}
++
++.mkdocs-icon-button {
++  display: inline-grid;
++  width: 30px;
++  min-height: 30px !important;
++  padding: 4px !important;
++  place-items: center;
++}
++
++.mkdocs-icon-button svg {
++  width: 17px;
++  height: 17px;
++}
++
++@media (max-width: 650px) {
++  .mkdocs-widget-row {
++    align-items: stretch;
++    flex-direction: column;
++  }
++}
+diff --git a/src/webview/nested-list-tool.ts b/src/webview/nested-list-tool.ts
+index 51e1703..33d65eb 100644
+--- a/src/webview/nested-list-tool.ts
++++ b/src/webview/nested-list-tool.ts
+@@ -36,7 +36,10 @@ export default class NestedListTool {
+   constructor({ data, api, readOnly }: BlockToolConstructorOptions<NestedListData>) {
+     this.api = api;
+     this.readOnly = readOnly;
+-    this.data = { style: data?.style === 'ordered' ? 'ordered' : 'unordered', items: normalizeNestedListItems(data?.items) };
++    this.data = {
++      style: data?.style === 'ordered' ? 'ordered' : 'unordered',
++      items: normalizeNestedListItems(data?.items),
++    };
    }
  
-   private changeStyle(style: NestedListData['style']): void {
-diff --git a/test/nested-list-tool.test.ts b/test/nested-list-tool.test.ts
-index a97f91e..89b1e00 100644
---- a/test/nested-list-tool.test.ts
-+++ b/test/nested-list-tool.test.ts
-@@ -1,7 +1,13 @@
- import { describe, expect, it } from 'vitest';
- import { normalizeNestedListItems } from '../src/webview/nested-list-tool';
-+import NestedListTool from '../src/webview/nested-list-tool';
+   render(): HTMLElement {
+@@ -157,7 +160,12 @@ export default class NestedListTool {
  
- describe('nested list tool', () => {
-+  it('is available in the EditorJS toolbox', () => {
-+    expect(NestedListTool.toolbox.title).toBe('Многоуровневый список');
-+    expect(NestedListTool.toolbox.icon).toContain('<svg');
+   private exitList(content: HTMLElement): boolean {
+     const item = content.parentElement;
+-    if (!item || item.parentElement !== this.root || item !== this.root.lastElementChild || this.root.children.length < 2) {
++    if (
++      !item ||
++      item.parentElement !== this.root ||
++      item !== this.root.lastElementChild ||
++      this.root.children.length < 2
++    ) {
+       return false;
+     }
+     item.remove();
+@@ -240,12 +248,16 @@ function selectedItems(root: Element): HTMLLIElement[] {
+   const range = selection.getRangeAt(0);
+   return Array.from(root.querySelectorAll<HTMLLIElement>('li.slash-nested-list-item')).filter((item) => {
+     const content = item.querySelector(':scope > .cdx-list__item');
+-    return Boolean(content && (range.collapsed ? content.contains(selection.anchorNode) : range.intersectsNode(content)));
++    return Boolean(
++      content && (range.collapsed ? content.contains(selection.anchorNode) : range.intersectsNode(content)),
++    );
+   });
+ }
+ 
+ function currentContent(event: KeyboardEvent): HTMLElement | undefined {
+-  return event.composedPath().find((item): item is HTMLElement => item instanceof HTMLElement && item.matches('.cdx-list__item'));
++  return event
++    .composedPath()
++    .find((item): item is HTMLElement => item instanceof HTMLElement && item.matches('.cdx-list__item'));
+ }
+ 
+ function focusContent(content: HTMLElement): void {
+diff --git a/test/documentation-compiler.test.ts b/test/documentation-compiler.test.ts
+index eeaf00d..3b58ee0 100644
+--- a/test/documentation-compiler.test.ts
++++ b/test/documentation-compiler.test.ts
+@@ -1,11 +1,14 @@
+ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+ import { join } from 'node:path';
+ import { tmpdir } from 'node:os';
++import { execFile } from 'node:child_process';
++import { promisify } from 'node:util';
+ import { afterEach, describe, expect, it } from 'vitest';
+ import { compileDocumentation } from '../src/compiler/documentation-compiler';
+ import { encodeStoredPage } from '../src/shared/page-storage-format';
+ 
+ const temporaryDirectories: string[] = [];
++const execFileAsync = promisify(execFile);
+ 
+ afterEach(async () => {
+   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+@@ -14,8 +17,14 @@ afterEach(async () => {
+ describe('standalone documentation compiler', () => {
+   it('builds a searchable static site without VS Code', async () => {
+     const projectRoot = await createProject();
++    await initializeGitProject(projectRoot);
+     const outputRoot = join(projectRoot, 'public-docs');
+-    const result = await compileDocumentation({ projectRoot, outputRoot, projectName: 'Test docs' });
++    const result = await compileDocumentation({
++      projectRoot,
++      outputRoot,
++      projectName: 'Test docs',
++      repositoryUrl: 'https://gitlab.example/group/project.git',
++    });
+     const index = await readFile(result.indexPath, 'utf8');
+     const firstPage = await readFile(join(outputRoot, 'pages', 'start.html'), 'utf8');
+ 
+@@ -26,6 +35,8 @@ describe('standalone documentation compiler', () => {
+     expect(index).toContain('class="sidebar-resizer"');
+     expect(index).toContain("'#page/' + encodeURIComponent(pageId)");
+     expect(index).toContain('slash-doc-sidebar-width');
++    expect(index).toContain('slash-doc-theme');
++    expect(index).toContain('class="theme-toggle"');
+     expect(index).toContain('data-page-id="start"');
+     const hostScript = /<script>([\s\S]*?)<\/script>/.exec(index)?.[1] ?? '';
+     expect(() => new Function(hostScript)).not.toThrow();
+@@ -35,6 +46,23 @@ describe('standalone documentation compiler', () => {
+     expect(firstPage).toContain('target="_blank" rel="noopener noreferrer"');
+     expect(firstPage).toContain('slash-doc-page-id');
+     expect(firstPage).toContain("type:'slash-doc-page'");
++    expect(firstPage).toContain("data-slash-doc-theme='dark'");
++    expect(firstPage.match(/Изменено:[\s\S]*?<\/p>/)?.[0]).toBe(
++      'Изменено: <time datetime="2024-05-06T12:00:00Z">06/05/2024</time> <span class="slash-doc-page-revision-user">Test User</span> <a href="https://gitlab.example/group/project/-/edit/main/.slash-doc/docs/pages/start/content.json" target="_blank" rel="noopener noreferrer">Редактировать</a></p>',
++    );
++    expect(firstPage).toContain('<span class="slash-doc-page-revision-user">Test User</span>');
++    expect(firstPage).toContain(
++      'href="https://gitlab.example/group/project/-/edit/main/.slash-doc/docs/pages/start/content.json"',
++    );
++    expect(firstPage.indexOf('<p class="slash-doc-page-revision">')).toBeGreaterThan(
++      firstPage.indexOf('<h1>Start</h1>'),
++    );
++    expect(firstPage).toContain('data-slash-doc-copy-control');
++    expect(firstPage).toContain('Скопировать HTML');
++    expect(firstPage).toContain('navigator.clipboard?.writeText');
++    expect(firstPage).toContain("document.execCommand('copy')");
++    const copyScript = /<script data-slash-doc-copy-script>([\s\S]*?)<\/script>/.exec(firstPage)?.[1] ?? '';
++    expect(() => new Function(copyScript)).not.toThrow();
+   });
+ 
+   it('uses the default output directory and creates a page when content is missing', async () => {
+@@ -96,15 +124,15 @@ describe('standalone documentation compiler', () => {
+     await writeFile(startContentPath, JSON.stringify(startContent));
+ 
+     const result = await compileDocumentation({ projectRoot, outputRoot, format: 'md' });
+-    const contents = await readFile(join(outputRoot, 'contents.md'), 'utf8');
+-    const parent = await readFile(join(outputRoot, 'Start page', 'content.md'), 'utf8');
+-    const child = await readFile(join(outputRoot, 'Start page', 'Child page', 'content.md'), 'utf8');
++    const contents = await readFile(join(outputRoot, 'README.md'), 'utf8');
++    const parent = await readFile(join(outputRoot, 'Start page', 'Start page.md'), 'utf8');
++    const child = await readFile(join(outputRoot, 'Start page', 'Child page', 'Child page.md'), 'utf8');
+     const image = await readFile(join(outputRoot, 'Start page', 'image-1.png'));
+ 
+-    expect(result.indexPath).toBe(join(outputRoot, 'contents.md'));
+-    expect(contents).toContain('- [Start page](Start%20page/content.md)');
+-    expect(contents).toContain('  - [Child page](Start%20page/Child%20page/content.md)');
+-    expect(parent).toContain('[inside](Child%20page/content.md#section)');
++    expect(result.indexPath).toBe(join(outputRoot, 'README.md'));
++    expect(contents).toContain('- [Start page](Start%20page/Start%20page.md)');
++    expect(contents).toContain('  - [Child page](Start%20page/Child%20page/Child%20page.md)');
++    expect(parent).toContain('[inside](Child%20page/Child%20page.md#section)');
+     expect(parent).toContain('![Picture](image-1.png)');
+     expect(child).toContain('## Details');
+     expect(image.toString('utf8')).toBe('hello');
+@@ -169,3 +197,18 @@ async function createProject(includeSecondPage = true): Promise<string> {
+   }
+   return projectRoot;
+ }
++
++async function initializeGitProject(projectRoot: string): Promise<void> {
++  await execFileAsync('git', ['init', '-b', 'main'], { cwd: projectRoot });
++  await execFileAsync('git', ['config', 'user.name', 'Test User'], { cwd: projectRoot });
++  await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: projectRoot });
++  await execFileAsync('git', ['add', '.'], { cwd: projectRoot });
++  await execFileAsync('git', ['commit', '-m', 'Initial documentation'], {
++    cwd: projectRoot,
++    env: {
++      ...process.env,
++      GIT_AUTHOR_DATE: '2024-05-06T12:00:00+00:00',
++      GIT_COMMITTER_DATE: '2024-05-06T12:00:00+00:00',
++    },
++  });
++}
+diff --git a/test/documentation-tree.test.ts b/test/documentation-tree.test.ts
+index 636246b..70dc02a 100644
+--- a/test/documentation-tree.test.ts
++++ b/test/documentation-tree.test.ts
+@@ -8,7 +8,7 @@ describe('Markdown documentation tree', () => {
+     const pages = createDocumentationTree(items);
+ 
+     expect(pages.map((item) => item.directories)).toEqual([['API - Intro'], ['API - Intro (2)'], ['Страница']]);
+-    expect(renderMarkdownContents(items, pages)).toContain('[API / Intro](API%20-%20Intro/content.md)');
++    expect(renderMarkdownContents(items, pages)).toContain('[API / Intro](API%20-%20Intro/API%20-%20Intro.md)');
+   });
+ });
+ 
+diff --git a/test/mcp-repository.test.ts b/test/mcp-repository.test.ts
+new file mode 100644
+index 0000000..9326f88
+--- /dev/null
++++ b/test/mcp-repository.test.ts
+@@ -0,0 +1,57 @@
++import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import { join } from 'node:path';
++import { afterEach, describe, expect, it } from 'vitest';
++import { SlashDocRepository } from '../src/mcp/repository';
++
++const directories: string[] = [];
++
++afterEach(async () => {
++  await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
++});
++
++describe('Slash Doc MCP repository', () => {
++  it('creates, reads, searches, moves, renames, and deletes pages', async () => {
++    const projectRoot = await temporaryProject();
++    const repository = new SlashDocRepository(projectRoot);
++    const parent = await repository.createPage('Архитектура');
++    const child = await repository.createPage('API', parent.pageId);
++
++    await repository.appendBlocks(child.pageId, [
++      { type: 'paragraph', data: { text: 'Контракт пользовательского сервиса' } },
++    ]);
++    expect((await repository.search('пользовательского'))[0]).toMatchObject({ pageId: child.pageId, title: 'API' });
++
++    await repository.renamePage(child.pageId, 'REST API');
++    await repository.movePage(child.pageId, undefined, 'root');
++    const pages = await repository.listPages();
++    expect(pages.map((page) => page.title)).toEqual(['Архитектура', 'REST API']);
++    expect((await repository.readPage(child.pageId)).content).toMatchObject({ blocks: expect.any(Array) });
++
++    expect(await repository.deletePage(parent.pageId)).toEqual({ deletedPageIds: [parent.pageId] });
++    expect(await repository.listPages()).toHaveLength(1);
 +  });
 +
-   it('migrates legacy flat list items without losing inline markup', () => {
-     expect(normalizeNestedListItems(['Первый', '<b>Второй</b>'])).toEqual([
-       { content: 'Первый', items: [] },
++  it('round-trips embedded resources through YAML page storage', async () => {
++    const projectRoot = await temporaryProject();
++    const repository = new SlashDocRepository(projectRoot);
++    const image = 'data:image/png;base64,aGVsbG8=';
++    const created = await repository.createPage('Изображение', undefined, {
++      version: '2.23.2',
++      blocks: [{ type: 'image', data: { file: { url: image } } }],
++    });
++    const page = await repository.readPage(created.pageId);
++    expect(page.content).toMatchObject({ blocks: [{ data: { file: { url: image } } }] });
++
++    await repository.replacePage(created.pageId, page.content);
++    const pageRoot = join(projectRoot, '.slash-doc', 'docs', 'pages', created.pageId);
++    expect((await readdir(pageRoot)).some((name) => /^image-[a-f0-9]{16}\.png$/.test(name))).toBe(true);
++    expect(await readFile(join(pageRoot, 'content.yaml'), 'utf8')).toContain('storage:');
++  });
++});
++
++async function temporaryProject(): Promise<string> {
++  const directory = await mkdtemp(join(tmpdir(), 'slash-doc-mcp-'));
++  directories.push(directory);
++  return directory;
++}
+diff --git a/test/mkdocs-widgets.test.ts b/test/mkdocs-widgets.test.ts
+new file mode 100644
+index 0000000..c7bdfc7
+--- /dev/null
++++ b/test/mkdocs-widgets.test.ts
+@@ -0,0 +1,98 @@
++import { describe, expect, it } from 'vitest';
++import { exportPageContent } from '../src/extension/document-export';
++import { importMarkdownBlocks } from '../src/extension/document-import-markdown';
++import { importHtmlBlocks } from '../src/extension/document-import-html';
++import { getDefaultSettings } from '../src/extension/settings';
++
++describe('MkDocs widgets', () => {
++  it('imports admonitions and content tabs as structured blocks', () => {
++    const blocks = importMarkdownBlocks(`!!! warning "Important"
++
++    **Keep** this setting.
++
++=== "Python"
++
++    \`print('ok')\`
++
++=== "TypeScript"
++
++    \`console.log('ok')\`
++
++- [x] Done
++    - [ ] Nested
++`);
++
++    expect(blocks[0]).toMatchObject({
++      type: 'mkdocsAdmonition',
++      data: { kind: 'warning', title: 'Important', content: '**Keep** this setting.', collapsible: false },
++    });
++    expect(blocks[1]).toMatchObject({
++      type: 'mkdocsTabs',
++      data: {
++        tabs: [
++          { title: 'Python', content: "`print('ok')`" },
++          { title: 'TypeScript', content: "`console.log('ok')`" },
++        ],
++      },
++    });
++    expect(blocks[2]).toMatchObject({
++      type: 'mkdocsChecklist',
++      data: {
++        items: [
++          { text: 'Done', checked: true, level: 0 },
++          { text: 'Nested', checked: false, level: 1 },
++        ],
++      },
++    });
++  });
++
++  it('exports interactive HTML and native MkDocs Markdown syntax', async () => {
++    const data = {
++      blocks: [
++        {
++          type: 'mkdocsAdmonition',
++          data: { kind: 'tip', title: 'Hint', content: '**Markdown** body', collapsible: true, open: true },
++        },
++        {
++          type: 'mkdocsTabs',
++          data: { tabs: [{ id: 'one', title: 'One', content: '# Tab body' }] },
++        },
++        { type: 'mkdocsDetails', data: { summary: 'More', content: 'Details body', open: false } },
++        {
++          type: 'mkdocsChecklist',
++          data: {
++            items: [
++              { id: 'done', text: '**Done**', checked: true, level: 0 },
++              { id: 'nested', text: 'Nested', checked: false, level: 1 },
++            ],
++          },
++        },
++      ],
++    };
++    const settings = getDefaultSettings();
++    const html = await exportPageContent(data, 'html', settings);
++    const markdown = await exportPageContent(data, 'md', settings);
++
++    expect(html).toContain('data-slash-doc-mkdocs-admonition=');
++    expect(html).toContain('<strong>Markdown</strong>');
++    expect(html).toContain('class="slash-mkdocs-tabs"');
++    expect(html).toContain('data-slash-doc-mkdocs-details=');
++    expect(markdown).toContain('???+ tip "Hint"');
++    expect(markdown).toContain('=== "One"');
++    expect(markdown).toContain('<details data-slash-doc-mkdocs-details=');
++    expect(markdown).toContain('- [x] **Done**\n    - [ ] Nested');
++    expect(html).toContain('data-slash-doc-mkdocs-checklist=');
++    expect(importMarkdownBlocks(markdown).map((block) => block.type)).toEqual([
++      'mkdocsAdmonition',
++      'mkdocsTabs',
++      'mkdocsDetails',
++      'mkdocsChecklist',
++    ]);
++    expect(importHtmlBlocks(html).map((block) => block.type)).toEqual([
++      'mkdocsAdmonition',
++      'mkdocsTabs',
++      'mkdocsDetails',
++      'mkdocsChecklist',
++    ]);
++  });
++});
+diff --git a/test/mkdocs-zip-import.test.ts b/test/mkdocs-zip-import.test.ts
+new file mode 100644
+index 0000000..3c92a07
+--- /dev/null
++++ b/test/mkdocs-zip-import.test.ts
+@@ -0,0 +1,96 @@
++import { mkdtemp, mkdir, readFile, readdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import path from 'node:path';
++import { zipSync } from 'fflate';
++import { afterEach, describe, expect, it, vi } from 'vitest';
++
++vi.mock('vscode', () => {
++  class Uri {
++    readonly path: string;
++    readonly fsPath: string;
++
++    constructor(value: string) {
++      this.fsPath = value;
++      this.path = value;
++    }
++
++    static file(value: string) {
++      return new Uri(value);
++    }
++
++    static joinPath(base: Uri, ...parts: string[]) {
++      return new Uri(path.join(base.fsPath, ...parts));
++    }
++
++    with(change: { path: string }) {
++      return new Uri(change.path);
++    }
++  }
++
++  return {
++    Uri,
++    FileType: { File: 1, Directory: 2 },
++    workspace: {
++      fs: {
++        createDirectory: (uri: Uri) => mkdir(uri.fsPath, { recursive: true }),
++        readFile: (uri: Uri) => readFile(uri.fsPath),
++        writeFile: (uri: Uri, data: Uint8Array) => writeFile(uri.fsPath, data),
++        rename: (source: Uri, target: Uri) => rename(source.fsPath, target.fsPath),
++        delete: (uri: Uri, options?: { recursive?: boolean }) =>
++          options?.recursive ? rm(uri.fsPath, { recursive: true, force: true }) : unlink(uri.fsPath),
++        stat: (uri: Uri) => stat(uri.fsPath),
++        readDirectory: async (uri: Uri) =>
++          Promise.all(
++            (await readdir(uri.fsPath, { withFileTypes: true })).map(async (entry) => [
++              entry.name,
++              entry.isDirectory() ? 2 : 1,
++            ]),
++          ),
++      },
++    },
++  };
++});
++
++const temporaryDirectories: string[] = [];
++
++afterEach(async () => {
++  await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
++});
++
++describe('MkDocs ZIP import', () => {
++  it('uses mkdocs nav, preserves nesting and stores image resources beside YAML pages', async () => {
++    const projectRoot = await mkdtemp(path.join(tmpdir(), 'slash-doc-mkdocs-'));
++    temporaryDirectories.push(projectRoot);
++    await mkdir(path.join(projectRoot, '.slash-doc', 'docs', 'pages'), { recursive: true });
++    await writeFile(path.join(projectRoot, '.slash-doc', 'docs', 'menu.json'), '{"items":[]}');
++    const archive = zipSync({
++      'sample/mkdocs.yml': new TextEncoder().encode(
++        'site_name: Sample\nnav:\n  - Home: index.md\n  - Guide:\n      - Overview: guide/index.md\n      - Setup: guide/setup.md\n',
++      ),
++      'sample/docs/index.md': new TextEncoder().encode('# Home\n\n![Logo](images/logo.png)'),
++      'sample/docs/images/logo.png': new TextEncoder().encode('png-image'),
++      'sample/docs/guide/index.md': new TextEncoder().encode('# Overview'),
++      'sample/docs/guide/setup.md': new TextEncoder().encode(
++        '!!! warning "Careful"\n\n    Keep this.\n\n- [x] Installed\n- [ ] Configured',
++      ),
++    });
++    const vscode = await import('vscode');
++    const { importMkDocsZip } = await import('../src/extension/mkdocs-zip-import');
++    const result = await importMkDocsZip(vscode.Uri.file(projectRoot), archive);
++    const menu = JSON.parse(await readFile(path.join(projectRoot, '.slash-doc', 'docs', 'menu.json'), 'utf8'));
++
++    expect(result.pageCount).toBe(4);
++    expect(menu.items.map((item: { title: string }) => item.title)).toEqual(['Home', 'Guide']);
++    expect(menu.items[1].children.map((item: { title: string }) => item.title)).toEqual(['Overview', 'Setup']);
++    const homeRoot = path.join(projectRoot, '.slash-doc', 'docs', 'pages', menu.items[0].id);
++    const homeFiles = await readdir(homeRoot);
++    expect(homeFiles).toContain('content.yaml');
++    expect(homeFiles.some((file) => /^image-[0-9a-f]{16}\.png$/.test(file))).toBe(true);
++    const setupYaml = await readFile(
++      path.join(projectRoot, '.slash-doc', 'docs', 'pages', menu.items[1].children[1].id, 'content.yaml'),
++      'utf8',
++    );
++    expect(setupYaml).toContain('type: mkdocsAdmonition');
++    expect(setupYaml).toContain('type: mkdocsChecklist');
++  });
++});
+diff --git a/test/page-revision.test.ts b/test/page-revision.test.ts
+new file mode 100644
+index 0000000..2b4dc11
+--- /dev/null
++++ b/test/page-revision.test.ts
+@@ -0,0 +1,20 @@
++import { describe, expect, it } from 'vitest';
++import { createGitLabEditUrl } from '../src/shared/page-revision';
++
++describe('GitLab page edit links', () => {
++  it('creates an edit URL and encodes branch and path segments', () => {
++    expect(
++      createGitLabEditUrl(
++        'https://gitlab.example/group/project.git',
++        'feature/docs',
++        '.slash-doc/docs/pages/page 1/content.yaml',
++      ),
++    ).toBe('https://gitlab.example/group/project/-/edit/feature%2Fdocs/.slash-doc/docs/pages/page%201/content.yaml');
++  });
++
++  it('normalizes an SSH repository URL', () => {
++    expect(createGitLabEditUrl('git@gitlab.example:group/project.git', 'main', 'README.md')).toBe(
++      'https://gitlab.example/group/project/-/edit/main/README.md',
++    );
++  });
++});
+diff --git a/test/settings.test.ts b/test/settings.test.ts
+index e4a6840..742711f 100644
+--- a/test/settings.test.ts
++++ b/test/settings.test.ts
+@@ -5,12 +5,32 @@ describe('export settings', () => {
+   it('keeps document files embedded by default', () => {
+     expect(getDefaultSettings().exportOptions.separateFiles).toBe(false);
+     expect(normalizeSettings({ version: 1 }).exportOptions.separateFiles).toBe(false);
++    expect(getDefaultSettings().exportOptions.repositoryUrl).toBe('');
++    expect(getDefaultSettings().exportOptions.markdownRootFileName).toBe('README.md');
++  });
++
++  it('stores a GitLab repository URL for edit links', () => {
++    expect(
++      normalizeSettings({ exportOptions: { repositoryUrl: ' https://gitlab.example/group/project ' } }).exportOptions,
++    ).toMatchObject({ repositoryUrl: 'https://gitlab.example/group/project' });
+   });
+ 
+   it('enables file separation and migrates the legacy image setting', () => {
+     expect(normalizeSettings({ exportOptions: { separateFiles: true } }).exportOptions.separateFiles).toBe(true);
+     expect(normalizeSettings({ exportOptions: { extractImages: true } }).exportOptions.separateFiles).toBe(true);
+   });
++
++  it('normalizes the configurable Markdown root file name', () => {
++    expect(normalizeSettings({ exportOptions: { markdownRootFileName: ' SUMMARY ' } }).exportOptions).toMatchObject({
++      markdownRootFileName: 'SUMMARY.md',
++    });
++    expect(normalizeSettings({ exportOptions: { markdownRootFileName: '../docs?.md' } }).exportOptions).toMatchObject({
++      markdownRootFileName: 'docs-.md',
++    });
++    expect(normalizeSettings({ exportOptions: { markdownRootFileName: '' } }).exportOptions).toMatchObject({
++      markdownRootFileName: 'README.md',
++    });
++  });
+ });
+ 
+ describe('autosave settings', () => {
+diff --git a/test/vite-config.test.ts b/test/vite-config.test.ts
+index ddc3b89..e5af50c 100644
+--- a/test/vite-config.test.ts
++++ b/test/vite-config.test.ts
+@@ -35,4 +35,13 @@ describe('Vite target configuration', () => {
+     expect(typeof library === 'object' && library.fileName()).toBe('slash-doc-compile.js');
+     expect(typeof library === 'object' && library.formats).toEqual(['cjs']);
+   });
++
++  it('builds the MCP stdio server as a Node executable', () => {
++    const config = createSlashDocViteConfig('mcp');
++    const library = config.build?.lib;
++
++    expect(config.resolve).toMatchObject({ conditions: ['node'] });
++    expect(typeof library === 'object' && library.fileName()).toBe('slash-doc-mcp.js');
++    expect(typeof library === 'object' && library.formats).toEqual(['cjs']);
++  });
+ });
+diff --git a/vite.config.mjs b/vite.config.mjs
+index 4ccbf90..62dd644 100644
+--- a/vite.config.mjs
++++ b/vite.config.mjs
+@@ -47,6 +47,13 @@ const targets = {
+     platform: 'node',
+     sourcemap: false,
+   },
++  mcp: {
++    entry: 'src/slash-doc-mcp-cli.ts',
++    fileName: 'slash-doc-mcp.js',
++    format: 'cjs',
++    platform: 'node',
++    sourcemap: false,
++  },
+ };
+ 
+ export function createSlashDocViteConfig(targetName, watch = false) {

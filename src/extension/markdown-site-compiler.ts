@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import {
   createDocumentationTree,
+  getMarkdownPagePath,
   renderMarkdownContents,
   rewriteMarkdownPageLinks,
 } from '../shared/documentation-tree';
@@ -38,7 +39,8 @@ export async function compileMarkdownDocumentation(
     const result = settings.exportOptions.separateFiles
       ? extractEmbeddedImages(markdown)
       : { content: markdown, images: [] };
-    await writeText(vscode.Uri.joinPath(pageRoot, 'content.md'), result.content);
+    const pageFileName = getMarkdownPagePath(current).at(-1) ?? 'Страница.md';
+    await writeText(vscode.Uri.joinPath(pageRoot, pageFileName), result.content);
     await Promise.all(
       result.images.map((image) =>
         vscode.workspace.fs.writeFile(vscode.Uri.joinPath(pageRoot, image.fileName), image.data),
@@ -46,7 +48,7 @@ export async function compileMarkdownDocumentation(
     );
   }
 
-  const contentsUri = vscode.Uri.joinPath(outputRoot, 'contents.md');
+  const contentsUri = vscode.Uri.joinPath(outputRoot, settings.exportOptions.markdownRootFileName);
   await writeText(contentsUri, renderMarkdownContents(menu.items, pages));
   return { contentsUri, pageCount: pages.length };
 }

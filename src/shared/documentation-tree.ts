@@ -6,12 +6,17 @@ export type DocumentationTreePage = {
   directories: string[];
 };
 
+export function getMarkdownPagePath(page: DocumentationTreePage): string[] {
+  const directoryName = page.directories.at(-1) ?? 'Страница';
+  return [...page.directories, `${directoryName}.md`];
+}
+
 export function createDocumentationTree(items: SlashDocMenuItem[]): DocumentationTreePage[] {
   return collectPages(items, []);
 }
 
 export function renderMarkdownContents(items: SlashDocMenuItem[], pages: DocumentationTreePage[]): string {
-  const paths = new Map(pages.map(({ page, directories }) => [page.id, [...directories, 'content.md']]));
+  const paths = new Map(pages.map((item) => [item.page.id, getMarkdownPagePath(item)]));
   const lines = ['# Содержание', '', ...renderItems(items, paths, 0)];
   return `${lines.join('\n')}\n`;
 }
@@ -21,12 +26,13 @@ export function rewriteMarkdownPageLinks(
   currentPage: DocumentationTreePage,
   pages: DocumentationTreePage[],
 ): string {
-  const targets = new Map(pages.map((item) => [item.page.id, [...item.directories, 'content.md']]));
+  const targets = new Map(pages.map((item) => [item.page.id, getMarkdownPagePath(item)]));
   const rewrite = (href: string) => {
     const reference = readPageReference(href);
     const target = reference ? targets.get(reference.pageId) : undefined;
     if (!reference || !target) return href;
-    const relative = posix.relative(currentPage.directories.join('/'), target.join('/')) || 'content.md';
+    const currentFileName = `${currentPage.directories.at(-1) ?? 'Страница'}.md`;
+    const relative = posix.relative(currentPage.directories.join('/'), target.join('/')) || currentFileName;
     return `${encodePath(relative)}${reference.suffix}`;
   };
   return markdown
@@ -49,7 +55,7 @@ function collectPages(items: SlashDocMenuItem[], parents: string[]): Documentati
 
 function renderItems(items: SlashDocMenuItem[], paths: Map<string, string[]>, depth: number): string[] {
   return items.flatMap((item) => {
-    const path = paths.get(item.id) ?? ['content.md'];
+    const path = paths.get(item.id) ?? ['Страница', 'Страница.md'];
     const line = `${'  '.repeat(depth)}- [${escapeMarkdownLabel(item.title)}](${encodePath(path.join('/'))})`;
     return [line, ...renderItems(item.children, paths, depth + 1)];
   });

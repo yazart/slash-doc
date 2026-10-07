@@ -47,6 +47,13 @@ const targets = {
     platform: 'node',
     sourcemap: false,
   },
+  mcp: {
+    entry: 'src/slash-doc-mcp-cli.ts',
+    fileName: 'slash-doc-mcp.js',
+    format: 'cjs',
+    platform: 'node',
+    sourcemap: false,
+  },
 };
 
 export function createSlashDocViteConfig(targetName, watch = false) {

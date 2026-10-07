@@ -22,7 +22,8 @@
   ],
   "main": "./dist/extension.js",
   "bin": {
-    "slash-doc-compile": "./dist/slash-doc-compile.js"
+    "slash-doc-compile": "./dist/slash-doc-compile.js",
+    "slash-doc-mcp": "./dist/slash-doc-mcp.js"
   },
   "contributes": {
     "viewsContainers": {
@@ -54,6 +55,7 @@
     "compile": "node scripts/vite-build.mjs",
     "compile:docs": "node dist/slash-doc-compile.js",
     "compile:docs:md": "node dist/slash-doc-compile.js --format md",
+    "mcp": "node dist/slash-doc-mcp.js",
     "watch": "node scripts/vite-build.mjs --watch",
     "vscode:prepublish": "npm run compile",
     "check:structure": "node scripts/check-source-structure.mjs",
@@ -78,14 +80,17 @@
     "@editorjs/list": "^1.10.0",
     "@editorjs/marker": "^1.4.0",
     "@editorjs/underline": "^1.2.1",
+    "@modelcontextprotocol/server": "2.1.0",
     "bpmn-js": "9.0.0",
     "csv": "6.0.5",
     "express": "4.21.1",
+    "fflate": "0.8.3",
     "highlight.js": "^11.11.1",
     "lit": "2.8.0",
     "mermaid": "8.14.0",
     "puppeteer": "13.3.2",
-    "yaml": "2.9.0"
+    "yaml": "2.9.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

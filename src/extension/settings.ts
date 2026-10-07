@@ -6,7 +6,7 @@ export function getDefaultSettings(): SlashDocSettings {
   return {
     version: 1,
     autoSave: { ...DEFAULT_AUTO_SAVE_SETTINGS },
-    exportOptions: { separateFiles: false },
+    exportOptions: { separateFiles: false, repositoryUrl: '', markdownRootFileName: 'README.md' },
     editorAddons: {
       header: true,
       list: true,
@@ -28,6 +28,10 @@ export function getDefaultSettings(): SlashDocSettings {
       bpmnModeler: true,
       bpmnPreview: true,
       userMention: true,
+      mkdocsAdmonition: true,
+      mkdocsTabs: true,
+      mkdocsDetails: true,
+      mkdocsChecklist: true,
     },
     customEditorAddons: [],
     apiPrefix: '/api',
@@ -53,6 +57,14 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
         'separateFiles',
         getBooleanSetting(value.exportOptions, 'extractImages', defaults.exportOptions.separateFiles),
       ),
+      repositoryUrl:
+        isRecord(value.exportOptions) && typeof value.exportOptions.repositoryUrl === 'string'
+          ? value.exportOptions.repositoryUrl.trim()
+          : defaults.exportOptions.repositoryUrl,
+      markdownRootFileName:
+        isRecord(value.exportOptions) && typeof value.exportOptions.markdownRootFileName === 'string'
+          ? normalizeMarkdownRootFileName(value.exportOptions.markdownRootFileName)
+          : defaults.exportOptions.markdownRootFileName,
     },
     editorAddons: {
       header: getBooleanSetting(value.editorAddons, 'header', defaults.editorAddons.header),
@@ -79,6 +91,14 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
       bpmnModeler: getBooleanSetting(value.editorAddons, 'bpmnModeler', defaults.editorAddons.bpmnModeler),
       bpmnPreview: getBooleanSetting(value.editorAddons, 'bpmnPreview', defaults.editorAddons.bpmnPreview),
       userMention: getBooleanSetting(value.editorAddons, 'userMention', defaults.editorAddons.userMention),
+      mkdocsAdmonition: getBooleanSetting(
+        value.editorAddons,
+        'mkdocsAdmonition',
+        defaults.editorAddons.mkdocsAdmonition,
+      ),
+      mkdocsTabs: getBooleanSetting(value.editorAddons, 'mkdocsTabs', defaults.editorAddons.mkdocsTabs),
+      mkdocsDetails: getBooleanSetting(value.editorAddons, 'mkdocsDetails', defaults.editorAddons.mkdocsDetails),
+      mkdocsChecklist: getBooleanSetting(value.editorAddons, 'mkdocsChecklist', defaults.editorAddons.mkdocsChecklist),
     },
     customEditorAddons: normalizeCustomEditorAddons(value.customEditorAddons),
     apiPrefix: typeof value.apiPrefix === 'string' ? normalizeApiPrefix(value.apiPrefix) : defaults.apiPrefix,
@@ -86,6 +106,13 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
     apiServices: normalizeApiServices(value.apiServices),
     variables: normalizeVariables(value.variables),
   };
+}
+
+export function normalizeMarkdownRootFileName(value: string): string {
+  const source = value.trim().split(/[\\/]/).at(-1)?.trim() ?? '';
+  const sanitized = source.replaceAll(/[\u0000-\u001f<>:"|?*]/g, '-').replaceAll(/^[ .]+|[ .]+$/g, '');
+  const fileName = sanitized && !/^\.+$/.test(sanitized) ? sanitized : 'README.md';
+  return fileName.toLocaleLowerCase().endsWith('.md') ? fileName : `${fileName}.md`;
 }
 
 export function normalizeApiPrefix(value: string): string {

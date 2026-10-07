@@ -129,6 +129,31 @@ export function readTaskTableHtml(sectionHtml: string): Record<string, unknown> 
   }
 }
 
+export function readMkDocsWidgetHtml(html: string):
+  | {
+      type: 'mkdocsAdmonition' | 'mkdocsTabs' | 'mkdocsDetails' | 'mkdocsChecklist';
+      data: Record<string, unknown>;
+    }
+  | undefined {
+  const definitions = [
+    ['data-slash-doc-mkdocs-admonition', 'mkdocsAdmonition'],
+    ['data-slash-doc-mkdocs-tabs', 'mkdocsTabs'],
+    ['data-slash-doc-mkdocs-details', 'mkdocsDetails'],
+    ['data-slash-doc-mkdocs-checklist', 'mkdocsChecklist'],
+  ] as const;
+  for (const [attribute, type] of definitions) {
+    const encoded = getHtmlAttribute(html, attribute);
+    if (!encoded) continue;
+    try {
+      const parsed = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+      if (isRecord(parsed)) return { type, data: parsed };
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 export function readApprovalTableHtml(tableHtml: string): Record<string, unknown> | undefined {
   const encoded = getHtmlAttribute(tableHtml, 'data-slash-doc-approval-table');
   if (!encoded) return undefined;

@@ -10,6 +10,11 @@
   grid-template-columns: minmax(0, 1fr) 72px;
 }
 
+.repository-settings-row {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
 .settings-input {
   box-sizing: border-box;
   width: 100%;
