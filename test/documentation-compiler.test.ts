@@ -48,11 +48,11 @@ describe('standalone documentation compiler', () => {
     expect(firstPage).toContain("type:'slash-doc-page'");
     expect(firstPage).toContain("data-slash-doc-theme='dark'");
     expect(firstPage.match(/Изменено:[\s\S]*?<\/p>/)?.[0]).toBe(
-      'Изменено: <time datetime="2024-05-06T12:00:00Z">06/05/2024</time> <span class="slash-doc-page-revision-user">Test User</span> <a href="https://gitlab.example/group/project/-/edit/main/.slash-doc/docs/pages/start/content.json" target="_blank" rel="noopener noreferrer">Редактировать</a></p>',
+      'Изменено: <time datetime="2024-05-06T12:00:00Z">06/05/2024</time> <span class="slash-doc-page-revision-user">Test User</span> <a href="https://gitlab.example/group/project/-/edit/main/.slash-doc/docs/pages/start/content.yaml" target="_blank" rel="noopener noreferrer">Редактировать</a></p>',
     );
     expect(firstPage).toContain('<span class="slash-doc-page-revision-user">Test User</span>');
     expect(firstPage).toContain(
-      'href="https://gitlab.example/group/project/-/edit/main/.slash-doc/docs/pages/start/content.json"',
+      'href="https://gitlab.example/group/project/-/edit/main/.slash-doc/docs/pages/start/content.yaml"',
     );
     expect(firstPage.indexOf('<p class="slash-doc-page-revision">')).toBeGreaterThan(
       firstPage.indexOf('<h1>Start</h1>'),

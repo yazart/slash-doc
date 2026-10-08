@@ -6,7 +6,7 @@ import { getDocumentationSearchText } from './documentation-search-text';
 import { readMenu, readPageContent } from './pages';
 import { readSettings } from './settings-store';
 import { flattenPages, prepareCompiledPage, renderHostHtml } from './site-renderer';
-import { readPageRevisionMetadata, resolvePageRevisionFile } from '../shared/page-revision';
+import { readPageRevisionMetadata, resolvePageRevisionFile, resolvePageYamlFile } from '../shared/page-revision';
 
 export type CompiledDocumentation = {
   indexUri: vscode.Uri;
@@ -34,6 +34,7 @@ export async function compileDocumentationSite(
       workspaceRoot.fsPath,
       await resolvePageRevisionFile(workspaceRoot.fsPath, page.id),
       settings.exportOptions.repositoryUrl,
+      resolvePageYamlFile(workspaceRoot.fsPath, page.id),
     );
     searchIndex.push({ pageId: page.id, title: page.title, text: getDocumentationSearchText(data) });
     const exported = prepareCompiledPage(

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { realpath, stat } from 'node:fs/promises';
-import { relative, resolve, sep } from 'node:path';
+import { basename, relative, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -15,11 +15,13 @@ export async function readPageRevisionMetadata(
   projectRoot: string,
   pageFile: string,
   repositoryUrl = '',
+  editFile = pageFile,
 ): Promise<PageRevisionMetadata> {
   const gitRoot = await gitOptional(projectRoot, ['rev-parse', '--show-toplevel']);
   const revisionRoot = await canonicalPath(gitRoot || projectRoot);
   const revisionFile = await canonicalPath(pageFile);
   const revisionPath = toGitPath(revisionRoot, revisionFile);
+  const editPath = toGitPath(revisionRoot, await canonicalPath(editFile));
   const dirty = gitRoot
     ? await gitOptional(gitRoot, ['status', '--porcelain', '--untracked-files=all', '--', revisionPath])
     : '';
@@ -41,7 +43,7 @@ export async function readPageRevisionMetadata(
   return {
     changedAt: commitDate || fallbackDate,
     user: commitUser || fallbackUser,
-    editUrl: repositoryUrl ? createGitLabEditUrl(repositoryUrl, ref || 'main', revisionPath) : undefined,
+    editUrl: repositoryUrl ? createGitLabEditUrl(repositoryUrl, ref || 'main', editPath) : undefined,
   };
 }
 
@@ -49,16 +51,25 @@ async function canonicalPath(value: string): Promise<string> {
   try {
     return await realpath(value);
   } catch {
-    return resolve(value);
+    const absolute = resolve(value);
+    try {
+      return resolve(await realpath(resolve(absolute, '..')), basename(absolute));
+    } catch {
+      return absolute;
+    }
   }
 }
 
 export async function resolvePageRevisionFile(projectRoot: string, pageId: string): Promise<string> {
   const pageRoot = resolve(projectRoot, '.slash-doc', 'docs', 'pages', pageId);
-  const yaml = resolve(pageRoot, 'content.yaml');
+  const yaml = resolvePageYamlFile(projectRoot, pageId);
   if (await fileExists(yaml)) return yaml;
   const json = resolve(pageRoot, 'content.json');
   return (await fileExists(json)) ? json : yaml;
+}
+
+export function resolvePageYamlFile(projectRoot: string, pageId: string): string {
+  return resolve(projectRoot, '.slash-doc', 'docs', 'pages', pageId, 'content.yaml');
 }
 
 export function createGitLabEditUrl(repositoryUrl: string, ref: string, filePath: string): string {

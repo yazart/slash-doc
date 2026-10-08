@@ -15,7 +15,7 @@ import { getDefaultSettings, normalizeSettings } from '../extension/settings';
 import { flattenPages, prepareCompiledPage, renderHostHtml } from '../extension/site-renderer';
 import type { SlashDocMenuItem } from '../extension/types';
 import { isRecord } from '../extension/utils';
-import { readPageRevisionMetadata, resolvePageRevisionFile } from '../shared/page-revision';
+import { readPageRevisionMetadata, resolvePageRevisionFile, resolvePageYamlFile } from '../shared/page-revision';
 
 export type DocumentationCompilerOptions = {
   projectRoot: string;
@@ -64,6 +64,7 @@ export async function compileDocumentation(
       projectRoot,
       revisionFile,
       options.repositoryUrl ?? settings.exportOptions.repositoryUrl,
+      resolvePageYamlFile(projectRoot, page.id),
     );
     searchIndex.push({ pageId: page.id, title: page.title, text: getDocumentationSearchText(data) });
     await writeCompiledPage(outputRoot, page, pageIds, data, settings, customExporter, revision);
