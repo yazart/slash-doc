@@ -42,6 +42,7 @@ export type SlashDocSettings = {
   exportOptions: {
     separateFiles: boolean;
     repositoryUrl: string;
+    defaultBranch: string;
     markdownRootFileName: string;
   };
   editorAddons: {

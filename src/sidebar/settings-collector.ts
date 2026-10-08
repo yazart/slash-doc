@@ -10,6 +10,7 @@ export function collectSettings() {
     exportOptions: {
       separateFiles: isSwitchEnabled('separate-files', false),
       repositoryUrl: document.querySelector<HTMLInputElement>('#repository-url')?.value.trim() ?? '',
+      defaultBranch: document.querySelector<HTMLInputElement>('#default-branch')?.value.trim() || 'master',
       markdownRootFileName:
         document.querySelector<HTMLInputElement>('#markdown-root-file-name')?.value.trim() ?? 'README.md',
     },

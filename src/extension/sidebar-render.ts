@@ -30,6 +30,10 @@ export function renderSettingsPanel(settings: SlashDocSettings): string {
           <input class="settings-input" id="repository-url" type="url" value="${escapeAttribute(settings.exportOptions.repositoryUrl)}" placeholder="https://gitlab.example/group/project">
         </label>
         <label class="settings-row repository-settings-row">
+          <span>Ветка по умолчанию</span>
+          <input class="settings-input" id="default-branch" value="${escapeAttribute(settings.exportOptions.defaultBranch)}" placeholder="master">
+        </label>
+        <label class="settings-row repository-settings-row">
           <span>Корневой Markdown-файл</span>
           <input class="settings-input" id="markdown-root-file-name" value="${escapeAttribute(settings.exportOptions.markdownRootFileName)}" placeholder="README.md">
         </label>

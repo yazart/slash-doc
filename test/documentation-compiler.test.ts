@@ -158,6 +158,30 @@ describe('standalone documentation compiler', () => {
     expect(page).not.toContain('data:image/png;base64');
     expect(image.toString('utf8')).toBe('hello');
   });
+
+  it('uses the configured default branch instead of a commit hash for detached HEAD', async () => {
+    const projectRoot = await createProject();
+    await initializeGitProject(projectRoot);
+    await execFileAsync('git', ['checkout', '--detach', 'HEAD'], { cwd: projectRoot });
+    await writeFile(
+      join(projectRoot, '.slash-doc', 'sdsettings.json'),
+      JSON.stringify({
+        exportOptions: {
+          repositoryUrl: 'https://gitlab.example/group/project',
+          defaultBranch: 'docs-main',
+        },
+      }),
+    );
+    const commitHash = (await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: projectRoot })).stdout.trim();
+
+    const result = await compileDocumentation({ projectRoot });
+    const page = await readFile(join(result.outputRoot, 'pages', 'start.html'), 'utf8');
+
+    expect(page).toContain(
+      'href="https://gitlab.example/group/project/-/edit/docs-main/.slash-doc/docs/pages/start/content.yaml"',
+    );
+    expect(page).not.toContain(`/-/edit/${commitHash}/`);
+  });
 });
 
 async function createProject(includeSecondPage = true): Promise<string> {

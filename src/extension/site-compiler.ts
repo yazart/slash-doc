@@ -35,6 +35,7 @@ export async function compileDocumentationSite(
       await resolvePageRevisionFile(workspaceRoot.fsPath, page.id),
       settings.exportOptions.repositoryUrl,
       resolvePageYamlFile(workspaceRoot.fsPath, page.id),
+      settings.exportOptions.defaultBranch,
     );
     searchIndex.push({ pageId: page.id, title: page.title, text: getDocumentationSearchText(data) });
     const exported = prepareCompiledPage(

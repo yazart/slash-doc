@@ -24,6 +24,7 @@ export type DocumentationCompilerOptions = {
   projectName?: string;
   format?: 'html' | 'md';
   repositoryUrl?: string;
+  defaultBranch?: string;
 };
 
 export type DocumentationCompilerResult = {
@@ -65,6 +66,7 @@ export async function compileDocumentation(
       revisionFile,
       options.repositoryUrl ?? settings.exportOptions.repositoryUrl,
       resolvePageYamlFile(projectRoot, page.id),
+      options.defaultBranch ?? settings.exportOptions.defaultBranch,
     );
     searchIndex.push({ pageId: page.id, title: page.title, text: getDocumentationSearchText(data) });
     await writeCompiledPage(outputRoot, page, pageIds, data, settings, customExporter, revision);

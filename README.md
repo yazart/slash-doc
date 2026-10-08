@@ -81,6 +81,7 @@ HTML-сайт можно собрать без VS Code и без запуска 
 node dist/slash-doc-compile.js /path/to/project
 node dist/slash-doc-compile.js /path/to/project --output /path/to/site
 node dist/slash-doc-compile.js /path/to/project --repository https://gitlab.example/group/project
+node dist/slash-doc-compile.js /path/to/project --repository https://gitlab.example/group/project --default-branch master
 node dist/slash-doc-compile.js /path/to/project --format md --output /path/to/markdown
 ```
 
@@ -97,7 +98,10 @@ HTML-сайте переключатель в заголовке меню мен
 В HTML под первым заголовком страницы выводятся дата и автор последнего изменения из Git. Параметр
 `--repository` задаёт HTTP(S) URL GitLab-проекта; компилятор определяет текущую ветку и формирует
 ссылку вида `<repository>/-/edit/<branch>/.slash-doc/docs/pages/<page-id>/content.yaml`. Для сборки из
-расширения тот же URL задаётся в настройке «GitLab-репозиторий». Если файл изменён, но ещё не
+расширения тот же URL задаётся в настройке «GitLab-репозиторий». В URL используется только имя
+текущей ветки, но не хеш коммита. Если текущая ветка недоступна (например, при detached HEAD),
+используется настройка «Ветка по умолчанию» или параметр `--default-branch`; начальное значение —
+`master`. Если файл изменён, но ещё не
 закоммичен, используются его дата изменения и имя текущего Git-пользователя.
 
 Для экспорта пользовательских аддонов передайте каталог с их модулями:

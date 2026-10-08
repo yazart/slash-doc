@@ -16,6 +16,7 @@ export async function readPageRevisionMetadata(
   pageFile: string,
   repositoryUrl = '',
   editFile = pageFile,
+  defaultBranch = 'master',
 ): Promise<PageRevisionMetadata> {
   const gitRoot = await gitOptional(projectRoot, ['rev-parse', '--show-toplevel']);
   const revisionRoot = await canonicalPath(gitRoot || projectRoot);
@@ -36,14 +37,11 @@ export async function readPageRevisionMetadata(
     process.env.GIT_AUTHOR_NAME ||
     process.env.USER ||
     '—';
-  const ref = gitRoot
-    ? (await gitOptional(gitRoot, ['symbolic-ref', '--quiet', '--short', 'HEAD'])) ||
-      (await gitOptional(gitRoot, ['rev-parse', 'HEAD']))
-    : 'main';
+  const ref = gitRoot ? await gitOptional(gitRoot, ['symbolic-ref', '--quiet', '--short', 'HEAD']) : '';
   return {
     changedAt: commitDate || fallbackDate,
     user: commitUser || fallbackUser,
-    editUrl: repositoryUrl ? createGitLabEditUrl(repositoryUrl, ref || 'main', editPath) : undefined,
+    editUrl: repositoryUrl ? createGitLabEditUrl(repositoryUrl, ref || defaultBranch, editPath) : undefined,
   };
 }
 
@@ -74,7 +72,7 @@ export function resolvePageYamlFile(projectRoot: string, pageId: string): string
 
 export function createGitLabEditUrl(repositoryUrl: string, ref: string, filePath: string): string {
   const repository = normalizeRepositoryUrl(repositoryUrl);
-  const encodedRef = encodeURIComponent(ref.trim() || 'main');
+  const encodedRef = encodeURIComponent(ref.trim() || 'master');
   const encodedPath = filePath
     .split('/')
     .filter(Boolean)

@@ -193,10 +193,11 @@ function registerCompileTool(server: McpServer, repository: SlashDocRepository):
         projectName: z.string().optional(),
         addonsRoot: z.string().optional(),
         repositoryUrl: z.string().optional(),
+        defaultBranch: z.string().optional(),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     },
-    async ({ format, outputRoot, projectName, addonsRoot, repositoryUrl }) =>
+    async ({ format, outputRoot, projectName, addonsRoot, repositoryUrl, defaultBranch }) =>
       toolResult(
         await compileDocumentation({
           projectRoot: repository.projectRoot,
@@ -205,6 +206,7 @@ function registerCompileTool(server: McpServer, repository: SlashDocRepository):
           projectName,
           addonsRoot,
           repositoryUrl,
+          defaultBranch,
         }),
       ),
   );

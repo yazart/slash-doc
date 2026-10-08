@@ -9,6 +9,7 @@ type CliOptions = {
   projectName?: string;
   format?: 'html' | 'md';
   repositoryUrl?: string;
+  defaultBranch?: string;
   help: boolean;
 };
 
@@ -28,6 +29,8 @@ export function parseCompilerArguments(args: string[], currentDirectory = proces
       options.projectName = readOptionValue(args, ++index, argument);
     } else if (argument === '--repository') {
       options.repositoryUrl = readOptionValue(args, ++index, argument);
+    } else if (argument === '--default-branch') {
+      options.defaultBranch = readOptionValue(args, ++index, argument);
     } else if (argument === '--format') {
       const format = readOptionValue(args, ++index, argument);
       if (format !== 'html' && format !== 'md') throw new Error(`Неизвестный формат: ${format}`);
@@ -65,6 +68,7 @@ export function getCompilerHelp(): string {
       --addons <папка>  Каталог модулей пользовательских Editor.js-виджетов
       --name <название> Название документации в сайдбаре
       --repository <url> URL GitLab-репозитория для ссылок редактирования
+      --default-branch <ветка> Ветка для ссылки, если текущая ветка недоступна (master)
       --format <html|md> Формат сборки (по умолчанию html)
   -h, --help            Показать справку
 `;

@@ -6,7 +6,12 @@ export function getDefaultSettings(): SlashDocSettings {
   return {
     version: 1,
     autoSave: { ...DEFAULT_AUTO_SAVE_SETTINGS },
-    exportOptions: { separateFiles: false, repositoryUrl: '', markdownRootFileName: 'README.md' },
+    exportOptions: {
+      separateFiles: false,
+      repositoryUrl: '',
+      defaultBranch: 'master',
+      markdownRootFileName: 'README.md',
+    },
     editorAddons: {
       header: true,
       list: true,
@@ -61,6 +66,10 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
         isRecord(value.exportOptions) && typeof value.exportOptions.repositoryUrl === 'string'
           ? value.exportOptions.repositoryUrl.trim()
           : defaults.exportOptions.repositoryUrl,
+      defaultBranch:
+        isRecord(value.exportOptions) && typeof value.exportOptions.defaultBranch === 'string'
+          ? value.exportOptions.defaultBranch.trim() || defaults.exportOptions.defaultBranch
+          : defaults.exportOptions.defaultBranch,
       markdownRootFileName:
         isRecord(value.exportOptions) && typeof value.exportOptions.markdownRootFileName === 'string'
           ? normalizeMarkdownRootFileName(value.exportOptions.markdownRootFileName)

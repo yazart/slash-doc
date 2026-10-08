@@ -6,7 +6,15 @@ describe('export settings', () => {
     expect(getDefaultSettings().exportOptions.separateFiles).toBe(false);
     expect(normalizeSettings({ version: 1 }).exportOptions.separateFiles).toBe(false);
     expect(getDefaultSettings().exportOptions.repositoryUrl).toBe('');
+    expect(getDefaultSettings().exportOptions.defaultBranch).toBe('master');
     expect(getDefaultSettings().exportOptions.markdownRootFileName).toBe('README.md');
+  });
+
+  it('stores a named default branch and falls back to master', () => {
+    expect(normalizeSettings({ exportOptions: { defaultBranch: ' release/docs ' } }).exportOptions.defaultBranch).toBe(
+      'release/docs',
+    );
+    expect(normalizeSettings({ exportOptions: { defaultBranch: ' ' } }).exportOptions.defaultBranch).toBe('master');
   });
 
   it('stores a GitLab repository URL for edit links', () => {
