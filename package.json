@@ -53,6 +53,8 @@
   },
   "scripts": {
     "compile": "node scripts/vite-build.mjs",
+    "compile:chrome": "node scripts/build-chrome-extension.mjs",
+    "test:chrome": "npm run compile:chrome && node scripts/smoke-chrome-extension.mjs",
     "compile:docs": "node dist/slash-doc-compile.js",
     "compile:docs:md": "node dist/slash-doc-compile.js --format md",
     "mcp": "node dist/slash-doc-mcp.js",

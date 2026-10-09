@@ -1,0 +1,30 @@
+body {
+  min-width: 720px;
+}
+.toolbar {
+  position: sticky;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.toolbar button {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: inherit;
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+#editor {
+  min-width: 0;
+  margin: 12px 40px;
+  padding: 20px 40px;
+  width: auto;
+  box-sizing: border-box;
+}
+.ce-block__content,
+.ce-toolbar__content {
+  max-width: 100%;
+}
+#save-status {
+  margin-left: auto;
+}

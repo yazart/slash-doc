@@ -15,6 +15,7 @@ if (watch) {
     await build(createSlashDocViteConfig(target));
   }
   await validateBuildOutput();
+  await import('./build-chrome-extension.mjs');
 }
 
 async function validateBuildOutput() {

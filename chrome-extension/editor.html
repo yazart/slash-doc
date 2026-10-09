@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Slash Doc</title>
+    <link rel="stylesheet" href="editor.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="toolbar">
+        <span class="title">Slash Doc</span>
+        <span id="save-status" role="status">Загрузка…</span>
+        <button id="save-page" type="button">Применить в GitLab</button>
+        <span>Коммит выполняется кнопкой GitLab</span>
+      </header>
+      <section id="editor" aria-label="Редактор документа"></section>
+    </main>
+    <script src="editor.js"></script>
+  </body>
+</html>
