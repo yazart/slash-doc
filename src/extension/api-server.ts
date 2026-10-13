@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import express = require('express');
+import express from 'express';
 import type { Server } from 'http';
 import { PuppeteerNode } from 'puppeteer/lib/cjs/puppeteer/node/Puppeteer.js';
 import { PUPPETEER_REVISIONS } from 'puppeteer/lib/cjs/puppeteer/revisions.js';
@@ -162,7 +162,7 @@ async function mountApiService(
   }
 
   const moduleUrl = `${pathToFileURL(serviceUri.fsPath).href}?v=${Date.now()}`;
-  const routeModule = (await import(moduleUrl)) as Record<string, unknown>;
+  const routeModule = (await import(/* @vite-ignore */ moduleUrl)) as Record<string, unknown>;
   const router = express.Router();
   const register = routeModule.register ?? routeModule.default;
 

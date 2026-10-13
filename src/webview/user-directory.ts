@@ -1,4 +1,5 @@
 import type { SlashDocUser } from '../shared/users';
+import { USER_SEARCH_LOADING_TEMPLATE } from './user-directory-template';
 
 type MessageSender = {
   postMessage(message: unknown): void;
@@ -76,7 +77,8 @@ export function setupUserMentions(directory: UserDirectoryBridge): void {
     const caret = document.createRange();
     caret.setStartAfter(mention.nextSibling ?? mention);
     caret.collapse(true);
-    const selection = window.getSelection();
+    const root = mention.getRootNode() as ShadowRoot & { getSelection?: () => Selection | null };
+    const selection = root.getSelection?.() ?? window.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(caret);
     mention.closest<HTMLElement>('[contenteditable="true"]')?.dispatchEvent(new Event('input', { bubbles: true }));
@@ -101,8 +103,8 @@ export function setupUserMentions(directory: UserDirectoryBridge): void {
     });
   };
 
-  const update = async () => {
-    const context = readMentionContext();
+  const update = async (editable: HTMLElement) => {
+    const context = readMentionContext(editable);
     if (!context) return close();
     replacementRange = context.range;
     const marker = context.range.getBoundingClientRect();
@@ -110,7 +112,7 @@ export function setupUserMentions(directory: UserDirectoryBridge): void {
     popup.style.top = `${Math.max(8, Math.min(marker.bottom + 6, window.innerHeight - 260))}px`;
     popup.hidden = false;
     results = [];
-    popup.innerHTML = '<div class="slash-user-search-empty">Поиск…</div>';
+    popup.innerHTML = USER_SEARCH_LOADING_TEMPLATE;
     const sequence = ++requestSequence;
     const users = await directory.search(context.query);
     if (sequence !== requestSequence || popup.hidden) return;
@@ -120,7 +122,8 @@ export function setupUserMentions(directory: UserDirectoryBridge): void {
   };
 
   document.addEventListener('input', (event) => {
-    if (isEditableEditorTarget(event.target)) void update();
+    const editable = findEditableEditorTarget(event);
+    if (editable) void update(editable);
   });
   document.addEventListener('keydown', (event) => {
     if (popup.hidden || results.length === 0) return;
@@ -176,12 +179,12 @@ export function createUserMention(user: SlashDocUser): HTMLAnchorElement {
   return mention;
 }
 
-function readMentionContext(): { query: string; range: Range } | undefined {
-  const selection = window.getSelection();
+function readMentionContext(editable: HTMLElement): { query: string; range: Range } | undefined {
+  const root = editable.getRootNode() as ShadowRoot & { getSelection?: () => Selection | null };
+  const selection = root.getSelection?.() ?? window.getSelection();
   if (!selection?.rangeCount || !selection.isCollapsed) return undefined;
   const caret = selection.getRangeAt(0);
-  const editable = getElement(caret.startContainer)?.closest<HTMLElement>('#editor [contenteditable="true"]');
-  if (!editable || editable.closest('[data-slash-doc-custom-addon], .slash-approval-table-tool')) return undefined;
+  if (!editable.contains(caret.startContainer)) return undefined;
   const before = document.createRange();
   before.selectNodeContents(editable);
   before.setEnd(caret.startContainer, caret.startOffset);
@@ -213,12 +216,14 @@ function findTextPositionBeforeCaret(root: HTMLElement, caret: Range, characters
   return undefined;
 }
 
-function isEditableEditorTarget(target: EventTarget | null): boolean {
-  return target instanceof Element && Boolean(target.closest('#editor [contenteditable="true"]'));
-}
-
-function getElement(node: Node): Element | null {
-  return node instanceof Element ? node : node.parentElement;
+function findEditableEditorTarget(event: Event): HTMLElement | undefined {
+  return event
+    .composedPath()
+    .find(
+      (target): target is HTMLElement =>
+        target instanceof HTMLElement &&
+        target.matches('#editor [contenteditable="true"], .ct-cell[contenteditable="true"]'),
+    );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

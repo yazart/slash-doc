@@ -1,0 +1,5 @@
+export const CONFLUENCE_TABLE_TEMPLATE = `<div class="ct-shell"><div class="ct-scroll"><table class="ct-table"><colgroup></colgroup><tbody></tbody></table></div></div><div class="ct-menu" role="menu">
+      <button type="button" data-action="paste">Вставить из буфера</button><span class="ct-menu-separator"></span><button type="button" data-action="row-above">Добавить строку выше</button><button type="button" data-action="row-below">Добавить строку ниже</button><button type="button" data-action="row-delete">Удалить строку</button><span class="ct-menu-separator"></span>
+      <button type="button" data-action="column-left">Добавить столбец слева</button><button type="button" data-action="column-right">Добавить столбец справа</button><button type="button" data-action="column-delete">Удалить столбец</button><span class="ct-menu-separator"></span>
+      <button type="button" data-action="header-row">Заголовочная строка</button><button type="button" data-action="header-column">Заголовочный столбец</button>
+    </div>`;

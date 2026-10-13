@@ -11,6 +11,7 @@ import python from 'highlight.js/lib/languages/python';
 import sql from 'highlight.js/lib/languages/sql';
 import typescript from 'highlight.js/lib/languages/typescript';
 import yaml from 'highlight.js/lib/languages/yaml';
+import plantUml from './plantuml-language';
 
 export const CODE_LANGUAGES = [
   { id: 'csharp', label: 'C#' },
@@ -24,6 +25,7 @@ export const CODE_LANGUAGES = [
   { id: 'toml', label: 'TOML' },
   { id: 'bash', label: 'Bash' },
   { id: 'sql', label: 'SQL' },
+  { id: 'plantuml', label: 'PlantUML' },
 ] as const;
 
 export type CodeLanguage = (typeof CODE_LANGUAGES)[number]['id'];
@@ -35,6 +37,7 @@ hljs.registerLanguage('java', java);
 hljs.registerLanguage('javascript', javascript);
 hljs.registerLanguage('json', json);
 hljs.registerLanguage('nginx', nginx);
+hljs.registerLanguage('plantuml', plantUml);
 hljs.registerLanguage('python', python);
 hljs.registerLanguage('sql', sql);
 hljs.registerLanguage('toml', ini);

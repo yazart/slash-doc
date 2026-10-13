@@ -1,17 +1,68 @@
 import type { ApiService, CustomEditorAddon, SettingsVariable, SlashDocSettings } from './types';
 import { escapeAttribute } from './utils';
+import { DEFAULT_FAVICON } from '../shared/favicon';
 
 export function renderSettingsPanel(settings: SlashDocSettings): string {
   return `<div class="panel panel-settings">
     <header class="settings-header">
-      <sl-button id="back-to-menu" size="small" variant="default">Назад</sl-button>
+      <slash-button id="back-to-menu" size="small" variant="default">Назад</slash-button>
       <h2 class="settings-title">Настройки</h2>
     </header>
     <section class="settings-panel" aria-label="Настройки">
       <div class="settings-group">
-        <div class="settings-group-title">Свои Editor.js аддоны</div>
+        <div class="settings-group-title">Сохранение</div>
+        <label class="settings-row">
+          <span>Автосохранение</span>
+          <slash-switch id="auto-save-enabled" ${settings.autoSave.enabled ? 'checked' : ''}></slash-switch>
+        </label>
+        <label class="settings-row">
+          <span>Интервал(сек.) &nbsp; &nbsp; &nbsp; &nbsp;</span>
+          <input class="settings-input" id="auto-save-interval" type="number" min="0.3" max="1800" step="0.1" value="${settings.autoSave.intervalSeconds}" ${settings.autoSave.enabled ? '' : 'disabled'}>
+        </label>
+      </div>
+      <div class="settings-group">
+        <div class="settings-group-title">Экспорт документации</div>
+        <label class="settings-row">
+          <span>Сохранять файлы документа отдельно</span>
+          <slash-switch id="separate-files" ${settings.exportOptions.separateFiles ? 'checked' : ''}></slash-switch>
+        </label>
+        <label class="settings-row">
+          <span>Кнопка «Скопировать HTML»</span>
+          <slash-switch id="show-copy-html-button" ${settings.exportOptions.showCopyHtmlButton ? 'checked' : ''}></slash-switch>
+        </label>
+        <label class="settings-row">
+          <span>Переходы «Назад / Вперёд» в HTML</span>
+          <slash-switch id="show-page-navigation" ${settings.exportOptions.showPageNavigation ? 'checked' : ''}></slash-switch>
+        </label>
+        <label class="settings-row">
+          <span>Ссылка на репозиторий в HTML</span>
+          <slash-switch id="show-repository-link" ${settings.exportOptions.showRepositoryLink ? 'checked' : ''}></slash-switch>
+        </label>
+        <label class="settings-row repository-settings-row">
+          <span>GitLab-репозиторий</span>
+          <input class="settings-input" id="repository-url" type="url" value="${escapeAttribute(settings.exportOptions.repositoryUrl)}" placeholder="https://gitlab.example/group/project">
+        </label>
+        <div class="settings-favicon-row">
+          <span>Favicon документации</span>
+          <img id="favicon-preview" src="${escapeAttribute(settings.exportOptions.favicon || DEFAULT_FAVICON)}" alt="Favicon" width="24" height="24">
+          <input id="favicon-data" type="hidden" value="${escapeAttribute(settings.exportOptions.favicon)}">
+          <input id="favicon-upload" type="file" accept=".png,.jpg,.jpeg,.gif,.webp,.svg,.ico" aria-label="Загрузить favicon">
+          <button id="favicon-reset" class="settings-open-button" type="button">По умолчанию</button>
+          <span id="favicon-status" role="status"></span>
+        </div>
+        <label class="settings-row repository-settings-row">
+          <span>Ветка по умолчанию</span>
+          <input class="settings-input" id="default-branch" value="${escapeAttribute(settings.exportOptions.defaultBranch)}" placeholder="master">
+        </label>
+        <label class="settings-row repository-settings-row">
+          <span>Корневой Markdown-файл</span>
+          <input class="settings-input" id="markdown-root-file-name" value="${escapeAttribute(settings.exportOptions.markdownRootFileName)}" placeholder="README.md">
+        </label>
+      </div>
+      <div class="settings-group">
+        <div class="settings-group-title">Свои аддоны редактора</div>
         <div id="custom-addons-list" class="settings-list">${settings.customEditorAddons.map(renderCustomAddonRow).join('')}</div>
-        <div class="service-actions"><sl-button id="add-addon" size="small" variant="default">Добавить модуль</sl-button></div>
+        <div class="service-actions"><slash-button id="add-addon" size="small" variant="default">Добавить модуль</slash-button></div>
       </div>
       <div class="settings-group">
         <div class="settings-group-title">HTTP API сервисы</div>
@@ -21,14 +72,14 @@ export function renderSettingsPanel(settings: SlashDocSettings): string {
         </div>
         <div id="services-list" class="settings-list">${settings.apiServices.map(renderServiceRow).join('')}</div>
         <div class="service-actions">
-          <sl-button id="add-service" size="small" variant="default">Добавить маршрут</sl-button>
-          <sl-button id="reload-api-services" size="small" variant="primary">Перезагрузить API</sl-button>
+          <slash-button id="add-service" size="small" variant="default">Добавить маршрут</slash-button>
+          <slash-button id="reload-api-services" size="small" variant="primary">Перезагрузить API</slash-button>
         </div>
       </div>
       <div class="settings-group">
         <div class="settings-group-title">Переменные сервисов</div>
         <div id="variables-list" class="settings-list">${settings.variables.map(renderVariableRow).join('')}</div>
-        <sl-button id="add-variable" size="small" variant="default">Добавить переменную</sl-button>
+        <slash-button id="add-variable" size="small" variant="default">Добавить переменную</slash-button>
       </div>
     </section>
   </div>`;
@@ -47,7 +98,7 @@ function renderCustomAddonRow(addon: CustomEditorAddon): string {
     <input class="settings-input" data-custom-addon-field="name" value="${escapeAttribute(addon.name)}" placeholder="название">
     <input class="settings-input" data-custom-addon-field="toolName" value="${escapeAttribute(addon.toolName)}" placeholder="имя инструмента">
     <input class="settings-input" data-custom-addon-field="file" value="${escapeAttribute(addon.file)}" placeholder="tool.mjs">
-    <sl-switch data-custom-addon-enabled="${escapeAttribute(addon.id)}" ${addon.enabled ? 'checked' : ''}></sl-switch>
+    <slash-switch data-custom-addon-enabled="${escapeAttribute(addon.id)}" ${addon.enabled ? 'checked' : ''}></slash-switch>
     <button class="settings-open-button" type="button" data-open-addon="${escapeAttribute(addon.id)}">Открыть</button>
   </div>`;
 }

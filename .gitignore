@@ -1,8 +1,11 @@
 node_modules/
 dist/
+coverage/
 *.vsix
 .DS_Store
 feat/
 sd/
 с.js
 outputs
+
+pack/

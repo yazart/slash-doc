@@ -1,43 +1,36 @@
-import EditorJS from '@editorjs/editorjs';
-import type { EditorConfig } from '@editorjs/editorjs/types/configs';
-import type { OutputData } from '@editorjs/editorjs';
-import type { InlineToolConstructable, ToolConstructable } from '@editorjs/editorjs/types/tools';
-import Header from '@editorjs/header';
-import List from '@editorjs/list';
-import ImageTool from '@editorjs/image';
-import Marker from '@editorjs/marker';
-import InlineCode from '@editorjs/inline-code';
-import Underline from '@editorjs/underline';
-import TextColorTool from './text-color-tool';
-import PageLinkTool, { type DocumentationPageLink } from './page-link-tool';
-import { setupHeaderInlineTools } from './header-inline-tools';
-import mermaid from 'mermaid';
-import FlowDesignerTool from './flow-designer-tool';
-import NetworkCanvasTool from './network-canvas-tool';
-import ImageAnnotationTool from './image-annotation-tool';
-import ApiEndpointTool from './api-endpoint-tool';
-import FileProcessorTool, { type FileProcessorBridge } from './file-processor-tool';
-import TaskTableTool from './task-table-tool';
-import ConfluenceTableTool from './confluence-table-tool';
-import CodeBlockTool from './code-block-tool';
-import DiffBlockTool from './diff-block-tool';
-import { BpmnModelerTool, BpmnPreviewTool } from './bpmn-tools';
-import ApprovalTableTool from './approval-table-tool';
-import { createUserDirectoryBridge, setupUserMentions } from './user-directory';
-import { LUCIDE_ICONS } from './lucide-icons';
+import SlashDocEditor, { type OutputData } from './block-editor';
+import type { FileProcessorBridge } from './file-processor-tool';
+import type { DocumentationPageLink } from './page-link-tool';
+import { createUserDirectoryBridge } from './user-directory';
+import { createEditorTools } from './editor-tool-registry';
+import { installEditorPasteHandlers } from './editor-paste-handlers';
+import { isRecord, normalizeEditorData, preserveInlineMarkup } from './editor-data';
+import type { SlashDocWebviewSettings } from './editor-settings';
+import { protectCustomTool, type CustomAddonModule, type CustomBlockToolConstructor } from './custom-tool-protection';
+import { createPageSaveController, updatePageSaveStatus } from './page-save-controller';
+import { renderPendingMermaidDiagrams } from './mermaid-tool';
+import { createEditorUndoHistory, installEditorHistoryListeners } from './editor-undo-history';
+import { installListExitHandler } from './list-exit-handler';
+import { findEventAnchor, getDocumentationPageId, getExternalUrl } from './editor-link-navigation';
+import { installEditorTextInlineToolbar } from './editor-text-inline-toolbar';
+import { installPageHistoryPanel } from './page-history-panel';
 import 'bpmn-js/dist/assets/diagram-js.css';
 import 'bpmn-js/dist/assets/bpmn-js.css';
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
+import './editor-foundation.css';
+import './editor-layout.css';
+import './editor-components.css';
+import './text-inline-toolbar.css';
+import './page-history-panel.css';
+import './nested-list-tool.css';
 
-type VSCodeApi = {
-  postMessage(message: unknown): void;
-};
+type VSCodeApi = { postMessage(message: unknown): void };
 
 declare const acquireVsCodeApi: () => VSCodeApi;
 declare global {
   interface Window {
     __SLASH_DOC_INITIAL_DATA__?: unknown;
-    __SLASH_DOC_SETTINGS__?: SlashDocSettings;
+    __SLASH_DOC_SETTINGS__?: SlashDocWebviewSettings;
     __SLASH_DOC_CUSTOM_ADDONS__?: CustomAddonModule[];
     __SLASH_DOC_PAGES__?: DocumentationPageLink[];
     __SLASH_DOC_CURRENT_PAGE_ID__?: string | null;
@@ -45,94 +38,35 @@ declare global {
   }
 }
 
-type SlashDocSettings = {
-  editorAddons?: {
-    header?: boolean;
-    list?: boolean;
-    confluenceTable?: boolean;
-    image?: boolean;
-    marker?: boolean;
-    inlineCode?: boolean;
-    underline?: boolean;
-    textColor?: boolean;
-    mermaid?: boolean;
-    flowDesigner?: boolean;
-    networkCanvas?: boolean;
-    imageAnnotation?: boolean;
-    apiEndpoint?: boolean;
-    fileProcessor?: boolean;
-    taskTable?: boolean;
-    codeBlock?: boolean;
-    diffBlock?: boolean;
-    bpmnModeler?: boolean;
-    bpmnPreview?: boolean;
-    userMention?: boolean;
-    approvalTable?: boolean;
-  };
-};
-
-type MermaidToolData = {
-  code?: string;
-  caption?: string;
-};
-
-type MermaidToolConstructorArgs = {
-  data?: MermaidToolData;
-};
-
-type CustomAddonModule = {
-  id: string;
-  toolName: string;
-  uri: string;
-};
-
-type CustomBlockTool = {
-  render(...args: unknown[]): HTMLElement;
-};
-
-type CustomBlockToolConstructor = new (...args: any[]) => CustomBlockTool;
-
 const vscode = acquireVsCodeApi();
 const userDirectory = createUserDirectoryBridge(vscode);
 window.__SLASH_DOC_USER_DIRECTORY__ = userDirectory;
-let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
-let editor: EditorJS;
+let editor: SlashDocEditor;
 const settings = window.__SLASH_DOC_SETTINGS__ ?? {};
-const tools: NonNullable<EditorConfig['tools']> = {};
-
-class LucideMarker extends Marker {
-  get toolboxIcon(): string {
-    return LUCIDE_ICONS.highlighter;
-  }
-}
-
-class LucideInlineCode extends InlineCode {
-  get toolboxIcon(): string {
-    return LUCIDE_ICONS.code;
-  }
-}
-
-class LucideUnderline extends Underline {
-  get toolboxIcon(): string {
-    return LUCIDE_ICONS.underline;
-  }
-}
-const inlineToolbarTools = [
-  'convertTo',
-  'bold',
-  'italic',
-  'link',
-  ...(settings.editorAddons?.marker !== false ? ['marker'] : []),
-  ...(settings.editorAddons?.inlineCode !== false ? ['inlineCode'] : []),
-  ...(settings.editorAddons?.underline !== false ? ['underline'] : []),
-];
+const { tools, inlineToolbarTools } = createEditorTools(settings, userDirectory);
+const editorHistory = createEditorUndoHistory<OutputData>(5);
+let historyCapture = Promise.resolve();
+let isRestoringHistory = false;
+const saveStatus = document.querySelector<HTMLElement>('#save-status');
+const pageSave = createPageSaveController({
+  autoSave: settings.autoSave,
+  readData: readEditorData,
+  postMessage: (message) => vscode.postMessage(message),
+  setStatus: (status) => updatePageSaveStatus(saveStatus, status),
+  reportError: (error, requestId) => {
+    console.error('Slash Doc: не удалось подготовить страницу к сохранению', error);
+    vscode.postMessage({
+      type: 'saveClientError',
+      requestId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  },
+});
 
 document.addEventListener(
   'click',
   (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const anchor = target.closest<HTMLAnchorElement>('a[href]');
+    const anchor = findEventAnchor(event);
     if (!anchor) return;
     const pageId = getDocumentationPageId(anchor);
     if (pageId) {
@@ -182,6 +116,7 @@ window.__SLASH_DOC_READ_CLIPBOARD__ = () => {
 window.__SLASH_DOC_WRITE_CLIPBOARD__ = (text) => {
   vscode.postMessage({ type: 'writeClipboard', text });
 };
+installEditorPasteHandlers(window.__SLASH_DOC_READ_CLIPBOARD__);
 
 window.__SLASH_DOC_FILE_PROCESSOR__ = {
   upload: (files) => requestFileProcessor('fileProcessorUpload', { files }),
@@ -189,313 +124,20 @@ window.__SLASH_DOC_FILE_PROCESSOR__ = {
   download: (fileName) => requestFileProcessor('fileProcessorDownload', { fileName }),
 } satisfies FileProcessorBridge;
 
-window.addEventListener(
-  'paste',
-  (event) => {
-    const target = event
-      .composedPath()
-      .find((item) => item instanceof HTMLElement && item.matches('.slash-confluence-table-tool .ct-cell')) as
-      | (HTMLElement & {
-          __slashDocPasteTable?: (text: string, html: string) => void;
-        })
-      | undefined;
-    const paste = target?.__slashDocPasteTable ?? window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
-    if (!paste) return;
-    const text = event.clipboardData?.getData('text/plain') ?? '';
-    const html = event.clipboardData?.getData('text/html') ?? '';
-    // Some VS Code/Electron versions expose an empty DataTransfer to webviews.
-    // In that case do not suppress the native paste; beforeinput/keydown below
-    // will request the clipboard through the extension host instead.
-    if (!text && !html) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    paste(text, html);
-  },
-  true,
-);
-
-window.addEventListener(
-  'keydown',
-  (event) => {
-    const isPasteKey = event.code === 'KeyV' || ['v', 'м'].includes(event.key.toLowerCase());
-    if (!(event.metaKey || event.ctrlKey) || event.altKey || !isPasteKey) return;
-    const paste = window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
-    if (!paste || !window.__SLASH_DOC_READ_CLIPBOARD__) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    void window
-      .__SLASH_DOC_READ_CLIPBOARD__()
-      .then((text) => paste(text, ''))
-      .catch(() => undefined);
-  },
-  true,
-);
-
-window.addEventListener(
-  'beforeinput',
-  (event) => {
-    if (!(event instanceof InputEvent) || event.inputType !== 'insertFromPaste') return;
-    const paste = window.__SLASH_DOC_TABLE_PASTE_TARGET__?.paste;
-    if (!paste || !window.__SLASH_DOC_READ_CLIPBOARD__) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    void window
-      .__SLASH_DOC_READ_CLIPBOARD__()
-      .then((text) => paste(text, ''))
-      .catch(() => undefined);
-  },
-  true,
-);
-
-mermaid.initialize({
-  startOnLoad: false,
-  securityLevel: 'strict',
-  theme: 'base',
-  themeVariables: {
-    background: getCssVariable('--vscode-editor-background', '#1e1e1e'),
-    primaryColor: getCssVariable('--vscode-editorWidget-background', '#252526'),
-    primaryTextColor: getCssVariable('--vscode-editor-foreground', '#cccccc'),
-    primaryBorderColor: getCssVariable('--vscode-panel-border', '#3c3c3c'),
-    lineColor: getCssVariable('--vscode-descriptionForeground', '#8f8f8f'),
-    textColor: getCssVariable('--vscode-editor-foreground', '#cccccc'),
-    secondaryColor: getCssVariable('--vscode-list-hoverBackground', '#2a2d2e'),
-    tertiaryColor: getCssVariable('--vscode-input-background', '#3c3c3c'),
-  },
-});
-
-if (settings.editorAddons?.header !== false) {
-  tools.header = { class: Header, toolbox: { title: 'Заголовок', icon: LUCIDE_ICONS.heading } };
-}
-
-if (settings.editorAddons?.list !== false) {
-  tools.list = {
-    class: List as unknown as ToolConstructable,
-    toolbox: { title: 'Список', icon: LUCIDE_ICONS.list },
-  };
-}
-
-if (settings.editorAddons?.confluenceTable !== false) {
-  tools.confluenceTable = ConfluenceTableTool;
-}
-
-if (settings.editorAddons?.image !== false) {
-  tools.image = {
-    class: ImageTool,
-    toolbox: { title: 'Изображение', icon: LUCIDE_ICONS.image },
-    config: {
-      uploader: {
-        uploadByFile: async (file: File) => ({
-          success: 1,
-          file: {
-            url: await readFileAsDataUrl(file),
-          },
-        }),
-      },
-    },
-  };
-}
-
-if (settings.editorAddons?.marker !== false) {
-  tools.marker = { class: LucideMarker, toolbox: { title: 'Маркер' } };
-}
-
-if (settings.editorAddons?.inlineCode !== false) {
-  tools.inlineCode = { class: LucideInlineCode, toolbox: { title: 'Встроенный код' } };
-}
-
-if (settings.editorAddons?.underline !== false) {
-  tools.underline = { class: LucideUnderline, toolbox: { title: 'Подчёркивание' } };
-}
-
-if (settings.editorAddons?.textColor !== false) {
-  tools.textColor = TextColorTool as unknown as InlineToolConstructable;
-}
-
-if (settings.editorAddons?.approvalTable !== false) {
-  tools.approvalTable = ApprovalTableTool;
-}
-
-tools.pageLink = {
-  class: PageLinkTool as unknown as InlineToolConstructable,
-  config: {
-    pages: window.__SLASH_DOC_PAGES__ ?? [],
-    currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
-  },
-};
-
-setupHeaderInlineTools({
-  pages: window.__SLASH_DOC_PAGES__ ?? [],
-  currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
-  textColorEnabled: settings.editorAddons?.textColor !== false,
-});
-
-if (settings.editorAddons?.userMention !== false) {
-  setupUserMentions(userDirectory);
-}
-
-class MermaidTool {
-  private readonly data: MermaidToolData;
-  private wrapper?: HTMLDivElement;
-  private textarea?: HTMLTextAreaElement;
-  private caption?: HTMLInputElement;
-  private preview?: HTMLDivElement;
-  private renderTimer?: ReturnType<typeof setTimeout>;
-
-  static get toolbox() {
-    return {
-      title: 'Диаграмма Mermaid',
-      icon: LUCIDE_ICONS.chart,
-    };
-  }
-
-  constructor({ data }: MermaidToolConstructorArgs) {
-    this.data = {
-      code: data?.code ?? 'flowchart TD\n  A[Начало] --> B[Диаграмма Mermaid]',
-      caption: data?.caption ?? '',
-    };
-  }
-
-  render() {
-    this.wrapper = document.createElement('div');
-    this.wrapper.className = 'slash-mermaid-tool';
-
-    this.textarea = document.createElement('textarea');
-    this.textarea.className = 'slash-mermaid-code';
-    this.textarea.spellcheck = false;
-    this.textarea.value = this.data.code ?? '';
-
-    this.caption = document.createElement('input');
-    this.caption.className = 'slash-mermaid-caption';
-    this.caption.placeholder = 'Подпись';
-    this.caption.value = this.data.caption ?? '';
-
-    this.preview = document.createElement('div');
-    this.preview.className = 'slash-mermaid-preview';
-
-    this.textarea.addEventListener('input', () => this.scheduleRender());
-    this.caption.addEventListener('input', () => this.scheduleRender());
-
-    this.wrapper.append(this.textarea, this.caption, this.preview);
-    this.scheduleRender();
-
-    return this.wrapper;
-  }
-
-  save() {
-    return {
-      code: this.textarea?.value ?? '',
-      caption: this.caption?.value ?? '',
-    };
-  }
-
-  private scheduleRender() {
-    if (this.renderTimer) {
-      clearTimeout(this.renderTimer);
-    }
-
-    this.renderTimer = setTimeout(() => {
-      void this.renderPreview();
-    }, 150);
-  }
-
-  private async renderPreview() {
-    if (!this.preview) {
-      return;
-    }
-
-    const code = this.textarea?.value.trim() ?? '';
-
-    if (!code) {
-      this.preview.textContent = '';
-      return;
-    }
-
-    try {
-      const id = `slash-mermaid-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-      const result = await mermaid.render(id, code);
-      this.preview.innerHTML = result.svg;
-    } catch (error) {
-      this.preview.textContent = error instanceof Error ? error.message : 'Ошибка отрисовки Mermaid';
-    }
-  }
-}
-
-if (settings.editorAddons?.mermaid !== false) {
-  tools.mermaid = MermaidTool;
-}
-
-if (settings.editorAddons?.flowDesigner !== false) {
-  tools.flowDesigner = FlowDesignerTool;
-}
-
-if (settings.editorAddons?.networkCanvas !== false) {
-  tools.networkCanvas = NetworkCanvasTool;
-}
-
-if (settings.editorAddons?.imageAnnotation !== false) {
-  tools.imageAnnotation = ImageAnnotationTool;
-}
-
-if (settings.editorAddons?.apiEndpoint !== false) {
-  tools.apiEndpoint = ApiEndpointTool;
-}
-
-if (settings.editorAddons?.fileProcessor !== false) {
-  tools.fileProcessor = FileProcessorTool;
-}
-
-if (settings.editorAddons?.taskTable !== false) {
-  tools.taskTable = TaskTableTool;
-}
-
-if (settings.editorAddons?.codeBlock !== false) {
-  tools.codeBlock = CodeBlockTool;
-}
-
-if (settings.editorAddons?.diffBlock !== false) {
-  tools.diffBlock = DiffBlockTool;
-}
-
-if (settings.editorAddons?.bpmnModeler !== false) {
-  tools.bpmnModeler = BpmnModelerTool;
-}
-
-if (settings.editorAddons?.bpmnPreview !== false) {
-  tools.bpmnPreview = BpmnPreviewTool;
-}
-
-function scheduleAutosave() {
-  if (autosaveTimer) {
-    clearTimeout(autosaveTimer);
-  }
-
-  autosaveTimer = setTimeout(() => {
-    void savePage('auto');
-  }, 300);
-}
-
-async function savePage(source: 'auto' | 'manual') {
-  const data = preserveInlineMarkup(await editor.save());
-  vscode.postMessage({
-    type: 'save',
-    source,
-    data,
-  });
-}
-
 async function exportPage(format: 'html' | 'md') {
-  const data = preserveInlineMarkup(await editor.save());
-  vscode.postMessage({
-    type: 'export',
-    format,
-    data,
-  });
+  vscode.postMessage({ type: 'export', format, data: await readEditorData() });
+}
+
+async function readEditorData(): Promise<OutputData> {
+  await renderPendingMermaidDiagrams();
+  return preserveInlineMarkup(await editor.save());
 }
 
 const editorInitialization = initEditor();
 
 window.addEventListener('message', (event: MessageEvent<unknown>) => {
   if (userDirectory.handleMessage(event.data)) return;
+  if (pageSave.handleMessage(event.data)) return;
 
   if (isRecord(event.data) && event.data.type === 'clipboardResponse' && typeof event.data.requestId === 'string') {
     const pending = clipboardRequests.get(event.data.requestId);
@@ -549,16 +191,27 @@ function requestFileProcessor<T>(type: string, payload: Record<string, unknown>)
 
 async function replaceEditorData(data: OutputData) {
   await editorInitialization;
-  await editor.render(normalizeEditorData(data));
+  await historyCapture;
+  const normalized = normalizeEditorData(data);
+  isRestoringHistory = true;
+  try {
+    await editor.render(normalized);
+    editorHistory.reset(normalized);
+  } finally {
+    isRestoringHistory = false;
+  }
 }
 
 async function initEditor() {
   await loadCustomTools();
+  const initialData = normalizeEditorData(window.__SLASH_DOC_INITIAL_DATA__);
+  editorHistory.reset(initialData);
 
-  editor = new EditorJS({
+  editor = new SlashDocEditor({
     holder: 'editor',
+    defaultBlock: 'paragraph',
     autofocus: true,
-    placeholder: 'Начните писать в Editor.js…',
+    placeholder: 'Начните писать…',
     inlineToolbar: inlineToolbarTools,
     i18n: {
       messages: {
@@ -605,7 +258,10 @@ async function initEditor() {
           Diff: 'Diff',
           'BPMN Modeler': 'BPMN-редактор',
           'BPMN Preview': 'Предпросмотр BPMN',
-          'Approval Table': 'Таблица согласования',
+          'MkDocs Admonition': 'Примечание MkDocs',
+          'MkDocs Tabs': 'Вкладки MkDocs',
+          'MkDocs Details': 'Раскрываемый блок',
+          'MkDocs Checklist': 'Чеклист MkDocs',
         },
         tools: {
           header: {
@@ -645,55 +301,66 @@ async function initEditor() {
       },
     },
     tools,
-    data: normalizeEditorData(window.__SLASH_DOC_INITIAL_DATA__),
-    onChange: scheduleAutosave,
+    data: initialData,
+    onChange: handleEditorChange,
   });
 
   await editor.isReady;
+  installPageHistoryPanel(tools, (message) => vscode.postMessage(message));
+  const holder = document.querySelector('#editor');
+  pageSave.installFallback(holder);
+  installEditorHistoryListeners(holder, handleEditorChange);
+  if (holder) installListExitHandler(holder, editor.blocks, editor.caret);
+  if (holder instanceof HTMLElement) {
+    installEditorTextInlineToolbar(holder, {
+      pages: window.__SLASH_DOC_PAGES__ ?? [],
+      currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
+    });
+  }
+  installUndoShortcut();
   if (window.__SLASH_DOC_FOCUS_EDITOR__) {
     requestAnimationFrame(() => editor.caret.setToLastBlock('start'));
   }
 }
 
-function normalizeEditorData(value: unknown): OutputData {
-  const source = isRecord(value) ? value : {};
-  const blocks = Array.isArray(source.blocks) ? source.blocks : [];
-  return {
-    ...source,
-    blocks: blocks.filter(isRecord).map((block) =>
-      block.type === 'table'
-        ? {
-            ...block,
-            type: 'confluenceTable',
-            data: isRecord(block.data)
-              ? {
-                  rows: Array.isArray(block.data.content) ? block.data.content : [],
-                  headerRow: block.data.withHeadings === true,
-                  headerColumn: false,
-                }
-              : { rows: [['']], headerRow: false, headerColumn: false },
-          }
-        : block,
-    ),
-  } as unknown as OutputData;
+function handleEditorChange(): void {
+  if (isRestoringHistory) return;
+  historyCapture = historyCapture
+    .then(async () => editorHistory.record(preserveInlineMarkup(await editor.save())))
+    .catch((error: unknown) => console.error('Slash Doc: не удалось записать шаг истории', error));
+  pageSave.schedule();
 }
 
-function preserveInlineMarkup(data: OutputData): OutputData {
-  const blockElements = Array.from(document.querySelectorAll<HTMLElement>('#editor .ce-block'));
-  data.blocks.forEach((block, index) => {
-    const element = blockElements[index];
-    if (!element || !isRecord(block.data)) return;
-    if (block.type === 'paragraph' || block.type === 'header') {
-      const editable = element.querySelector<HTMLElement>('.ce-paragraph, .ce-header, [contenteditable="true"]');
-      if (editable) block.data.text = editable.innerHTML;
-      return;
-    }
-    if (block.type === 'list') {
-      const items = Array.from(element.querySelectorAll<HTMLElement>('.cdx-list__item')).map((item) => item.innerHTML);
-      if (items.length > 0) block.data.items = items;
-    }
-  });
-  return data;
+function installUndoShortcut(): void {
+  window.addEventListener(
+    'keydown',
+    (event) => {
+      const isUndoKey = event.code === 'KeyZ' || ['z', 'я'].includes(event.key.toLowerCase());
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || !isUndoKey) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      void undoEditor().catch((error: unknown) => console.error('Slash Doc: не удалось отменить изменение', error));
+    },
+    true,
+  );
+}
+
+async function undoEditor(): Promise<void> {
+  await editorInitialization;
+  await historyCapture;
+  const current = preserveInlineMarkup(await editor.save());
+  const previous = editorHistory.undo(current);
+  if (!previous) return;
+  isRestoringHistory = true;
+  try {
+    await editor.render(previous);
+  } catch (error) {
+    editorHistory.record(current);
+    throw error;
+  } finally {
+    isRestoringHistory = false;
+  }
+  pageSave.schedule();
 }
 
 async function loadCustomTools() {
@@ -709,47 +376,6 @@ async function loadCustomTools() {
   );
 }
 
-function protectCustomTool(tool: CustomBlockToolConstructor, addon: CustomAddonModule): ToolConstructable {
-  return class ProtectedCustomTool extends tool {
-    override render(...args: unknown[]): HTMLElement {
-      const root = super.render(...args);
-      root.dataset.slashDocCustomAddon = addon.id;
-      root.addEventListener('keydown', stopCustomBlockDeletion);
-      return root;
-    }
-  } as unknown as ToolConstructable;
-}
-
-function stopCustomBlockDeletion(event: KeyboardEvent): void {
-  if (event.key !== 'Backspace') return;
-  event.stopPropagation();
-}
-
-function getDocumentationPageId(anchor: HTMLAnchorElement): string | undefined {
-  const explicitPageId = anchor.dataset.pageId;
-  if (explicitPageId) return explicitPageId;
-  const href = anchor.getAttribute('href')?.trim() ?? '';
-  const encodedPageId =
-    /^slash-doc:\/\/(?:page\/)?([^/?#]+)/i.exec(href)?.[1] ?? /^slash-doc:page\/([^/?#]+)/i.exec(href)?.[1];
-  if (!encodedPageId) return undefined;
-  try {
-    return decodeURIComponent(encodedPageId);
-  } catch {
-    return encodedPageId;
-  }
-}
-
-function getExternalUrl(anchor: HTMLAnchorElement): string | undefined {
-  const href = anchor.getAttribute('href')?.trim();
-  if (!href) return undefined;
-  try {
-    const url = new URL(href);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 document.querySelector('#export-html')?.addEventListener('click', () => {
   void exportPage('html');
 });
@@ -758,20 +384,4 @@ document.querySelector('#export-md')?.addEventListener('click', () => {
   void exportPage('md');
 });
 
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener('load', () => resolve(String(reader.result)));
-    reader.addEventListener('error', () => reject(reader.error));
-    reader.readAsDataURL(file);
-  });
-}
-
-function getCssVariable(name: string, fallback: string): string {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return value || fallback;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+document.querySelector('#save-page')?.addEventListener('click', () => void pageSave.saveNow('manual'));

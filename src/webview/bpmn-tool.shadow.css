@@ -1,0 +1,60 @@
+.slash-bpmn-tool {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  margin: 12px 0;
+  overflow: hidden;
+  color: var(--vscode-editor-foreground);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--vscode-editor-background);
+}
+
+.slash-bpmn-status {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slash-bpmn-status-error {
+  color: var(--vscode-errorForeground);
+}
+
+.slash-bpmn-canvas {
+  width: 100%;
+  height: 480px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.slash-bpmn-preview-controls {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.slash-bpmn-xml {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  padding: 8px;
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--border));
+  outline: none;
+  background: var(--vscode-input-background);
+  font: 12px/1.45 var(--vscode-editor-font-family, monospace);
+  white-space: pre;
+}
+
+.slash-bpmn-xml:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+.slash-bpmn-status:empty {
+  display: none;
+}

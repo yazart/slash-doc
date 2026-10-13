@@ -38,6 +38,17 @@ export type SettingsVariable = {
 
 export type SlashDocSettings = {
   version: 1;
+  autoSave: AutoSaveSettings;
+  exportOptions: {
+    separateFiles: boolean;
+    showCopyHtmlButton: boolean;
+    showPageNavigation: boolean;
+    showRepositoryLink: boolean;
+    favicon: string;
+    repositoryUrl: string;
+    defaultBranch: string;
+    markdownRootFileName: string;
+  };
   editorAddons: {
     header: boolean;
     list: boolean;
@@ -59,7 +70,11 @@ export type SlashDocSettings = {
     bpmnModeler: boolean;
     bpmnPreview: boolean;
     userMention: boolean;
-    approvalTable: boolean;
+    mkdocsAdmonition: boolean;
+    mkdocsTabs: boolean;
+    mkdocsDetails: boolean;
+    mkdocsChecklist: boolean;
+    mkdocsGrid: boolean;
   };
   customEditorAddons: CustomEditorAddon[];
   apiPrefix: string;
@@ -84,3 +99,4 @@ export type CustomAddonWebviewModule = {
   toolName: string;
   uri: string;
 };
+import type { AutoSaveSettings } from '../shared/autosave';

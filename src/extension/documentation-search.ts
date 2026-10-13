@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { flattenMenuPages, readMenu, readPageContent } from './pages';
-import { isRecord, stripHtml } from './utils';
+import { getDocumentationSearchText } from './documentation-search-text';
+
+export { getDocumentationSearchText } from './documentation-search-text';
 
 export type DocumentationSearchResult = {
   pageId: string;
@@ -46,26 +48,6 @@ export async function searchDocumentation(
     .sort((left, right) => right.score - left.score || left.title.localeCompare(right.title, 'ru'))
     .slice(0, 50)
     .map(({ pageId, title, snippet }) => ({ pageId, title, snippet }));
-}
-
-export function getDocumentationSearchText(data: unknown): string {
-  return normalizeContentText(collectText(data));
-}
-
-function collectText(value: unknown): string[] {
-  if (typeof value === 'string') {
-    if (value.startsWith('data:') || value.length > 200_000) return [];
-    return [stripHtml(value)];
-  }
-  if (Array.isArray(value)) return value.flatMap(collectText);
-  if (!isRecord(value)) return [];
-  return Object.entries(value).flatMap(([key, item]) =>
-    /^(id|type|version|time|dataUrl|icon|svg)$/i.test(key) ? [] : collectText(item),
-  );
-}
-
-function normalizeContentText(parts: string[]): string {
-  return parts.join(' ').replaceAll(/\s+/g, ' ').trim();
 }
 
 function normalizeSearchText(value: string): string {

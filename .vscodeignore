@@ -3,4 +3,6 @@ src/**
 node_modules/**
 *.map
 tsconfig.json
-esbuild.mjs
+vite.config.mjs
+vitest.config.ts
+test/**

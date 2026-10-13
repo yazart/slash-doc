@@ -1,0 +1,33 @@
+.mkdocs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 12px;
+}
+.mkdocs-grid-item {
+  min-width: 0;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.mkdocs-grid--cards .mkdocs-grid-item {
+  border: 1px solid var(--vscode-panel-border, #888);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  transition:
+    box-shadow 150ms,
+    border-color 150ms;
+}
+.mkdocs-grid--cards .mkdocs-grid-item:hover {
+  border-color: var(--vscode-focusBorder, #3b82f6);
+  box-shadow: 0 3px 8px #0002;
+}
+.mkdocs-grid-item .mkdocs-content {
+  min-height: 100px;
+  padding: 12px;
+}
+.mkdocs-grid-item :is(h1, h2, h3, h4, h5, h6, p) {
+  margin: 0 0 0.6em;
+}
+.mkdocs-grid-item hr {
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid var(--vscode-panel-border, #888);
+}

@@ -1,10 +1,15 @@
 import * as vscode from 'vscode';
+import { extractEmbeddedImages } from '../shared/embedded-images';
+import { createCustomBlockExporter } from './custom-block-exporter';
 import { exportPageContent } from './document-export';
+import { getDocumentationSearchText } from './documentation-search-text';
 import { readMenu, readPageContent } from './pages';
 import { readSettings } from './settings-store';
-import type { SlashDocMenuItem } from './types';
-import { escapeAttribute, escapeHtml, escapeScriptJson } from './utils';
-import { getDocumentationSearchText } from './documentation-search';
+import { flattenPages, prepareCompiledPage, renderHostHtml } from './site-renderer';
+import { compiledPageOptions } from './site-navigation';
+import { attachClipboardImages } from './site-copy-html';
+import { withCompiledFavicon } from './site-favicon';
+import { readPageRevisionMetadata, resolvePageRevisionFile, resolvePageYamlFile } from '../shared/page-revision';
 
 export type CompiledDocumentation = {
   indexUri: vscode.Uri;
@@ -22,210 +27,57 @@ export async function compileDocumentationSite(
   const pageIds = new Set(pages.map((page) => page.id));
   const pagesRoot = vscode.Uri.joinPath(outputRoot, 'pages');
   const searchIndex: Array<{ pageId: string; title: string; text: string }> = [];
+  const customExporter = createCustomBlockExporter(extensionUri, workspaceRoot);
   await vscode.workspace.fs.createDirectory(outputRoot);
   await vscode.workspace.fs.createDirectory(pagesRoot);
 
   for (const page of pages) {
     const data = await readPageContent(workspaceRoot, page.id, page.title);
+    const revision = await readPageRevisionMetadata(
+      workspaceRoot.fsPath,
+      await resolvePageRevisionFile(workspaceRoot.fsPath, page.id),
+      settings.exportOptions.repositoryUrl,
+      resolvePageYamlFile(workspaceRoot.fsPath, page.id),
+      settings.exportOptions.defaultBranch,
+    );
     searchIndex.push({ pageId: page.id, title: page.title, text: getDocumentationSearchText(data) });
-    const exported = await exportPageContent(data, 'html', settings, extensionUri, workspaceRoot);
-    const html = prepareCompiledPage(exported, page.id, pageIds);
-    await writeText(vscode.Uri.joinPath(pagesRoot, `${page.id}.html`), html);
+    const exported = prepareCompiledPage(
+      await exportPageContent(data, 'html', settings, customExporter),
+      page.id,
+      pageIds,
+      revision,
+      compiledPageOptions(pages, page.id, settings.exportOptions),
+    );
+    const result = settings.exportOptions.separateFiles
+      ? extractEmbeddedImages(exported, `${page.id}-image`)
+      : { content: exported, images: [] };
+    await writeText(
+      vscode.Uri.joinPath(pagesRoot, `${page.id}.html`),
+      withCompiledFavicon(attachClipboardImages(result.content, result.images), settings.exportOptions.favicon),
+    );
+    await Promise.all(
+      result.images.map((image) =>
+        vscode.workspace.fs.writeFile(vscode.Uri.joinPath(pagesRoot, image.fileName), image.data),
+      ),
+    );
   }
 
   const projectName = workspaceRoot.path.split('/').filter(Boolean).at(-1) ?? 'Документация';
   const indexUri = vscode.Uri.joinPath(outputRoot, 'index.html');
-  await writeText(indexUri, renderHostHtml(projectName, menu.items, pages[0]?.id, searchIndex));
+  await writeText(
+    indexUri,
+    renderHostHtml(
+      projectName,
+      menu.items,
+      pages[0]?.id,
+      searchIndex,
+      settings.exportOptions.favicon,
+      settings.exportOptions,
+    ),
+  );
   return { indexUri, pageCount: pages.length };
-}
-
-function flattenPages(items: SlashDocMenuItem[]): SlashDocMenuItem[] {
-  return items.flatMap((item) => [item, ...flattenPages(item.children)]);
-}
-
-function prepareCompiledPage(html: string, pageId: string, pageIds: Set<string>): string {
-  const withLinks = rewriteDocumentationLinks(html, pageIds);
-  const additions = `<meta name="slash-doc-page-id" content="${escapeAttribute(pageId)}">
-  <style>${PAGE_STYLES}</style>`;
-  return withLinks.replace('</head>', `${additions}\n  </head>`);
-}
-
-function rewriteDocumentationLinks(html: string, pageIds: Set<string>): string {
-  return html.replaceAll(/<a\b([^>]*)>/gi, (opening: string, attributes: string) => {
-    const href = readAttribute(attributes, 'href');
-    if (!href) return opening;
-    if (/^\s*(javascript|vbscript):/i.test(href)) {
-      return `<a${removeAttributes(attributes, ['href', 'target', 'rel'])}>`;
-    }
-
-    const pageId = readAttribute(attributes, 'data-page-id') || resolvePageId(href, pageIds);
-    if (pageId && pageIds.has(pageId)) {
-      const suffix = readLinkSuffix(href);
-      const cleaned = removeAttributes(attributes, ['href', 'target', 'rel']);
-      return `<a${cleaned} href="${escapeAttribute(`${pageId}.html${suffix}`)}">`;
-    }
-
-    if (isExternalLink(href)) {
-      const cleaned = removeAttributes(attributes, ['target', 'rel']);
-      return `<a${cleaned} target="_blank" rel="noopener noreferrer">`;
-    }
-
-    return opening;
-  });
-}
-
-function resolvePageId(href: string, pageIds: Set<string>): string | undefined {
-  let decoded = href.trim();
-  try {
-    decoded = decodeURIComponent(decoded);
-  } catch {
-    // Keep the original value when it contains malformed URI escapes.
-  }
-  const slashDoc =
-    /^slash-doc:\/\/(?:page\/)?([^?#/]+)/i.exec(decoded)?.[1] ?? /^slash-doc:page\/([^?#/]+)/i.exec(decoded)?.[1];
-  if (slashDoc && pageIds.has(slashDoc)) return slashDoc;
-
-  const path = decoded
-    .split(/[?#]/, 1)[0]
-    .replace(/^\.\//, '')
-    .replace(/^\//, '')
-    .replace(/^pages\//, '')
-    .replace(/\.html?$/i, '');
-  if (pageIds.has(path)) return path;
-  if (decoded.startsWith('#') && pageIds.has(decoded.slice(1))) return decoded.slice(1);
-  return undefined;
-}
-
-function readLinkSuffix(href: string): string {
-  const hash = href.indexOf('#');
-  return hash >= 0 && !href.startsWith('#') ? href.slice(hash) : '';
-}
-
-function isExternalLink(href: string): boolean {
-  return /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(href) && !/^slash-doc:/i.test(href);
-}
-
-function readAttribute(attributes: string, name: string): string {
-  const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = new RegExp(`\\b${escaped}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(attributes);
-  return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
-}
-
-function removeAttributes(attributes: string, names: string[]): string {
-  return names.reduce((value, name) => {
-    const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return value.replace(new RegExp(`\\s+${escaped}\\s*=\\s*(?:"[^"]*"|'[^']*'|[^\\s>]+)`, 'gi'), '');
-  }, attributes);
-}
-
-function renderHostHtml(
-  projectName: string,
-  items: SlashDocMenuItem[],
-  firstPageId: string | undefined,
-  searchIndex: Array<{ pageId: string; title: string; text: string }>,
-): string {
-  const firstPage = firstPageId ? `pages/${firstPageId}.html` : 'about:blank';
-  return `<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(projectName)}</title>
-  <style>${HOST_STYLES}</style>
-</head>
-<body>
-  <aside class="sidebar">
-    <header class="sidebar-title">${escapeHtml(projectName)}</header>
-    <div class="documentation-search"><input type="search" placeholder="Поиск по документации" aria-label="Поиск по документации"></div>
-    <nav class="navigation" aria-label="Страницы документации">${renderHostMenu(items)}</nav>
-    <div class="search-results" hidden></div>
-  </aside>
-  <iframe class="content" name="content" title="Документация" src="${escapeAttribute(firstPage)}"></iframe>
-  <script>
-    const links = Array.from(document.querySelectorAll('.page-link'));
-    links.forEach((link) => link.addEventListener('click', () => {
-      links.forEach((item) => item.classList.toggle('active', item === link));
-    }));
-    if (links[0]) links[0].classList.add('active');
-    const searchIndex = ${escapeScriptJson(searchIndex)};
-    const search = document.querySelector('.documentation-search input');
-    const navigation = document.querySelector('.navigation');
-    const results = document.querySelector('.search-results');
-    search.addEventListener('input', () => {
-      const query = search.value.toLocaleLowerCase('ru').trim();
-      navigation.hidden = query.length > 0;
-      results.hidden = query.length === 0;
-      results.replaceChildren();
-      if (!query) return;
-      if (query.length < 2) {
-        results.textContent = 'Введите не менее двух символов';
-        return;
-      }
-      const terms = query.split(/\\s+/).filter(Boolean);
-      const found = searchIndex
-        .map((page) => {
-          const title = page.title.toLocaleLowerCase('ru');
-          const text = page.text.toLocaleLowerCase('ru');
-          if (!terms.every((term) => title.includes(term) || text.includes(term))) return null;
-          const index = Math.max(0, text.indexOf(query));
-          return { ...page, index, score: title.includes(query) ? 2 : text.includes(query) ? 1 : 0 };
-        })
-        .filter(Boolean)
-        .sort((left, right) => right.score - left.score)
-        .slice(0, 50);
-      if (found.length === 0) {
-        results.textContent = 'Ничего не найдено';
-        return;
-      }
-      found.forEach((page) => {
-        const link = document.createElement('a');
-        link.className = 'search-result';
-        link.href = 'pages/' + encodeURIComponent(page.pageId) + '.html';
-        link.target = 'content';
-        const title = document.createElement('strong');
-        title.textContent = page.title;
-        const snippet = document.createElement('span');
-        const start = Math.max(0, page.index - 60);
-        const end = Math.min(page.text.length, page.index + query.length + 80);
-        snippet.textContent = (start ? '…' : '') + page.text.slice(start, end).trim() + (end < page.text.length ? '…' : '');
-        link.append(title, snippet);
-        results.append(link);
-      });
-    });
-  </script>
-</body>
-</html>\n`;
-}
-
-function renderHostMenu(items: SlashDocMenuItem[]): string {
-  if (items.length === 0) return '<p class="empty">Страниц пока нет</p>';
-  return `<ul>${items.map(renderHostMenuItem).join('')}</ul>`;
-}
-
-function renderHostMenuItem(item: SlashDocMenuItem): string {
-  const link = `<a class="page-link" href="pages/${escapeAttribute(item.id)}.html" target="content">${escapeHtml(item.title)}</a>`;
-  if (item.children.length === 0) return `<li class="leaf">${link}</li>`;
-  return `<li><details open><summary>${link}</summary>${renderHostMenu(item.children)}</details></li>`;
 }
 
 async function writeText(uri: vscode.Uri, text: string): Promise<void> {
   await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(text));
 }
-
-const HOST_STYLES = `
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#fff}
-*{box-sizing:border-box}body{display:grid;grid-template-columns:280px minmax(0,1fr);height:100vh;margin:0;overflow:hidden}
-.sidebar{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-width:0;border-right:1px solid #dfe3ea;background:#f7f8fa}
-.sidebar-title{padding:18px 16px 14px;border-bottom:1px solid #dfe3ea;font-size:16px;font-weight:700}
-.documentation-search{padding:10px 10px 0}.documentation-search input{width:100%;padding:7px 9px;border:1px solid #cfd5df;border-radius:5px;background:#fff;color:#172033;outline:none}.documentation-search input:focus{border-color:#2563eb;box-shadow:0 0 0 2px #2563eb22}
-.navigation{overflow:auto;padding:10px 8px 24px}.navigation ul{display:grid;gap:2px;margin:0;padding:0;list-style:none}.navigation ul ul{margin-left:14px;padding-top:2px}
-.search-results{display:grid;align-content:start;gap:3px;overflow:auto;padding:10px 8px 24px;color:#6b7280;font-size:12px}.search-result{display:grid;gap:3px;padding:7px 8px;color:#263247;border-radius:5px;text-decoration:none}.search-result:hover{background:#e9edf3}.search-result strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.search-result span{display:-webkit-box;overflow:hidden;color:#6b7280;font-size:11px;line-height:1.35;-webkit-box-orient:vertical;-webkit-line-clamp:3}
-.navigation summary{list-style-position:outside;margin-left:18px}.navigation summary::marker{color:#7b8495}.page-link{display:block;padding:6px 8px;color:#263247;border-radius:5px;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.leaf{padding-left:18px}.page-link:hover{background:#e9edf3}.page-link.active{color:#fff;background:#2563eb}.content{width:100%;height:100%;border:0;background:#fff}.empty{padding:8px;color:#6b7280}
-@media(max-width:760px){body{grid-template-columns:210px minmax(0,1fr)}}`;
-
-const PAGE_STYLES = `
-:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#fff;line-height:1.55}
-*{box-sizing:border-box}body{max-width:980px;margin:0 auto;padding:32px 40px 64px}h1,h2,h3,h4,h5,h6{line-height:1.25;margin:1.35em 0 .55em}p,ul,ol,pre,table,figure{margin:0 0 1em}a{color:#2563eb}img,svg{max-width:100%;height:auto}figure{margin-left:0;margin-right:0}figcaption{color:#667085;font-size:.9em}
-table{width:100%;border-spacing:0;border-collapse:collapse;overflow:auto}th,td{padding:8px 10px;border:1px solid #d7dce4;text-align:left;vertical-align:top}th{background:#f4f6f8}pre{overflow:auto;padding:14px;border:1px solid #e1e5eb;border-radius:6px;background:#f7f8fa}code{font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace}
-@media(max-width:700px){body{padding:22px 18px 48px}}`;

@@ -1,7 +1,7 @@
 {
   "name": "slash-doc",
   "displayName": "Slash Doc",
-  "description": "Расширение VS Code с интерфейсом Shoelace и редактором документов Editor.js.",
+  "description": "Расширение VS Code с интерфейсом Shoelace и собственным блочным редактором документов.",
   "version": "0.0.1",
   "publisher": "local",
   "license": "MIT",
@@ -10,6 +10,7 @@
     "url": "https://github.com/yazart/slash-doc.git"
   },
   "engines": {
+    "node": ">=20.19.0",
     "vscode": "^1.90.0"
   },
   "categories": [
@@ -20,6 +21,10 @@
     "onView:slashDoc.actions"
   ],
   "main": "./dist/extension.js",
+  "bin": {
+    "slash-doc-compile": "./dist/slash-doc-compile.js",
+    "slash-doc-mcp": "./dist/slash-doc-mcp.js"
+  },
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -47,49 +52,58 @@
     ]
   },
   "scripts": {
-    "compile": "node esbuild.mjs",
-    "watch": "node esbuild.mjs --watch",
+    "compile": "node scripts/vite-build.mjs",
+    "compile:chrome": "node scripts/build-chrome-extension.mjs",
+    "test:chrome": "npm run compile:chrome && node scripts/smoke-chrome-extension.mjs",
+    "test:site": "npm run compile && node scripts/smoke-compiled-site.mjs",
+    "compile:docs": "node dist/slash-doc-compile.js",
+    "compile:docs:md": "node dist/slash-doc-compile.js --format md",
+    "mcp": "node dist/slash-doc-mcp.js",
+    "watch": "node scripts/vite-build.mjs --watch",
     "vscode:prepublish": "npm run compile",
+    "check:structure": "node scripts/check-source-structure.mjs",
     "check:types": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run lint && npm run check:types && npm run format:check",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check": "npm run check:structure && npm run lint && npm run check:types && npm run test && npm run format:check",
     "changelog": "conventional-changelog -p conventionalcommits -r 0 -o CHANGELOG.md",
     "changelog:update": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s",
     "version": "npm run changelog && git add CHANGELOG.md"
   },
   "dependencies": {
-    "@editorjs/editorjs": "^2.30.8",
-    "@editorjs/header": "^2.8.8",
-    "@editorjs/image": "^2.10.3",
-    "@editorjs/inline-code": "^1.5.2",
-    "@editorjs/list": "^1.10.0",
-    "@editorjs/marker": "^1.4.0",
-    "@editorjs/underline": "^1.2.1",
-    "@shoelace-style/shoelace": "^2.15.1",
+    "@modelcontextprotocol/server": "2.1.0",
     "bpmn-js": "9.0.0",
-    "csv": "^6.6.1",
-    "express": "^5.2.1",
+    "csv": "6.0.5",
+    "express": "4.21.1",
+    "fflate": "0.8.3",
     "highlight.js": "^11.11.1",
-    "lit": "^3.1.0",
-    "mermaid": "^11.15.0",
-    "puppeteer": "13.3.2"
+    "lit": "2.8.0",
+    "mermaid": "8.14.0",
+    "puppeteer": "13.3.2",
+    "yaml": "2.9.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@types/express": "^5.0.6",
     "@types/node": "^20.14.8",
     "@types/vscode": "^1.90.0",
+    "@typescript-eslint/eslint-plugin": "^8.64.0",
+    "@typescript-eslint/parser": "^8.64.0",
+    "c8": "7.14.0",
     "conventional-changelog": "^8.1.0",
     "conventional-changelog-conventionalcommits": "^10.2.1",
-    "esbuild": "^0.21.5",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.5.0",
     "prettier": "^3.9.5",
-    "typescript": "^5.5.2",
-    "typescript-eslint": "^8.64.0"
+    "typescript": "5.1.6",
+    "vite": "5.1.7",
+    "vitest": "0.4.2"
   }
 }

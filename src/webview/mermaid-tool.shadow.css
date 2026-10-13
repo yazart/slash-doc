@@ -1,0 +1,49 @@
+.slash-mermaid-tool {
+  display: grid;
+  gap: 8px;
+  color: var(--vscode-editor-foreground);
+}
+
+.slash-mermaid-code,
+.slash-mermaid-caption {
+  box-sizing: border-box;
+  width: 100%;
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, var(--border));
+  border-radius: 2px;
+  background: var(--vscode-input-background);
+  font: inherit;
+}
+
+.slash-mermaid-code {
+  min-height: 140px;
+  padding: 8px;
+  resize: vertical;
+  font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
+}
+
+.slash-mermaid-caption {
+  height: 24px;
+  padding: 2px 6px;
+}
+
+.slash-mermaid-code:focus,
+.slash-mermaid-caption:focus {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
+}
+
+.slash-mermaid-preview {
+  min-height: 40px;
+  overflow: auto;
+  padding: 8px;
+  color: var(--vscode-editor-foreground);
+  border: 1px solid var(--vscode-panel-border, var(--border));
+  border-radius: 2px;
+  background: var(--vscode-editor-background);
+}
+
+.slash-mermaid-preview svg {
+  max-width: 100%;
+  height: auto;
+}

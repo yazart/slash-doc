@@ -1,0 +1,127 @@
+import type { EditorConfig } from './block-editor-types';
+import type { InlineToolConstructable, ToolConstructable } from './block-editor-types';
+import Header from './header-tool';
+import ImageTool from './image-tool';
+import ApiEndpointTool from './api-endpoint-tool';
+import { BpmnModelerTool, BpmnPreviewTool } from './bpmn-tools';
+import CodeBlockTool from './code-block-tool';
+import ConfluenceTableTool from './confluence-table-tool';
+import DiffBlockTool from './diff-block-tool';
+import type { SlashDocWebviewSettings } from './editor-settings';
+import FileProcessorTool from './file-processor-tool';
+import FlowDesignerTool from './flow-designer-tool';
+import ImageAnnotationTool from './image-annotation-tool';
+import { LUCIDE_ICONS } from './lucide-icons';
+import LucideInlineCode from './lucide-inline-code';
+import LucideMarker from './lucide-marker';
+import LucideUnderline from './lucide-underline';
+import MermaidTool from './mermaid-tool';
+import MkDocsAdmonitionTool from './mkdocs-admonition-tool';
+import MkDocsChecklistTool from './mkdocs-checklist-tool';
+import MkDocsDetailsTool from './mkdocs-details-tool';
+import MkDocsTabsTool from './mkdocs-tabs-tool';
+import MkDocsGridTool from './mkdocs-grid-tool';
+import NetworkCanvasTool from './network-canvas-tool';
+import NestedListTool from './nested-list-tool';
+import PageLinkTool from './page-link-tool';
+import PersistentParagraphTool from './persistent-paragraph-tool';
+import QuoteTool from './quote-tool';
+import TaskTableTool from './task-table-tool';
+import TextColorTool from './text-color-tool';
+import { setupUserMentions, type UserDirectoryBridge } from './user-directory';
+
+export type EditorTools = NonNullable<EditorConfig['tools']>;
+
+export function createEditorTools(
+  settings: SlashDocWebviewSettings,
+  userDirectory: UserDirectoryBridge,
+): { tools: EditorTools; inlineToolbarTools: string[] } {
+  const tools: EditorTools = {};
+  const addons = settings.editorAddons;
+  tools.paragraph = {
+    class: PersistentParagraphTool as unknown as ToolConstructable,
+    inlineToolbar: false,
+    config: { allowHeadings: addons?.header !== false },
+  };
+  tools.header = { class: Header, toolbox: false };
+  tools.quote = QuoteTool;
+  if (addons?.list !== false) {
+    tools.list = {
+      class: NestedListTool as unknown as ToolConstructable,
+      inlineToolbar: false,
+      toolbox: { title: 'Многоуровневый список', icon: LUCIDE_ICONS.list },
+    };
+  }
+  if (addons?.confluenceTable !== false) {
+    tools.confluenceTable = {
+      class: ConfluenceTableTool,
+      config: {
+        pages: window.__SLASH_DOC_PAGES__ ?? [],
+        currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
+      },
+    };
+  }
+  if (addons?.image !== false) {
+    tools.image = {
+      class: ImageTool as unknown as ToolConstructable,
+      toolbox: { title: 'Изображение', icon: LUCIDE_ICONS.image },
+      config: {
+        uploader: {
+          uploadByFile: async (file: File) => ({ success: 1, file: { url: await readFileAsDataUrl(file) } }),
+        },
+      },
+    };
+  }
+  if (addons?.marker !== false) tools.marker = { class: LucideMarker, toolbox: { title: 'Маркер' } };
+  if (addons?.inlineCode !== false) {
+    tools.inlineCode = { class: LucideInlineCode, toolbox: { title: 'Встроенный код' } };
+  }
+  if (addons?.underline !== false) {
+    tools.underline = { class: LucideUnderline, toolbox: { title: 'Подчёркивание' } };
+  }
+  if (addons?.textColor !== false) tools.textColor = TextColorTool as unknown as InlineToolConstructable;
+  tools.pageLink = {
+    class: PageLinkTool as unknown as InlineToolConstructable,
+    config: {
+      pages: window.__SLASH_DOC_PAGES__ ?? [],
+      currentPageId: window.__SLASH_DOC_CURRENT_PAGE_ID__ ?? undefined,
+    },
+  };
+  if (addons?.userMention !== false) setupUserMentions(userDirectory);
+  if (addons?.mermaid !== false) tools.mermaid = MermaidTool;
+  if (addons?.flowDesigner !== false) tools.flowDesigner = FlowDesignerTool;
+  if (addons?.networkCanvas !== false) tools.networkCanvas = NetworkCanvasTool;
+  if (addons?.imageAnnotation !== false) tools.imageAnnotation = ImageAnnotationTool;
+  if (addons?.apiEndpoint !== false) tools.apiEndpoint = ApiEndpointTool;
+  if (addons?.fileProcessor !== false) tools.fileProcessor = FileProcessorTool;
+  if (addons?.taskTable !== false) tools.taskTable = TaskTableTool;
+  if (addons?.codeBlock !== false) tools.codeBlock = CodeBlockTool;
+  if (addons?.diffBlock !== false) tools.diffBlock = DiffBlockTool;
+  if (addons?.bpmnModeler !== false) tools.bpmnModeler = BpmnModelerTool;
+  if (addons?.bpmnPreview !== false) tools.bpmnPreview = BpmnPreviewTool;
+  if (addons?.mkdocsAdmonition !== false) tools.mkdocsAdmonition = MkDocsAdmonitionTool;
+  if (addons?.mkdocsTabs !== false) tools.mkdocsTabs = MkDocsTabsTool;
+  if (addons?.mkdocsDetails !== false) tools.mkdocsDetails = MkDocsDetailsTool;
+  if (addons?.mkdocsChecklist !== false) tools.mkdocsChecklist = MkDocsChecklistTool;
+  if (addons?.mkdocsGrid !== false) tools.mkdocsGrid = MkDocsGridTool;
+  return {
+    tools,
+    inlineToolbarTools: [
+      'bold',
+      'italic',
+      'link',
+      ...(addons?.marker !== false ? ['marker'] : []),
+      ...(addons?.inlineCode !== false ? ['inlineCode'] : []),
+      ...(addons?.underline !== false ? ['underline'] : []),
+    ],
+  };
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', () => resolve(String(reader.result)));
+    reader.addEventListener('error', () => reject(reader.error));
+    reader.readAsDataURL(file);
+  });
+}

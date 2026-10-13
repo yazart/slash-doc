@@ -1,7 +1,10 @@
+import { textHeadingLevel } from '../shared/text-block';
 import * as vscode from 'vscode';
-import { getMenuUri, getPageContentUri, pathExists, writeJson } from './filesystem';
+import { getMenuUri, pathExists, writeJson } from './filesystem';
+import { readStoredPageContent } from './page-storage';
 import type { DocumentationPageLink, PageMovePosition, SlashDocMenu, SlashDocMenuItem } from './types';
 import { createPageId, escapeAttribute, escapeHtml, isRecord, stripHtml } from './utils';
+import { removePageTime } from '../shared/page-content';
 
 export async function readMenu(workspaceRoot: vscode.Uri): Promise<SlashDocMenu> {
   const menuUri = getMenuUri(workspaceRoot);
@@ -24,29 +27,20 @@ export async function readPageContent(
   pageId: string,
   fallbackTitle: string,
 ): Promise<unknown> {
-  const contentUri = getPageContentUri(workspaceRoot, pageId);
-
-  if (!(await pathExists(contentUri))) {
-    return createDefaultPageContent(fallbackTitle);
-  }
-
-  const data = await vscode.workspace.fs.readFile(contentUri);
-  return JSON.parse(new TextDecoder().decode(data));
+  return (await readStoredPageContent(workspaceRoot, pageId)) ?? createDefaultPageContent(fallbackTitle);
 }
 
 export function createDefaultPageContent(title: string): unknown {
   return {
-    time: Date.now(),
-    blocks: [{ type: 'header', data: { text: title, level: 2 } }],
+    blocks: [{ type: 'paragraph', data: { text: title, level: 2 } }],
     version: '2.30.8',
   };
 }
 
 export function createNewPageContent(title: string): unknown {
   return {
-    time: Date.now(),
     blocks: [
-      { type: 'header', data: { text: escapeHtml(title), level: 2 } },
+      { type: 'paragraph', data: { text: escapeHtml(title), level: 2 } },
       { type: 'paragraph', data: { text: '' } },
     ],
     version: '2.30.8',
@@ -61,13 +55,13 @@ export function updatePageContentTitle(data: unknown, title: string): unknown {
   const blocks = [...data.blocks];
   const firstBlock = blocks[0];
 
-  if (isRecord(firstBlock) && firstBlock.type === 'header' && isRecord(firstBlock.data)) {
+  if (isRecord(firstBlock) && textHeadingLevel(firstBlock) > 0 && isRecord(firstBlock.data)) {
     blocks[0] = { ...firstBlock, data: { ...firstBlock.data, text: escapeHtml(title) } };
   } else {
-    blocks.unshift({ type: 'header', data: { text: escapeHtml(title), level: 2 } });
+    blocks.unshift({ type: 'paragraph', data: { text: escapeHtml(title), level: 2 } });
   }
 
-  return { ...data, time: Date.now(), blocks };
+  return removePageTime({ ...data, blocks });
 }
 
 export function normalizeMenuItems(items: unknown): SlashDocMenuItem[] {
@@ -80,7 +74,7 @@ export function normalizeMenuItems(items: unknown): SlashDocMenuItem[] {
     return {
       id,
       title: typeof item.title === 'string' ? item.title : 'Без названия',
-      file: `${id}/content.json`,
+      file: `${id}/content.yaml`,
       children: normalizeMenuItems(item.children),
     };
   });
@@ -227,7 +221,12 @@ export function getFirstHeaderText(data: unknown): string | undefined {
     return undefined;
   }
   const header = data.blocks[0];
-  if (!isRecord(header) || header.type !== 'header' || !isRecord(header.data) || typeof header.data.text !== 'string') {
+  if (
+    !isRecord(header) ||
+    !textHeadingLevel(header) ||
+    !isRecord(header.data) ||
+    typeof header.data.text !== 'string'
+  ) {
     return undefined;
   }
   const text = stripHtml(header.data.text).trim();

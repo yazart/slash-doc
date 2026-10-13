@@ -1,0 +1,372 @@
+slash-doc-editor {
+  display: block;
+  outline: none;
+}
+.slash-block-editor .codex-editor__redactor {
+  padding: 12px 0 80px !important;
+}
+.slash-block-editor .ce-block {
+  position: relative;
+  margin: 6px 0;
+  padding: 3px 6px;
+  border: none;
+  border-radius: 6px;
+}
+.slash-block-editor .ce-block--selected {
+  background: var(--vscode-editor-selectionBackground, #3b82f633);
+}
+.slash-block-area-selecting,
+.slash-block-area-selecting * {
+  user-select: none !important;
+  cursor: crosshair !important;
+}
+.slash-block-selection-area {
+  position: fixed;
+  z-index: 1100;
+  pointer-events: none;
+  border: 1px solid var(--vscode-focusBorder, #3b82f6);
+  background: transparent;
+}
+.slash-block-editor .ce-block__content {
+  max-width: none;
+  margin: 0;
+}
+.slash-block-editor .ce-paragraph {
+  padding: 8px 4px;
+  min-height: 1.5em;
+  line-height: 1.6;
+  outline: none;
+}
+.slash-block-editor .ce-header {
+  padding: 8px 4px;
+  margin: 0;
+  outline: none;
+}
+.slash-block-editor [contenteditable][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--vscode-input-placeholderForeground, #888);
+  pointer-events: none;
+}
+.slash-block-editor [contenteditable] :is(ul, ol, li) {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.slash-block-editor .ce-quote {
+  margin: 0;
+  padding: 8px 16px;
+  min-height: 1.5em;
+  line-height: 1.6;
+  font-style: italic;
+  color: var(--vscode-editor-foreground, inherit);
+  background: var(--vscode-textBlockQuote-background, #8881);
+  outline: none;
+}
+.slash-block-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.slash-block-controls button,
+.slash-block-controls select {
+  font: inherit;
+  color: var(--vscode-editor-foreground, #ccc);
+  background: var(--vscode-input-background, #333);
+  border: none;
+  border-radius: 4px;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+.slash-block-controls {
+  font-size: 11px;
+  margin-bottom: 3px;
+  opacity: 0.65;
+}
+.slash-block-controls > span {
+  flex: 1;
+}
+.slash-block-controls .slash-block-title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.slash-block-controls > .slash-block-tool-controls {
+  flex: 0 1 auto;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.slash-block-controls > .slash-block-controls-separator {
+  flex: 0 0 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--vscode-panel-border, #888);
+}
+.slash-block-tool-controls input[type='text'] {
+  min-width: 100px;
+  width: 160px;
+  max-width: 100%;
+  padding: 4px 6px;
+  color: var(--vscode-input-foreground);
+  border: 0;
+  border-radius: 3px;
+  background: var(--vscode-input-background);
+  font: inherit;
+}
+.slash-block-tool-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+.slash-block-tool-controls [hidden] {
+  display: none;
+}
+.slash-block-tool-controls .mkdocs-widget-row,
+.slash-block-tool-controls .mkdocs-tab-actions,
+.slash-block-tool-controls .mkdocs-tabs-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.slash-block-tool-controls .mkdocs-tabs-list button[aria-selected='true'] {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+.slash-block-tool-controls .mkdocs-danger-button,
+.slash-block-tool-controls .slash-bpmn-status-error {
+  color: var(--vscode-errorForeground);
+}
+.slash-block-tool-controls .slash-bpmn-status {
+  font-size: 12px;
+}
+.ce-block:hover .slash-block-controls,
+.ce-block:focus-within .slash-block-controls,
+.ce-block--selected .slash-block-controls {
+  opacity: 1;
+}
+.slash-block-controls button:hover {
+  background: var(--vscode-toolbar-hoverBackground, #444);
+}
+.slash-block-controls .slash-block-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  background: transparent;
+  box-shadow: none;
+}
+.slash-block-controls .slash-block-icon-button:hover {
+  background: var(--vscode-toolbar-hoverBackground, #444);
+}
+.slash-block-icon-button svg {
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+.ct-header-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.slash-block-controls > .ct-header-controls {
+  flex: 0 0 auto;
+}
+.slash-block-controls .ct-header-controls input[type='color'] {
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.slash-editor-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.slash-block-controls .slash-block-handle {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  cursor: grab !important;
+  user-select: none;
+}
+.slash-block-settings {
+  width: 100%;
+  padding: 8px;
+  background: var(--vscode-editorWidget-background, #333);
+}
+.slash-block-settings[hidden] {
+  display: none;
+}
+.slash-block-editor figure {
+  margin: 0;
+  padding: 0;
+}
+.slash-block-editor .image-tool__image {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+}
+.slash-block-editor .image-tool__image[hidden],
+.image-tool__placeholder[hidden] {
+  display: none;
+}
+.slash-block-controls > .image-tool__header-controls {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.image-tool__header-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.image-tool__dropzone {
+  box-sizing: border-box;
+  min-height: 140px;
+  padding: 24px;
+  border: 1px dashed var(--vscode-panel-border, #888);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.image-tool__placeholder {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  color: var(--vscode-descriptionForeground, #888);
+  text-align: center;
+}
+.image-tool__placeholder svg {
+  width: 32px;
+  height: 32px;
+}
+.image-tool__dropzone--filled {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+}
+.image-tool__dropzone--active,
+.image-tool__dropzone:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #3b82f6);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--vscode-focusBorder, #3b82f6) 10%, transparent);
+}
+.image-tool--withBorder {
+  border: 1px solid var(--vscode-panel-border);
+}
+.image-tool--withBackground {
+  background: var(--vscode-editorWidget-background);
+}
+.image-tool--stretched img {
+  width: 100%;
+}
+.slash-missing-block {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.slash-block-insertion-space {
+  display: block;
+  width: 100%;
+  height: 12px;
+  margin: 2.5px 0 -5px;
+  background: transparent;
+  cursor: text;
+}
+.slash-block-dragging {
+  opacity: 0.35;
+}
+.slash-block-drop-before::before,
+.slash-block-drop-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--vscode-focusBorder, #3b82f6);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 5;
+}
+.slash-block-drop-before::before {
+  top: -3px;
+}
+.slash-block-drop-after::after {
+  bottom: -3px;
+}
+.slash-block-menu {
+  position: fixed;
+  z-index: 1000;
+  width: min(280px, calc(100vw - 16px));
+  max-height: min(420px, calc(100vh - 16px));
+  padding: 8px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--vscode-editor-foreground, #333);
+  background: var(--vscode-editorWidget-background, #fff);
+  box-shadow: 0 6px 24px #0003;
+  border-radius: 6px;
+}
+.slash-block-menu [role='menu'] {
+  overflow: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.slash-block-menu button,
+.slash-block-menu input {
+  padding: 6px 8px;
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: transparent;
+  text-align: left;
+}
+.slash-block-menu input {
+  background: var(--vscode-input-background, #fff);
+}
+.slash-block-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.slash-block-menu-icon {
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+}
+.slash-block-menu-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.slash-block-menu button:hover,
+.slash-block-menu button:focus-visible,
+.slash-block-menu button[aria-current='true'] {
+  background: var(--vscode-list-hoverBackground, #8882);
+}
+.slash-block-menu button[hidden] {
+  display: none;
+}

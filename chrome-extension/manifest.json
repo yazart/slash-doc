@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Slash Doc для GitLab",
+  "description": "Визуальный редактор YAML-страниц Slash Doc в GitLab Edit single file.",
+  "version": "0.0.1",
+  "minimum_chrome_version": "111",
+  "content_scripts": [
+    {
+      "matches": ["http://*/*/-/edit/*", "https://*/*/-/edit/*"],
+      "js": ["gitlab-editor-bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["http://*/*/-/edit/*", "https://*/*/-/edit/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    { "resources": ["editor.html", "editor.js", "editor.css", "assets/*"], "matches": ["http://*/*", "https://*/*"] }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none';"
+  }
+}

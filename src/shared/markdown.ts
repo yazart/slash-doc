@@ -1,4 +1,5 @@
-export function renderSafeMarkdown(markdown: string): string {
+export function renderSafeMarkdown(markdown: string, richBlocks = false): string {
+  const renderInline = (value: string) => renderMarkdownInline(value, richBlocks);
   const lines = markdown.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n');
   const output: string[] = [];
   let index = 0;
@@ -33,6 +34,12 @@ export function renderSafeMarkdown(markdown: string): string {
       continue;
     }
 
+    if (richBlocks && isHorizontalRule(line)) {
+      output.push('<hr>');
+      index += 1;
+      continue;
+    }
+
     if (/^>\s?/.test(line.trim())) {
       const quote: string[] = [];
       while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
@@ -60,7 +67,7 @@ export function renderSafeMarkdown(markdown: string): string {
 
     const paragraph: string[] = [];
     while (index < lines.length && lines[index].trim()) {
-      if (paragraph.length > 0 && isBlockStart(lines[index])) break;
+      if (paragraph.length > 0 && isBlockStart(lines[index], richBlocks)) break;
       paragraph.push(lines[index]);
       index += 1;
     }
@@ -70,14 +77,22 @@ export function renderSafeMarkdown(markdown: string): string {
   return output.join('');
 }
 
-function isBlockStart(line: string): boolean {
+function isBlockStart(line: string, richBlocks: boolean): boolean {
   const trimmed = line.trim();
   return (
-    /^```/.test(trimmed) || /^#{1,6}\s/.test(trimmed) || /^>\s?/.test(trimmed) || /^(\s*)([-*+] |\d+[.)] )/.test(line)
+    /^```/.test(trimmed) ||
+    /^#{1,6}\s/.test(trimmed) ||
+    /^>\s?/.test(trimmed) ||
+    /^(\s*)([-*+] |\d+[.)] )/.test(line) ||
+    (richBlocks && isHorizontalRule(line))
   );
 }
 
-function renderInline(value: string): string {
+function isHorizontalRule(line: string): boolean {
+  return /^ {0,3}(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/.test(line);
+}
+
+function renderMarkdownInline(value: string, allowRelativeLinks: boolean): string {
   const code: string[] = [];
   let rendered = escapeHtml(value).replaceAll(/`([^`]+)`/g, (_, content: string) => {
     const token = `\u0000CODE${code.length}\u0000`;
@@ -85,8 +100,11 @@ function renderInline(value: string): string {
     return token;
   });
 
+  const links = allowRelativeLinks
+    ? /\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+|slash-doc:[^\s)]+|(?:#|\/(?!\/)|\.{1,2}\/)[^\s)]*)\)/g
+    : /\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g;
   rendered = rendered
-    .replaceAll(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g, '<a href="$2">$1</a>')
+    .replaceAll(links, '<a href="$2">$1</a>')
     .replaceAll(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replaceAll(/__([^_]+)__/g, '<strong>$1</strong>')
     .replaceAll(/\*([^*]+)\*/g, '<em>$1</em>')

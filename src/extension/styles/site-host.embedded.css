@@ -1,0 +1,334 @@
+:root {
+  --host-background: #fff;
+  --host-foreground: #172033;
+  --host-sidebar: #f7f8fa;
+  --host-border: #dfe3ea;
+  --host-input: #fff;
+  --host-text: #263247;
+  --host-muted: #6b7280;
+  --host-hover: #e9edf3;
+  --host-scroll: #aeb7c5;
+  height: 100%;
+  overflow: hidden;
+  color: var(--host-foreground);
+  background: var(--host-background);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+}
+
+:root[data-slash-doc-theme='dark'] {
+  --host-background: #0d1117;
+  --host-foreground: #e6edf3;
+  --host-sidebar: #161b22;
+  --host-border: #30363d;
+  --host-input: #0d1117;
+  --host-text: #c9d1d9;
+  --host-muted: #8b949e;
+  --host-hover: #21262d;
+  --host-scroll: #484f58;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  --sidebar-width: 280px;
+
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 7px minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+body.resizing-sidebar {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.navigation-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+body.navigation-hidden .sidebar,
+body.navigation-hidden .sidebar-resizer {
+  display: none;
+}
+.navigation-toggle {
+  position: fixed;
+  top: 15px;
+  left: 12px;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--host-text);
+  border: 1px solid var(--host-border);
+  border-radius: 6px;
+  background: var(--host-input);
+  cursor: pointer;
+  font-size: 22px;
+}
+.navigation-toggle:hover {
+  background: var(--host-hover);
+}
+.navigation-toggle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+body.resizing-sidebar .content {
+  pointer-events: none;
+}
+
+.sidebar {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--host-sidebar);
+}
+
+.sidebar-resizer {
+  position: relative;
+  z-index: 2;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+  background: var(--host-border);
+  background-clip: content-box;
+  border-inline: 3px solid transparent;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer:focus-visible,
+body.resizing-sidebar .sidebar-resizer {
+  border-inline-width: 2px;
+  outline: none;
+  background: #2563eb;
+  background-clip: content-box;
+}
+
+.sidebar-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px 16px 14px 52px;
+  border-bottom: 1px solid var(--host-border);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sidebar-heading {
+  flex: 1;
+  min-width: 0;
+}
+.documentation-logo {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.documentation-logo:hover {
+  text-decoration: underline;
+}
+.documentation-repository {
+  display: inline-block;
+  margin-top: 5px;
+  color: var(--host-muted);
+  font-size: 12px;
+  font-weight: 400;
+  text-decoration: none;
+}
+.documentation-repository:hover {
+  color: var(--host-text);
+  text-decoration: underline;
+}
+
+.theme-toggle {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  place-items: center;
+  color: var(--host-text);
+  cursor: pointer;
+  border: 1px solid var(--host-border);
+  border-radius: 6px;
+  background: var(--host-input);
+  font-size: 17px;
+}
+
+.theme-toggle:hover {
+  background: var(--host-hover);
+}
+
+.documentation-search {
+  padding: 10px 10px 0;
+}
+
+.documentation-search input {
+  width: 100%;
+  padding: 7px 9px;
+  color: var(--host-foreground);
+  border: 1px solid var(--host-border);
+  border-radius: 5px;
+  outline: none;
+  background: var(--host-input);
+}
+
+.documentation-search input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px #2563eb22;
+}
+
+.navigation {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 10px 8px 24px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.navigation ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navigation ul ul {
+  margin-left: 14px;
+  padding-top: 2px;
+}
+
+.search-results {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 10px 8px 24px;
+  color: var(--host-muted);
+  font-size: 12px;
+}
+
+.navigation::-webkit-scrollbar,
+.search-results::-webkit-scrollbar {
+  width: 10px;
+}
+
+.navigation::-webkit-scrollbar-thumb,
+.search-results::-webkit-scrollbar-thumb {
+  border: 2px solid var(--host-sidebar);
+  border-radius: 8px;
+  background: var(--host-scroll);
+}
+
+.navigation::-webkit-scrollbar-track,
+.search-results::-webkit-scrollbar-track {
+  background: var(--host-sidebar);
+}
+
+.search-result {
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  color: var(--host-text);
+  border-radius: 5px;
+  text-decoration: none;
+}
+
+.search-result:hover {
+  background: var(--host-hover);
+}
+
+.search-result strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-result span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--host-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.navigation summary {
+  margin-left: 18px;
+  list-style-position: outside;
+}
+
+.navigation summary::marker {
+  color: var(--host-muted);
+}
+
+.page-link {
+  display: block;
+  overflow: hidden;
+  padding: 6px 8px;
+  color: var(--host-text);
+  border-radius: 5px;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaf {
+  padding-left: 18px;
+}
+
+.page-link:hover {
+  background: var(--host-hover);
+}
+
+.page-link.active {
+  color: #fff;
+  background: #2563eb;
+}
+
+.content {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--host-background);
+}
+
+.empty {
+  padding: 8px;
+  color: var(--host-muted);
+}
+
+@media (max-width: 760px) {
+  body {
+    --sidebar-width: 210px;
+  }
+}

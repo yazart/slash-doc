@@ -1,6 +1,8 @@
 import { CODE_LANGUAGES, normalizeCodeLanguage, type CodeLanguage } from '../shared/syntax-highlighter';
 import { HighlightedCodeEditor } from './highlighted-code-editor';
 import { LUCIDE_ICONS } from './lucide-icons';
+import styles from './code-block-tool.shadow.css?raw';
+import { createToolSurface } from './tool-surface';
 
 export type CodeBlockData = {
   language: CodeLanguage;
@@ -27,13 +29,17 @@ export default class CodeBlockTool {
   }
 
   render(): HTMLElement {
+    const surface = createToolSurface(styles, 'slash-code-surface');
     const root = document.createElement('div');
     root.className = 'slash-code-tool';
-    const toolbar = document.createElement('div');
-    toolbar.className = 'slash-code-toolbar';
-    const title = document.createElement('span');
-    title.className = 'slash-code-title';
-    title.textContent = 'Код';
+    this.editor = new HighlightedCodeEditor(this.source, this.language, 'Исходный код');
+    root.append(this.editor.root);
+    surface.content.append(root);
+    return surface;
+  }
+
+  renderHeaderControls(): HTMLElement {
+    const controls = document.createElement('span');
     const language = document.createElement('select');
     language.className = 'slash-code-language';
     language.setAttribute('aria-label', 'Язык программирования');
@@ -44,15 +50,13 @@ export default class CodeBlockTool {
       option.selected = item.id === this.language;
       language.append(option);
     }
-    this.editor = new HighlightedCodeEditor(this.source, this.language, 'Исходный код');
     language.addEventListener('change', () => {
       this.language = normalizeCodeLanguage(language.value);
       this.editor?.setLanguage(this.language);
       language.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    toolbar.append(title, language);
-    root.append(toolbar, this.editor.root);
-    return root;
+    controls.append(language);
+    return controls;
   }
 
   save(): CodeBlockData {

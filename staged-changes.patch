@@ -1,0 +1,435 @@
+diff --git a/src/extension/document-export-common.ts b/src/extension/document-export-common.ts
+index 60c736f..bae0191 100644
+--- a/src/extension/document-export-common.ts
++++ b/src/extension/document-export-common.ts
+@@ -70,12 +70,19 @@ export function getExportTitle(blocks: Record<string, unknown>[]): string {
+   return text || 'Slash Doc';
+ }
+ 
+-export function getListItems(data: Record<string, unknown>): string[] {
++export type ExportListItem = { content: string; items: ExportListItem[] };
++
++export function getListItems(data: Record<string, unknown>): ExportListItem[] {
+   if (!Array.isArray(data.items)) return [];
+   return data.items.map((item) => {
+-    if (typeof item === 'string') return item;
+-    if (isRecord(item) && typeof item.content === 'string') return item.content;
+-    return String(item ?? '');
++    if (typeof item === 'string') return { content: item, items: [] };
++    if (isRecord(item)) {
++      return {
++        content: typeof item.content === 'string' ? item.content : '',
++        items: getListItems({ items: item.items }),
++      };
++    }
++    return { content: String(item ?? ''), items: [] };
+   });
+ }
+ 
+diff --git a/src/extension/document-export.ts b/src/extension/document-export.ts
+index 4e8c7e9..ad1ff45 100644
+--- a/src/extension/document-export.ts
++++ b/src/extension/document-export.ts
+@@ -22,6 +22,7 @@ import {
+   getEditorBlocks,
+   getExportTitle,
+   getListItems,
++  type ExportListItem,
+   getTableRows,
+   htmlToMarkdownInline,
+   markdownCodeFence,
+@@ -106,9 +107,7 @@ function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>):
+   }
+ 
+   if (type === 'list') {
+-    const tag = data.style === 'ordered' ? 'ol' : 'ul';
+-    const items = getListItems(data);
+-    return `<${tag}>${items.map((item) => `<li>${item}</li>`).join('')}</${tag}>`;
++    return renderListHtml(getListItems(data), data.style === 'ordered');
+   }
+ 
+   if (type === 'table' || type === 'confluenceTable') {
+@@ -183,11 +182,7 @@ function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown
+   }
+ 
+   if (type === 'list') {
+-    return getListItems(data)
+-      .map((item, index) =>
+-        data.style === 'ordered' ? `${index + 1}. ${htmlToMarkdownInline(item)}` : `- ${htmlToMarkdownInline(item)}`,
+-      )
+-      .join('\n');
++    return renderListMarkdown(getListItems(data), data.style === 'ordered');
+   }
+ 
+   if (type === 'table' || type === 'confluenceTable') {
+@@ -254,3 +249,20 @@ function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown
+ 
+   return `\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
+ }
++
++function renderListHtml(items: ExportListItem[], ordered: boolean): string {
++  const tag = ordered ? 'ol' : 'ul';
++  return `<${tag}>${items
++    .map((item) => `<li>${item.content}${item.items.length ? renderListHtml(item.items, ordered) : ''}</li>`)
++    .join('')}</${tag}>`;
++}
++
++function renderListMarkdown(items: ExportListItem[], ordered: boolean, depth = 0): string {
++  return items
++    .flatMap((item, index) => {
++      const marker = ordered ? `${index + 1}.` : '-';
++      const line = `${'  '.repeat(depth)}${marker} ${htmlToMarkdownInline(item.content)}`;
++      return [line, ...(item.items.length ? [renderListMarkdown(item.items, ordered, depth + 1)] : [])];
++    })
++    .join('\n');
++}
+diff --git a/src/webview/editor-data.ts b/src/webview/editor-data.ts
+index 86fd43f..0b7a95c 100644
+--- a/src/webview/editor-data.ts
++++ b/src/webview/editor-data.ts
+@@ -2,6 +2,7 @@ import type { OutputData } from '@editorjs/editorjs';
+ import { migrateApprovalTableData } from '../shared/approval-table-migration';
+ import { removePageTime } from '../shared/page-content';
+ import { normalizeParagraphText } from './persistent-paragraph-tool';
++import { readListItems } from './nested-list-tool';
+ 
+ export function normalizeEditorData(value: unknown): OutputData {
+   const source = isRecord(value) ? value : {};
+@@ -43,7 +44,8 @@ export function preserveInlineMarkup(data: OutputData): OutputData {
+       return;
+     }
+     if (block.type === 'list') {
+-      const items = Array.from(element.querySelectorAll<HTMLElement>('.cdx-list__item')).map((item) => item.innerHTML);
++      const list = element.querySelector<HTMLElement>('.cdx-list');
++      const items = list ? readListItems(list) : [];
+       if (items.length > 0) block.data.items = items;
+     }
+   });
+diff --git a/src/webview/editor-tool-registry.ts b/src/webview/editor-tool-registry.ts
+index 67b578c..d8ff070 100644
+--- a/src/webview/editor-tool-registry.ts
++++ b/src/webview/editor-tool-registry.ts
+@@ -2,7 +2,6 @@ import type { EditorConfig } from '@editorjs/editorjs/types/configs';
+ import type { InlineToolConstructable, ToolConstructable } from '@editorjs/editorjs/types/tools';
+ import Header from '@editorjs/header';
+ import ImageTool from '@editorjs/image';
+-import List from '@editorjs/list';
+ import mermaid from 'mermaid';
+ import ApiEndpointTool from './api-endpoint-tool';
+ import { BpmnModelerTool, BpmnPreviewTool } from './bpmn-tools';
+@@ -19,6 +18,7 @@ import LucideMarker from './lucide-marker';
+ import LucideUnderline from './lucide-underline';
+ import MermaidTool from './mermaid-tool';
+ import NetworkCanvasTool from './network-canvas-tool';
++import NestedListTool from './nested-list-tool';
+ import PageLinkTool from './page-link-tool';
+ import PersistentParagraphTool from './persistent-paragraph-tool';
+ import TaskTableTool from './task-table-tool';
+@@ -44,7 +44,7 @@ export function createEditorTools(
+   }
+   if (addons?.list !== false) {
+     tools.list = {
+-      class: List as unknown as ToolConstructable,
++      class: NestedListTool as unknown as ToolConstructable,
+       inlineToolbar: false,
+       toolbox: { title: 'Список', icon: LUCIDE_ICONS.list },
+     };
+diff --git a/src/webview/main.ts b/src/webview/main.ts
+index 060abfe..c93de2d 100644
+--- a/src/webview/main.ts
++++ b/src/webview/main.ts
+@@ -23,6 +23,7 @@ import './editor-components.css';
+ import './editor-editorjs.css';
+ import './text-inline-toolbar.css';
+ import './page-history-panel.css';
++import './nested-list-tool.css';
+ 
+ type VSCodeApi = { postMessage(message: unknown): void };
+ 
+diff --git a/src/webview/nested-list-tool.css b/src/webview/nested-list-tool.css
+new file mode 100644
+index 0000000..31f78da
+--- /dev/null
++++ b/src/webview/nested-list-tool.css
+@@ -0,0 +1,7 @@
++.slash-nested-list-item > .cdx-list__item {
++  min-height: 24px;
++  outline: none;
++}
++.slash-nested-list-item > :is(ol, ul) {
++  margin: 2px 0 2px 22px;
++}
+diff --git a/src/webview/nested-list-tool.ts b/src/webview/nested-list-tool.ts
+new file mode 100644
+index 0000000..9268c45
+--- /dev/null
++++ b/src/webview/nested-list-tool.ts
+@@ -0,0 +1,246 @@
++import type { API, BlockToolConstructorOptions } from '@editorjs/editorjs/types';
++
++export type NestedListItem = { content: string; items: NestedListItem[] };
++export type NestedListData = { style: 'ordered' | 'unordered'; items: NestedListItem[] };
++
++export default class NestedListTool {
++  private readonly api: API;
++  private readonly readOnly: boolean;
++  private data: NestedListData;
++  private root?: HTMLOListElement | HTMLUListElement;
++
++  static get isReadOnlySupported(): boolean {
++    return true;
++  }
++
++  static get enableLineBreaks(): boolean {
++    return true;
++  }
++
++  static get sanitize() {
++    return { style: {}, items: {} };
++  }
++
++  static get conversionConfig() {
++    return {
++      export: (data: NestedListData) => flattenListText(data.items).join('. '),
++      import: (content: string) => ({ style: 'unordered', items: [{ content, items: [] }] }),
++    };
++  }
++
++  constructor({ data, api, readOnly }: BlockToolConstructorOptions<NestedListData>) {
++    this.api = api;
++    this.readOnly = readOnly;
++    this.data = { style: data?.style === 'ordered' ? 'ordered' : 'unordered', items: normalizeNestedListItems(data?.items) };
++  }
++
++  render(): HTMLElement {
++    this.root = this.renderList(this.data.items, true);
++    if (!this.readOnly) {
++      this.root.addEventListener('keydown', (event) => this.handleKeydown(event as KeyboardEvent));
++    }
++    return this.root;
++  }
++
++  save(): NestedListData {
++    return { style: this.data.style, items: this.root ? readListItems(this.root) : this.data.items };
++  }
++
++  validate(): boolean {
++    return true;
++  }
++
++  renderSettings() {
++    return [
++      this.setting('unordered', 'Маркированный'),
++      this.setting('ordered', 'Нумерованный'),
++    ];
++  }
++
++  private setting(style: NestedListData['style'], label: string) {
++    return {
++      label,
++      isActive: this.data.style === style,
++      closeOnActivate: true,
++      onActivate: () => this.changeStyle(style),
++    };
++  }
++
++  private changeStyle(style: NestedListData['style']): void {
++    if (!this.root || this.data.style === style) return;
++    this.data = { style, items: readListItems(this.root) };
++    const replacement = this.renderList(this.data.items, true);
++    if (!this.readOnly) {
++      replacement.addEventListener('keydown', (event) => this.handleKeydown(event as KeyboardEvent));
++    }
++    this.root.replaceWith(replacement);
++    this.root = replacement;
++  }
++
++  private renderList(items: NestedListItem[], root = false): HTMLOListElement | HTMLUListElement {
++    const list = document.createElement(this.data.style === 'ordered' ? 'ol' : 'ul');
++    list.className = `cdx-list ${root ? 'cdx-block ' : ''}cdx-list--${this.data.style}`;
++    list.contentEditable = 'false';
++    for (const item of items.length ? items : [{ content: '', items: [] }]) list.append(this.renderItem(item));
++    return list;
++  }
++
++  private renderItem(item: NestedListItem): HTMLLIElement {
++    const row = document.createElement('li');
++    row.className = 'slash-nested-list-item';
++    const content = document.createElement('div');
++    content.className = 'cdx-list__item';
++    content.contentEditable = String(!this.readOnly);
++    content.innerHTML = item.content;
++    row.append(content);
++    if (item.items.length) row.append(this.renderList(item.items));
++    return row;
++  }
++
++  private handleKeydown(event: KeyboardEvent): void {
++    if (event.key === 'Tab') {
++      if (changeSelectedListLevel(this.root, event.shiftKey ? -1 : 1)) {
++        event.preventDefault();
++        event.stopImmediatePropagation();
++        this.root?.dispatchEvent(new Event('input', { bubbles: true }));
++      }
++      return;
++    }
++    if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
++    const content = currentContent(event);
++    if (!content) return;
++    event.preventDefault();
++    event.stopImmediatePropagation();
++    if (!visibleText(content)) {
++      if (this.outdentEmptyItem(content)) return;
++      if (!this.exitList(content)) this.splitItem(content);
++      return;
++    }
++    this.splitItem(content);
++  }
++
++  private outdentEmptyItem(content: HTMLElement): boolean {
++    const item = content.parentElement;
++    const list = item?.parentElement;
++    if (!item || !list || list === this.root) return false;
++    const parentItem = list.parentElement;
++    parentItem?.parentElement?.insertBefore(item, parentItem.nextSibling);
++    if (!list.children.length) list.remove();
++    focusContent(content);
++    return true;
++  }
++
++  private exitList(content: HTMLElement): boolean {
++    const item = content.parentElement;
++    if (!item || item.parentElement !== this.root || item !== this.root.lastElementChild || this.root.children.length < 2) {
++      return false;
++    }
++    item.remove();
++    const index = this.api.blocks.getCurrentBlockIndex();
++    this.api.blocks.insert('paragraph', { text: '' }, undefined, index + 1, true);
++    this.api.caret.setToBlock(index + 1, 'start');
++    return true;
++  }
++
++  private splitItem(content: HTMLElement): void {
++    const item = content.parentElement;
++    if (!item) return;
++    const next = this.renderItem({ content: '', items: [] });
++    const nextContent = next.querySelector<HTMLElement>('.cdx-list__item');
++    const selection = window.getSelection();
++    const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
++    if (nextContent && range && content.contains(range.startContainer)) {
++      range.deleteContents();
++      const tail = document.createRange();
++      tail.selectNodeContents(content);
++      tail.setStart(range.startContainer, range.startOffset);
++      nextContent.append(tail.extractContents());
++    }
++    item.parentElement?.insertBefore(next, item.nextSibling);
++    if (nextContent) focusContent(nextContent);
++  }
++}
++
++export function normalizeNestedListItems(value: unknown): NestedListItem[] {
++  if (!Array.isArray(value)) return [];
++  return value.map((item) => {
++    if (typeof item === 'string') return { content: item, items: [] };
++    if (!isRecord(item)) return { content: String(item ?? ''), items: [] };
++    return {
++      content: typeof item.content === 'string' ? item.content : '',
++      items: normalizeNestedListItems(item.items),
++    };
++  });
++}
++
++export function readListItems(list: Element): NestedListItem[] {
++  return Array.from(list.children)
++    .filter((item): item is HTMLLIElement => item instanceof HTMLLIElement)
++    .map((item) => ({
++      content: item.querySelector<HTMLElement>(':scope > .cdx-list__item')?.innerHTML ?? '',
++      items: readListItems(item.querySelector(':scope > ol, :scope > ul') ?? document.createElement('ul')),
++    }));
++}
++
++function changeSelectedListLevel(root: Element | undefined, direction: -1 | 1): boolean {
++  if (!root) return false;
++  const selected = selectedItems(root);
++  if (!selected.length) return false;
++  const parent = selected[0].parentElement;
++  const items = selected.filter((item) => item.parentElement === parent);
++  if (!parent || !items.length) return false;
++  if (direction > 0) {
++    const previous = items[0].previousElementSibling as HTMLLIElement | null;
++    if (!previous) return false;
++    let nested = previous.querySelector<HTMLOListElement | HTMLUListElement>(':scope > ol, :scope > ul');
++    if (!nested) nested = previous.appendChild(document.createElement(root.tagName.toLowerCase()) as HTMLUListElement);
++    nested.className = root.className.replace('cdx-block', '').trim();
++    items.forEach((item) => nested?.append(item));
++  } else {
++    const parentItem = parent.parentElement;
++    if (!(parentItem instanceof HTMLLIElement) || !parentItem.parentElement) return false;
++    let anchor: Element = parentItem;
++    items.forEach((item) => {
++      anchor.after(item);
++      anchor = item;
++    });
++    if (!parent.children.length) parent.remove();
++  }
++  return true;
++}
++
++function selectedItems(root: Element): HTMLLIElement[] {
++  const selection = window.getSelection();
++  if (!selection?.rangeCount) return [];
++  const range = selection.getRangeAt(0);
++  return Array.from(root.querySelectorAll<HTMLLIElement>('li.slash-nested-list-item')).filter((item) => {
++    const content = item.querySelector(':scope > .cdx-list__item');
++    return Boolean(content && (range.collapsed ? content.contains(selection.anchorNode) : range.intersectsNode(content)));
++  });
++}
++
++function currentContent(event: KeyboardEvent): HTMLElement | undefined {
++  return event.composedPath().find((item): item is HTMLElement => item instanceof HTMLElement && item.matches('.cdx-list__item'));
++}
++
++function focusContent(content: HTMLElement): void {
++  content.focus();
++  const range = document.createRange();
++  range.selectNodeContents(content);
++  range.collapse(true);
++  const selection = window.getSelection();
++  selection?.removeAllRanges();
++  selection?.addRange(range);
++}
++
++function visibleText(element: HTMLElement): string {
++  return (element.textContent ?? '').replaceAll(/[\s\u200B-\u200D\uFEFF]/g, '');
++}
++
++function flattenListText(items: NestedListItem[]): string[] {
++  return items.flatMap((item) => [item.content, ...flattenListText(item.items)]);
++}
++
++function isRecord(value: unknown): value is Record<string, unknown> {
++  return typeof value === 'object' && value !== null && !Array.isArray(value);
++}
+diff --git a/test/nested-list-tool.test.ts b/test/nested-list-tool.test.ts
+new file mode 100644
+index 0000000..a97f91e
+--- /dev/null
++++ b/test/nested-list-tool.test.ts
+@@ -0,0 +1,16 @@
++import { describe, expect, it } from 'vitest';
++import { normalizeNestedListItems } from '../src/webview/nested-list-tool';
++
++describe('nested list tool', () => {
++  it('migrates legacy flat list items without losing inline markup', () => {
++    expect(normalizeNestedListItems(['Первый', '<b>Второй</b>'])).toEqual([
++      { content: 'Первый', items: [] },
++      { content: '<b>Второй</b>', items: [] },
++    ]);
++  });
++
++  it('preserves multiple nested levels', () => {
++    const items = [{ content: 'Первый', items: [{ content: 'Дочерний', items: [{ content: 'Третий', items: [] }] }] }];
++    expect(normalizeNestedListItems(items)).toEqual(items);
++  });
++});

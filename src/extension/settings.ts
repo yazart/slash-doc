@@ -1,9 +1,22 @@
 import type { ApiService, CustomEditorAddon, SettingsVariable, SlashDocSettings } from './types';
+import { DEFAULT_AUTO_SAVE_SETTINGS, normalizeAutoSaveSettings } from '../shared/autosave';
+import { normalizeFavicon } from '../shared/favicon';
 import { createSettingsId, escapeJavaScriptString, isRecord } from './utils';
 
 export function getDefaultSettings(): SlashDocSettings {
   return {
     version: 1,
+    autoSave: { ...DEFAULT_AUTO_SAVE_SETTINGS },
+    exportOptions: {
+      separateFiles: false,
+      showCopyHtmlButton: true,
+      showPageNavigation: false,
+      showRepositoryLink: false,
+      favicon: '',
+      repositoryUrl: '',
+      defaultBranch: 'master',
+      markdownRootFileName: 'README.md',
+    },
     editorAddons: {
       header: true,
       list: true,
@@ -25,7 +38,11 @@ export function getDefaultSettings(): SlashDocSettings {
       bpmnModeler: true,
       bpmnPreview: true,
       userMention: true,
-      approvalTable: true,
+      mkdocsAdmonition: true,
+      mkdocsTabs: true,
+      mkdocsDetails: true,
+      mkdocsChecklist: true,
+      mkdocsGrid: true,
     },
     customEditorAddons: [],
     apiPrefix: '/api',
@@ -44,6 +61,42 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
 
   return {
     version: 1,
+    autoSave: normalizeAutoSaveSettings(value.autoSave),
+    exportOptions: {
+      favicon: normalizeFavicon(isRecord(value.exportOptions) ? value.exportOptions.favicon : undefined),
+      showCopyHtmlButton: getBooleanSetting(
+        value.exportOptions,
+        'showCopyHtmlButton',
+        defaults.exportOptions.showCopyHtmlButton,
+      ),
+      showPageNavigation: getBooleanSetting(
+        value.exportOptions,
+        'showPageNavigation',
+        defaults.exportOptions.showPageNavigation,
+      ),
+      showRepositoryLink: getBooleanSetting(
+        value.exportOptions,
+        'showRepositoryLink',
+        defaults.exportOptions.showRepositoryLink,
+      ),
+      separateFiles: getBooleanSetting(
+        value.exportOptions,
+        'separateFiles',
+        getBooleanSetting(value.exportOptions, 'extractImages', defaults.exportOptions.separateFiles),
+      ),
+      repositoryUrl:
+        isRecord(value.exportOptions) && typeof value.exportOptions.repositoryUrl === 'string'
+          ? value.exportOptions.repositoryUrl.trim()
+          : defaults.exportOptions.repositoryUrl,
+      defaultBranch:
+        isRecord(value.exportOptions) && typeof value.exportOptions.defaultBranch === 'string'
+          ? value.exportOptions.defaultBranch.trim() || defaults.exportOptions.defaultBranch
+          : defaults.exportOptions.defaultBranch,
+      markdownRootFileName:
+        isRecord(value.exportOptions) && typeof value.exportOptions.markdownRootFileName === 'string'
+          ? normalizeMarkdownRootFileName(value.exportOptions.markdownRootFileName)
+          : defaults.exportOptions.markdownRootFileName,
+    },
     editorAddons: {
       header: getBooleanSetting(value.editorAddons, 'header', defaults.editorAddons.header),
       list: getBooleanSetting(value.editorAddons, 'list', defaults.editorAddons.list),
@@ -69,7 +122,15 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
       bpmnModeler: getBooleanSetting(value.editorAddons, 'bpmnModeler', defaults.editorAddons.bpmnModeler),
       bpmnPreview: getBooleanSetting(value.editorAddons, 'bpmnPreview', defaults.editorAddons.bpmnPreview),
       userMention: getBooleanSetting(value.editorAddons, 'userMention', defaults.editorAddons.userMention),
-      approvalTable: getBooleanSetting(value.editorAddons, 'approvalTable', defaults.editorAddons.approvalTable),
+      mkdocsAdmonition: getBooleanSetting(
+        value.editorAddons,
+        'mkdocsAdmonition',
+        defaults.editorAddons.mkdocsAdmonition,
+      ),
+      mkdocsTabs: getBooleanSetting(value.editorAddons, 'mkdocsTabs', defaults.editorAddons.mkdocsTabs),
+      mkdocsDetails: getBooleanSetting(value.editorAddons, 'mkdocsDetails', defaults.editorAddons.mkdocsDetails),
+      mkdocsChecklist: getBooleanSetting(value.editorAddons, 'mkdocsChecklist', defaults.editorAddons.mkdocsChecklist),
+      mkdocsGrid: getBooleanSetting(value.editorAddons, 'mkdocsGrid', defaults.editorAddons.mkdocsGrid),
     },
     customEditorAddons: normalizeCustomEditorAddons(value.customEditorAddons),
     apiPrefix: typeof value.apiPrefix === 'string' ? normalizeApiPrefix(value.apiPrefix) : defaults.apiPrefix,
@@ -77,6 +138,13 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
     apiServices: normalizeApiServices(value.apiServices),
     variables: normalizeVariables(value.variables),
   };
+}
+
+export function normalizeMarkdownRootFileName(value: string): string {
+  const source = value.trim().split(/[\\/]/).at(-1)?.trim() ?? '';
+  const sanitized = source.replaceAll(/[\u0000-\u001f<>:"|?*]/g, '-').replaceAll(/^[ .]+|[ .]+$/g, '');
+  const fileName = sanitized && !/^\.+$/.test(sanitized) ? sanitized : 'README.md';
+  return fileName.toLocaleLowerCase().endsWith('.md') ? fileName : `${fileName}.md`;
 }
 
 export function normalizeApiPrefix(value: string): string {
@@ -194,7 +262,9 @@ function escapeHtml(value) {
 }
 
 function getBooleanSetting(value: unknown, key: string, fallback: boolean): boolean {
-  return isRecord(value) && typeof value[key] === 'boolean' ? value[key] : fallback;
+  if (!isRecord(value)) return fallback;
+  const setting = value[key];
+  return typeof setting === 'boolean' ? setting : fallback;
 }
 
 function normalizeApiServices(value: unknown): ApiService[] {
