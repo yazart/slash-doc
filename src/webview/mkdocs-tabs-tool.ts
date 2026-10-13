@@ -1,3 +1,5 @@
+import { iconButton } from './block-editor-view';
+import { createMkDocsContent } from './mkdocs-content';
 import { LUCIDE_ICONS } from './lucide-icons';
 import styles from './mkdocs-widgets.shadow.css?raw';
 import { createMkDocsTab, type MkDocsTab, type MkDocsTabsData } from './mkdocs-widget-types';
@@ -6,10 +8,12 @@ import { createToolSurface } from './tool-surface';
 type ToolArgs = { data?: Partial<MkDocsTabsData> };
 
 export default class MkDocsTabsTool {
+  private headerControls?: HTMLElement;
   private tabs: MkDocsTab[];
   private activeId: string;
   private tabsList?: HTMLDivElement;
   private editor?: HTMLDivElement;
+  private controls?: HTMLElement;
 
   static get toolbox() {
     return { title: 'Вкладки MkDocs', icon: LUCIDE_ICONS.panelsTopLeft };
@@ -30,12 +34,12 @@ export default class MkDocsTabsTool {
     const surface = createToolSurface(styles, 'mkdocs-widget-surface');
     const root = document.createElement('section');
     root.className = 'mkdocs-widget';
-    const header = document.createElement('header');
-    header.className = 'mkdocs-widget-header';
-    header.textContent = 'Вкладки MkDocs';
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.textContent = '+ Вкладка';
+    const header = document.createElement('span');
+    header.className = 'mkdocs-header-controls';
+    this.headerControls = header;
+    this.controls = document.createElement('div');
+    this.controls.className = 'mkdocs-widget-row';
+    const add = iconButton('Добавить вкладку', LUCIDE_ICONS.plus);
     add.addEventListener('click', () => {
       const tab = createMkDocsTab(`Вкладка ${this.tabs.length + 1}`);
       this.tabs.push(tab);
@@ -43,15 +47,20 @@ export default class MkDocsTabsTool {
       this.refresh();
       root.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     });
-    header.append(add);
+    header.append(add, this.controls);
     this.tabsList = document.createElement('div');
     this.tabsList.className = 'mkdocs-tabs-list';
     this.editor = document.createElement('div');
     this.editor.className = 'mkdocs-tab-editor';
-    root.append(header, this.tabsList, this.editor);
+    header.append(this.tabsList);
+    root.append(this.editor);
     surface.content.append(root);
     this.refresh();
     return surface;
+  }
+
+  renderHeaderControls(): HTMLElement {
+    return this.headerControls ?? document.createElement('span');
   }
 
   save(): MkDocsTabsData {
@@ -84,25 +93,22 @@ export default class MkDocsTabsTool {
       tab.title = title.value;
       this.refreshTabLabels();
     });
-    const content = document.createElement('textarea');
-    content.value = tab.content;
-    content.placeholder = 'Содержимое вкладки в Markdown…';
-    content.addEventListener('input', () => (tab.content = content.value));
+    const content = createMkDocsContent(tab.content, 'Содержимое вкладки', (html) => (tab.content = html));
     const actions = document.createElement('div');
     actions.className = 'mkdocs-tab-actions';
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'mkdocs-danger-button';
-    remove.textContent = 'Удалить вкладку';
+    const remove = iconButton('Удалить вкладку', LUCIDE_ICONS.trash2);
+    remove.classList.add('mkdocs-danger-button');
     remove.disabled = this.tabs.length === 1;
     remove.addEventListener('click', () => {
       const index = this.tabs.indexOf(tab);
       this.tabs.splice(index, 1);
       this.activeId = this.tabs[Math.max(0, index - 1)]?.id ?? this.tabs[0].id;
       this.refresh();
+      this.editor?.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     });
     actions.append(remove);
-    this.editor.append(title, content, actions);
+    this.controls?.replaceChildren(title, actions);
+    this.editor.append(content);
   }
 
   private refreshTabLabels(): void {

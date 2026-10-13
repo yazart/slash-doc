@@ -1,4 +1,4 @@
-import type { OutputData } from '@editorjs/editorjs';
+import type { OutputData } from './block-editor-types';
 import { migrateApprovalTableData } from '../shared/approval-table-migration';
 import { removePageTime } from '../shared/page-content';
 import { normalizeParagraphText } from './persistent-paragraph-tool';
@@ -36,7 +36,7 @@ export function preserveInlineMarkup(data: OutputData): OutputData {
   data.blocks.forEach((block, index) => {
     const element = blockElements[index];
     if (!element || !isRecord(block.data)) return;
-    if (block.type === 'paragraph' || block.type === 'header') {
+    if (block.type === 'paragraph' || block.type === 'header' || block.type === 'quote') {
       const editable = element.querySelector<HTMLElement>('.ce-paragraph, .ce-header, [contenteditable="true"]');
       if (editable) {
         block.data.text = block.type === 'paragraph' ? normalizeParagraphText(editable.innerHTML) : editable.innerHTML;

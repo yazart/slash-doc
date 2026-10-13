@@ -1,3 +1,4 @@
+import { createMkDocsContent } from './mkdocs-content';
 import { LUCIDE_ICONS } from './lucide-icons';
 import styles from './mkdocs-widgets.shadow.css?raw';
 import { MKDOCS_ADMONITION_KINDS, type MkDocsAdmonitionData, type MkDocsAdmonitionKind } from './mkdocs-widget-types';
@@ -6,6 +7,7 @@ import { createToolSurface } from './tool-surface';
 type ToolArgs = { data?: Partial<MkDocsAdmonitionData> };
 
 export default class MkDocsAdmonitionTool {
+  private headerControls?: HTMLElement;
   private kind: MkDocsAdmonitionKind;
   private title: string;
   private content: string;
@@ -30,9 +32,9 @@ export default class MkDocsAdmonitionTool {
     const surface = createToolSurface(styles, 'mkdocs-widget-surface');
     const root = document.createElement('section');
     root.className = 'mkdocs-widget';
-    const header = document.createElement('header');
-    header.className = 'mkdocs-widget-header';
-    header.textContent = 'Примечание MkDocs';
+    const header = document.createElement('span');
+    header.className = 'mkdocs-header-controls';
+    this.headerControls = header;
     const row = document.createElement('div');
     row.className = 'mkdocs-widget-row';
     const kind = document.createElement('select');
@@ -59,14 +61,15 @@ export default class MkDocsAdmonitionTool {
     const open = this.createCheck('Открыто', this.open, (checked) => (this.open = checked));
     open.hidden = !this.collapsible;
     row.append(kind, title, collapsible, open);
-    const content = document.createElement('textarea');
-    content.value = this.content;
-    content.placeholder = 'Описание в Markdown…';
-    content.setAttribute('aria-label', 'Текст примечания в Markdown');
-    content.addEventListener('input', () => (this.content = content.value));
-    root.append(header, row, content);
+    const content = createMkDocsContent(this.content, 'Текст примечания', (html) => (this.content = html));
+    header.append(row);
+    root.append(content);
     surface.content.append(root);
     return surface;
+  }
+
+  renderHeaderControls(): HTMLElement {
+    return this.headerControls ?? document.createElement('span');
   }
 
   save(): MkDocsAdmonitionData {

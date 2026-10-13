@@ -131,7 +131,7 @@ body {
   min-width: 960px;
   min-height: calc(100vh - 72px);
   margin: 12px;
-  padding: 28px 0px 0px 64px;
+  padding: 28px;
   border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 7%, transparent);
   border-radius: 6px;
   background: color-mix(in srgb, var(--vscode-editorWidget-background) 35%, var(--vscode-editor-background) #1f1f1f);

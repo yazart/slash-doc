@@ -2,6 +2,7 @@ import './sidebar-base.css';
 import './sidebar-tree.css';
 import './sidebar-settings.css';
 import { collectSettings } from './settings-collector';
+import { bindFaviconSettings } from './favicon-settings';
 import { setupPageTree } from './page-tree';
 import './styled-button';
 import './styled-switch';
@@ -246,7 +247,12 @@ function saveSidebarState() {
 }
 
 function bindSettingsInputs() {
-  document.querySelector('#separate-files')?.addEventListener('change', scheduleSettingsSave);
+  bindFaviconSettings(scheduleSettingsSave);
+  document
+    .querySelectorAll('#separate-files, #show-copy-html-button, #show-page-navigation, #show-repository-link')
+    .forEach((element) => {
+      element.addEventListener('change', scheduleSettingsSave);
+    });
   document.querySelectorAll<HTMLElement>('[data-addon]').forEach((element) => {
     element.addEventListener('change', scheduleSettingsSave);
   });

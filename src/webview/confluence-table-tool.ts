@@ -1,3 +1,5 @@
+import { renderConfluenceTable } from './confluence-table-render';
+import { setTableCellBackground } from './confluence-table-background';
 import { sanitizeTableCellHtml } from '../shared/table-cell-html';
 import { createTextInlineToolbar } from './confluence-table-inline-toolbar';
 import { LUCIDE_ICONS } from './lucide-icons';
@@ -7,7 +9,6 @@ import {
   getSelectedTableCellData,
   installTablePasteTargetCleanup,
   insertTableData,
-  isPointerOverTableText,
   openTableContextMenu,
   startTableCellSelection,
   trackTableResize,
@@ -25,6 +26,9 @@ import {
 import styles from './confluence-table-tool.shadow.css?raw';
 import inlineToolbarStyles from './text-inline-toolbar.css?raw';
 import { createToolSurface } from './tool-surface';
+import { installTableClipboard } from './confluence-table-clipboard';
+import { selectRangeForNode } from './editor-selection';
+import { createTableHeaderControls, pasteTableCellFromClipboard } from './confluence-table-header-controls';
 
 export type { ConfluenceTableData } from './confluence-table-data';
 
@@ -35,13 +39,44 @@ export default class ConfluenceTableTool {
   private selectedColumn = 0;
   private suppressNextClick = false;
   private removePasteTargetCleanup?: () => void;
+  private removeClipboard?: () => void;
   private readonly inlineToolbar;
+  private headerControls?: ReturnType<typeof createTableHeaderControls>;
   static get toolbox() {
     return { title: 'Таблица Confluence', icon: LUCIDE_ICONS.table };
   }
   constructor({ data, config }: ToolArgs) {
     this.data = normalizeTable(data);
     this.inlineToolbar = createTextInlineToolbar(config);
+  }
+
+  renderHeaderControls(): HTMLElement {
+    this.headerControls = createTableHeaderControls({
+      cell: () => this.currentCell(),
+      color: () =>
+        this.data.cellBackgrounds[this.selectedRow]?.[this.selectedColumn] ||
+        this.data.rowBackgrounds[this.selectedRow] ||
+        '',
+      fill: (value) => {
+        const cell = this.currentCell();
+        if (cell && setTableCellBackground(this.wrapper, this.data, cell, value)) this.changed();
+        this.headerControls?.update();
+      },
+      addColumn: () => this.addColumn(this.selectedColumn + 1),
+      deleteColumn: () => this.deleteColumn(),
+      addRow: () => this.addRow(this.selectedRow + 1),
+      deleteRow: () => this.deleteRow(),
+      paste: (cell, text) => this.pasteIntoCell(cell, text, '', Number(cell.dataset.row), Number(cell.dataset.column)),
+    });
+    return this.headerControls.element;
+  }
+
+  private currentCell(): HTMLElement | undefined {
+    return (
+      this.wrapper?.querySelector<HTMLElement>(
+        `.ct-cell[data-row="${this.selectedRow}"][data-column="${this.selectedColumn}"]`,
+      ) ?? undefined
+    );
   }
 
   render(): HTMLElement {
@@ -51,6 +86,11 @@ export default class ConfluenceTableTool {
     wrapper.innerHTML = CONFLUENCE_TABLE_TEMPLATE;
     wrapper.prepend(this.inlineToolbar.element);
     this.wrapper = wrapper;
+    this.removeClipboard = installTableClipboard(wrapper, {
+      paste: (cell, text, html) =>
+        this.pasteIntoCell(cell, text, html, Number(cell.dataset.row), Number(cell.dataset.column)),
+      selectText: () => this.clearCellRange(),
+    });
     wrapper.querySelector('.ct-menu')?.addEventListener('click', (event) => this.handleMenuAction(event));
     wrapper.addEventListener('keydown', (event) => {
       if (
@@ -71,15 +111,6 @@ export default class ConfluenceTableTool {
       if (event.target instanceof HTMLElement && event.target.isContentEditable) event.stopPropagation();
     });
     wrapper.addEventListener('copy', (event) => this.copySelectedCells(event), true);
-    wrapper.addEventListener(
-      'paste',
-      (event) => {
-        const cell = (event.target as HTMLElement | null)?.closest<HTMLElement>('.ct-cell');
-        if (!cell) return;
-        this.pasteTable(event, Number(cell.dataset.row), Number(cell.dataset.column));
-      },
-      true,
-    );
     this.removePasteTargetCleanup = installTablePasteTargetCleanup(wrapper);
     this.renderTable();
     surface.content.append(wrapper);
@@ -91,95 +122,33 @@ export default class ConfluenceTableTool {
   }
 
   destroy(): void {
+    this.inlineToolbar.destroy();
     this.removePasteTargetCleanup?.();
+    this.removeClipboard?.();
   }
 
   private renderTable(): void {
-    if (window.__SLASH_DOC_TABLE_PASTE_TARGET__?.owner === this.wrapper) {
-      delete window.__SLASH_DOC_TABLE_PASTE_TARGET__;
-    }
-    const body = this.wrapper?.querySelector<HTMLTableSectionElement>('.ct-table tbody');
-    const columns = this.wrapper?.querySelector<HTMLTableColElement>('.ct-table colgroup');
-    if (!body || !columns) return;
-    body.replaceChildren();
-    columns.replaceChildren();
-    const columnCount = this.data.rows[0]?.length ?? 1;
-    for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
-      const column = document.createElement('col');
-      const width = this.data.columnWidths[columnIndex] ?? 0;
-      if (width > 0) column.style.width = `${width}px`;
-      columns.append(column);
-    }
-    this.data.rows.forEach((row, rowIndex) => {
-      const tr = document.createElement('tr');
-      const rowHeight = this.data.rowHeights[rowIndex] ?? 0;
-      if (rowHeight > 0) tr.style.height = `${rowHeight}px`;
-      row.forEach((value, columnIndex) => {
-        const isHeader = (this.data.headerRow && rowIndex === 0) || (this.data.headerColumn && columnIndex === 0);
-        const cell = document.createElement(isHeader ? 'th' : 'td');
-        const editor = document.createElement('div');
-        editor.className = 'ct-cell';
-        editor.contentEditable = 'true';
-        editor.tabIndex = 0;
-        editor.spellcheck = true;
-        editor.innerHTML = sanitizeTableCellHtml(value);
-        const fixedWidth = this.data.columnWidths[columnIndex] ?? 0;
-        if (fixedWidth > 0) {
-          editor.style.width = `${fixedWidth}px`;
-          editor.style.whiteSpace = 'pre-wrap';
-          editor.style.overflowWrap = 'anywhere';
-        }
-        editor.dataset.row = String(rowIndex);
-        editor.dataset.column = String(columnIndex);
-        const paste = (text: string, html: string) => {
-          this.pasteIntoCell(editor, text, html, rowIndex, columnIndex);
-        };
-        (editor as HTMLElement & { __slashDocPasteTable?: (text: string, html: string) => void }).__slashDocPasteTable =
-          paste;
-        if (rowIndex === this.selectedRow && columnIndex === this.selectedColumn) editor.classList.add('selected');
-        editor.addEventListener('pointerdown', (event) => {
-          if (event.button !== 0) return;
-          event.stopPropagation();
-          editor.focus();
-          this.selectCell(rowIndex, columnIndex, editor, paste);
-          if (!isPointerOverTableText(editor, event)) this.startCellSelection(event, rowIndex, columnIndex);
-        });
-        editor.addEventListener('focus', () => this.selectCell(rowIndex, columnIndex, editor, paste));
-        this.inlineToolbar.bindCell(editor);
-        editor.addEventListener('click', (event) => {
-          event.stopPropagation();
-          if (this.suppressNextClick) {
-            this.suppressNextClick = false;
-            return;
-          }
-          this.selectCell(rowIndex, columnIndex, editor, paste);
-        });
-        editor.addEventListener('input', () => {
-          this.data.rows[rowIndex][columnIndex] = sanitizeTableCellHtml(editor.innerHTML);
-          this.changed();
-        });
-        editor.addEventListener('contextmenu', (event) => {
-          event.preventDefault();
-          this.selectCell(rowIndex, columnIndex, editor);
-          this.openContextMenu(event.clientX, event.clientY);
-        });
-        cell.append(editor);
-        if (rowIndex === 0) {
-          const resize = document.createElement('span');
-          resize.className = 'ct-column-resize';
-          resize.addEventListener('pointerdown', (event) => this.resizeColumn(event, columnIndex));
-          cell.append(resize);
-        }
-        if (columnIndex === 0) {
-          const resize = document.createElement('span');
-          resize.className = 'ct-row-resize';
-          resize.addEventListener('pointerdown', (event) => this.resizeRow(event, rowIndex));
-          cell.append(resize);
-        }
-        tr.append(cell);
-      });
-      body.append(tr);
+    renderConfluenceTable({
+      wrapper: this.wrapper,
+      data: this.data,
+      selectedRow: this.selectedRow,
+      selectedColumn: this.selectedColumn,
+      inlineToolbar: this.inlineToolbar,
+      selectCell: (...args) => this.selectCell(...args),
+      pasteIntoCell: (...args) => this.pasteIntoCell(...args),
+      startCellSelection: (...args) => this.startCellSelection(...args),
+      consumeSuppressedClick: () => {
+        const suppressed = this.suppressNextClick;
+        this.suppressNextClick = false;
+        return suppressed;
+      },
+      changed: () => this.changed(),
+      openContextMenu: (...args) => this.openContextMenu(...args),
+      resizeColumn: (...args) => this.resizeColumn(...args),
+      resizeRow: (...args) => this.resizeRow(...args),
     });
+    this.headerControls?.update();
+    if (this.wrapper?.isConnected) this.currentCell()?.focus();
   }
 
   private selectCell(
@@ -193,6 +162,7 @@ export default class ConfluenceTableTool {
     this.clearCellRange();
     this.wrapper?.querySelectorAll('.ct-cell.selected').forEach((item) => item.classList.remove('selected'));
     editor.classList.add('selected');
+    this.headerControls?.update();
     if (this.wrapper && paste) {
       window.__SLASH_DOC_TABLE_PASTE_TARGET__ = { owner: this.wrapper, paste };
     }
@@ -268,9 +238,13 @@ export default class ConfluenceTableTool {
   private deleteRow(): void {
     if (this.data.rows.length === 1) {
       this.data.rows[0].fill('');
+      this.data.rowBackgrounds[0] = '';
+      this.data.cellBackgrounds[0].fill('');
     } else {
       this.data.rows.splice(this.selectedRow, 1);
       this.data.rowHeights.splice(this.selectedRow, 1);
+      this.data.rowBackgrounds.splice(this.selectedRow, 1);
+      this.data.cellBackgrounds.splice(this.selectedRow, 1);
       this.selectedRow = Math.min(this.selectedRow, this.data.rows.length - 1);
     }
     this.changed();
@@ -281,8 +255,10 @@ export default class ConfluenceTableTool {
     const columns = this.data.rows[0]?.length ?? 1;
     if (columns === 1) {
       for (const row of this.data.rows) row[0] = '';
+      for (const row of this.data.cellBackgrounds) row[0] = '';
     } else {
       for (const row of this.data.rows) row.splice(this.selectedColumn, 1);
+      for (const row of this.data.cellBackgrounds) row.splice(this.selectedColumn, 1);
       this.data.columnWidths.splice(this.selectedColumn, 1);
       this.selectedColumn = Math.min(this.selectedColumn, columns - 2);
     }
@@ -314,15 +290,10 @@ export default class ConfluenceTableTool {
       this.renderTable();
     }
     if (action === 'paste') {
-      const row = this.selectedRow;
-      const column = this.selectedColumn;
-      const editor = this.wrapper?.querySelector<HTMLElement>(`.ct-cell[data-row="${row}"][data-column="${column}"]`);
-      if (editor && window.__SLASH_DOC_READ_CLIPBOARD__) {
-        void window
-          .__SLASH_DOC_READ_CLIPBOARD__()
-          .then((text) => this.pasteIntoCell(editor, text, '', row, column))
-          .catch(() => undefined);
-      }
+      void pasteTableCellFromClipboard(
+        () => this.currentCell(),
+        (cell, text) => this.pasteIntoCell(cell, text, '', Number(cell.dataset.row), Number(cell.dataset.column)),
+      );
     }
   }
 
@@ -364,33 +335,36 @@ export default class ConfluenceTableTool {
     );
   }
 
-  private pasteTable(event: ClipboardEvent, startRow: number, startColumn: number): void {
-    const clipboard = event.clipboardData;
-    const text = clipboard?.getData('text/plain') ?? '';
-    const html = clipboard?.getData('text/html') ?? '';
-    const pasted = readClipboardTable(text, html);
-    if (!pasted) return;
-    event.preventDefault();
-    event.stopPropagation();
-    this.insertTableData(pasted, startRow, startColumn);
-  }
-
   private pasteIntoCell(editor: HTMLElement, text: string, html: string, row: number, column: number): void {
+    if (!editor.isConnected || !editor.isContentEditable) return;
     const pasted = readClipboardTable(text, html);
     if (pasted) {
       this.insertTableData(pasted, row, column);
       return;
     }
     editor.focus();
-    insertTextAtSelection(editor, text);
+    insertTextAtSelection(editor, text, html);
     this.data.rows[row][column] = sanitizeTableCellHtml(editor.innerHTML);
     this.changed();
   }
 
   private insertTableData(pasted: string[][], startRow: number, startColumn: number): void {
     insertTableData(this.data, pasted, startRow, startColumn);
+    this.selectedRow = startRow;
+    this.selectedColumn = startColumn;
     this.changed();
     this.renderTable();
+    const cell = this.wrapper?.querySelector<HTMLElement>(
+      `.ct-cell[data-row="${startRow}"][data-column="${startColumn}"]`,
+    );
+    if (cell) {
+      cell.focus();
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      range.collapse(false);
+      selectRangeForNode(cell, range);
+      this.inlineToolbar.captureSelection(cell);
+    }
   }
 
   private changed(): void {

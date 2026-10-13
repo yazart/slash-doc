@@ -1,3 +1,4 @@
+import { createMkDocsContent } from './mkdocs-content';
 import { LUCIDE_ICONS } from './lucide-icons';
 import type { MkDocsDetailsData } from './mkdocs-widget-types';
 import styles from './mkdocs-widgets.shadow.css?raw';
@@ -6,6 +7,7 @@ import { createToolSurface } from './tool-surface';
 type ToolArgs = { data?: Partial<MkDocsDetailsData> };
 
 export default class MkDocsDetailsTool {
+  private headerControls?: HTMLElement;
   private summary: string;
   private content: string;
   private open: boolean;
@@ -24,9 +26,9 @@ export default class MkDocsDetailsTool {
     const surface = createToolSurface(styles, 'mkdocs-widget-surface');
     const root = document.createElement('section');
     root.className = 'mkdocs-widget';
-    const header = document.createElement('header');
-    header.className = 'mkdocs-widget-header';
-    header.textContent = 'Раскрываемый блок';
+    const header = document.createElement('span');
+    header.className = 'mkdocs-header-controls';
+    this.headerControls = header;
     const row = document.createElement('div');
     row.className = 'mkdocs-widget-row';
     const summary = document.createElement('input');
@@ -42,14 +44,19 @@ export default class MkDocsDetailsTool {
     open.addEventListener('change', () => (this.open = open.checked));
     openLabel.append(open, document.createTextNode('Открыт по умолчанию'));
     row.append(summary, openLabel);
-    const content = document.createElement('textarea');
-    content.value = this.content;
-    content.placeholder = 'Содержимое в Markdown…';
-    content.setAttribute('aria-label', 'Содержимое раскрываемого блока в Markdown');
-    content.addEventListener('input', () => (this.content = content.value));
-    root.append(header, row, content);
+    const content = createMkDocsContent(
+      this.content,
+      'Содержимое раскрываемого блока',
+      (html) => (this.content = html),
+    );
+    header.append(row);
+    root.append(content);
     surface.content.append(root);
     return surface;
+  }
+
+  renderHeaderControls(): HTMLElement {
+    return this.headerControls ?? document.createElement('span');
   }
 
   save(): MkDocsDetailsData {

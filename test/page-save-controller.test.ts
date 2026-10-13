@@ -1,4 +1,4 @@
-import type { OutputData } from '@editorjs/editorjs';
+import type { OutputData } from '../src/webview/block-editor-types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPageSaveController, type PageSaveStatus } from '../src/webview/page-save-controller';
 

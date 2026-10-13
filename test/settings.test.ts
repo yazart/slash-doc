@@ -1,7 +1,33 @@
 import { describe, expect, it } from 'vitest';
 import { getDefaultSettings, normalizeSettings } from '../src/extension/settings';
+import { normalizeFavicon } from '../src/shared/favicon';
 
 describe('export settings', () => {
+  it('keeps the repository sidebar link optional and disabled by default', () => {
+    expect(getDefaultSettings().exportOptions.showRepositoryLink).toBe(false);
+    expect(normalizeSettings({ exportOptions: { showRepositoryLink: true } }).exportOptions.showRepositoryLink).toBe(
+      true,
+    );
+    expect(normalizeSettings({ exportOptions: { showRepositoryLink: 'true' } }).exportOptions.showRepositoryLink).toBe(
+      false,
+    );
+  });
+  it('persists uploaded favicon data and rejects unsupported URLs', () => {
+    const favicon = 'data:image/png;base64,aGVsbG8=';
+    expect(getDefaultSettings().exportOptions.favicon).toBe('');
+    expect(normalizeSettings({ exportOptions: { favicon } }).exportOptions.favicon).toBe(favicon);
+    expect(normalizeFavicon('javascript:alert(1)')).toBe('');
+    expect(normalizeFavicon('https://example.com/icon.png')).toBe('');
+  });
+  it('keeps HTML copying enabled and document pagination optional', () => {
+    expect(getDefaultSettings().exportOptions).toMatchObject({ showCopyHtmlButton: true, showPageNavigation: false });
+    expect(
+      normalizeSettings({ exportOptions: { showCopyHtmlButton: false, showPageNavigation: true } }).exportOptions,
+    ).toMatchObject({ showCopyHtmlButton: false, showPageNavigation: true });
+    expect(
+      normalizeSettings({ exportOptions: { showCopyHtmlButton: 'false', showPageNavigation: null } }).exportOptions,
+    ).toMatchObject({ showCopyHtmlButton: true, showPageNavigation: false });
+  });
   it('keeps document files embedded by default', () => {
     expect(getDefaultSettings().exportOptions.separateFiles).toBe(false);
     expect(normalizeSettings({ version: 1 }).exportOptions.separateFiles).toBe(false);

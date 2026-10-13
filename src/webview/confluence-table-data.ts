@@ -1,4 +1,6 @@
+import { insertRichText } from './rich-text-paste';
 import { sanitizeTableCellHtml, tableCellHtmlToText } from '../shared/table-cell-html';
+import { normalizeHexColor } from '../shared/inline-colors';
 
 export type ConfluenceTableData = {
   rows: string[][];
@@ -6,6 +8,8 @@ export type ConfluenceTableData = {
   headerColumn: boolean;
   columnWidths: number[];
   rowHeights: number[];
+  rowBackgrounds: string[];
+  cellBackgrounds: string[][];
 };
 
 type LegacyTableData = {
@@ -24,12 +28,19 @@ export type ToolArgs = {
 declare global {
   interface Window {
     __SLASH_DOC_READ_CLIPBOARD__?: () => Promise<string>;
-    __SLASH_DOC_WRITE_CLIPBOARD__?: (text: string) => void;
+    __SLASH_DOC_WRITE_CLIPBOARD__?: (text: string) => void | Promise<void>;
     __SLASH_DOC_TABLE_PASTE_TARGET__?: {
       owner: HTMLElement;
       paste(text: string, html: string): void;
     };
   }
+}
+
+export function createTableRows(content = ''): string[][] {
+  return [
+    [content, ''],
+    ['', ''],
+  ];
 }
 
 export function normalizeTable(
@@ -42,20 +53,20 @@ export function normalizeTable(
     .filter(Array.isArray)
     .map((row) => row.map((cell) => sanitizeTableCellHtml(String(cell ?? ''))));
   const columns = Math.max(1, ...rows.map((row) => row.length));
-  const normalizedRows = (
-    rows.length > 0
-      ? rows
-      : [
-          ['', ''],
-          ['', ''],
-        ]
-  ).map((row) => [...row, ...Array.from({ length: Math.max(0, columns - row.length) }, () => '')]);
+  const normalizedRows = (rows.length > 0 ? rows : createTableRows()).map((row) => [
+    ...row,
+    ...Array.from({ length: Math.max(0, columns - row.length) }, () => ''),
+  ]);
   return {
     rows: normalizedRows,
     headerRow: typeof value?.headerRow === 'boolean' ? value.headerRow : value?.withHeadings === true,
     headerColumn: value?.headerColumn === true,
     columnWidths: normalizeSizes(value?.columnWidths, normalizedRows[0]?.length ?? 1),
     rowHeights: normalizeSizes(value?.rowHeights, normalizedRows.length),
+    rowBackgrounds: normalizedRows.map((_, index) => normalizeHexColor(value?.rowBackgrounds?.[index])),
+    cellBackgrounds: normalizedRows.map((row, rowIndex) =>
+      row.map((_, columnIndex) => normalizeHexColor(value?.cellBackgrounds?.[rowIndex]?.[columnIndex])),
+    ),
   };
 }
 
@@ -75,6 +86,12 @@ export function insertTableRow(data: ConfluenceTableData, index: number): number
     Array.from({ length: columns }, () => ''),
   );
   data.rowHeights.splice(target, 0, 0);
+  data.rowBackgrounds.splice(target, 0, '');
+  data.cellBackgrounds.splice(
+    target,
+    0,
+    Array.from({ length: columns }, () => ''),
+  );
   return target;
 }
 
@@ -82,6 +99,7 @@ export function insertTableColumn(data: ConfluenceTableData, index: number): num
   const columns = data.rows[0]?.length ?? 1;
   const target = Math.max(0, Math.min(index, columns));
   for (const row of data.rows) row.splice(target, 0, '');
+  for (const row of data.cellBackgrounds) row.splice(target, 0, '');
   data.columnWidths.splice(target, 0, 0);
   return target;
 }
@@ -99,6 +117,7 @@ export function readClipboardTable(text: string, html: string): string[][] | und
     if (rows.length > 0) return rows;
   }
 
+  if (html) return undefined;
   const lines = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').replace(/\n$/, '').split('\n');
   if (lines.length >= 2 && /^\s*```/.test(lines[0]) && /^\s*```\s*$/.test(lines.at(-1) ?? '')) {
     lines.shift();
@@ -109,20 +128,8 @@ export function readClipboardTable(text: string, html: string): string[][] | und
   return normalized.split('\n').map((line) => line.split('\t'));
 }
 
-export function insertTextAtSelection(editor: HTMLElement, text: string): void {
-  const selection = window.getSelection();
-  const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
-  if (!selection || !range || !editor.contains(range.commonAncestorContainer)) {
-    editor.append(document.createTextNode(text));
-    return;
-  }
-  range.deleteContents();
-  const node = document.createTextNode(text);
-  range.insertNode(node);
-  range.setStartAfter(node);
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
+export function insertTextAtSelection(editor: HTMLElement, text: string, html = ''): void {
+  insertRichText(editor, text, html);
 }
 
 export function normalizeClipboardText(value: string): string {

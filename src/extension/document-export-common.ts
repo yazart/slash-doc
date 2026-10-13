@@ -1,3 +1,6 @@
+import { readInlineColors } from '../shared/inline-colors';
+import { sanitizeTableCellHtml } from '../shared/table-cell-html';
+import { textHeadingLevel } from '../shared/text-block';
 import { escapeAttribute, isRecord, stripHtml } from './utils';
 import { resolveBpmnSvgDimensions } from './bpmn-export-dimensions';
 
@@ -62,7 +65,7 @@ export function getEditorBlocks(data: unknown): Record<string, unknown>[] {
 }
 
 export function getExportTitle(blocks: Record<string, unknown>[]): string {
-  const firstHeader = blocks.find((block) => block.type === 'header' && isRecord(block.data));
+  const firstHeader = blocks.find((block) => textHeadingLevel(block) > 0 && isRecord(block.data));
   const text =
     firstHeader && isRecord(firstHeader.data) && typeof firstHeader.data.text === 'string'
       ? stripHtml(firstHeader.data.text).trim()
@@ -93,31 +96,38 @@ export function clampHeadingLevel(value: unknown): number {
 
 export function htmlToMarkdownInline(value: string): string {
   const colorSpans: string[] = [];
-  const formatted = value
+  let formatted = value
     .replaceAll(/<b>(.*?)<\/b>/g, '**$1**')
     .replaceAll(/<strong>(.*?)<\/strong>/g, '**$1**')
     .replaceAll(/<i>(.*?)<\/i>/g, '_$1_')
     .replaceAll(/<em>(.*?)<\/em>/g, '_$1_')
     .replaceAll(/<code\b[^>]*>(.*?)<\/code>/gis, (_match, content: string) => markdownInlineCode(content))
     .replaceAll(/<mark[^>]*>(.*?)<\/mark>/g, '==$1==')
-    .replaceAll(/<span\b([^>]*)>(.*?)<\/span>/gis, (_match, attributes: string, content: string) => {
-      if (readInlineAttribute(attributes, 'class').split(/\s+/).includes('inline-code')) {
-        return markdownInlineCode(content);
-      }
-      const color = readInlineTextColor(attributes);
-      if (!color) return content;
-      const index = colorSpans.push(`<span style="color:${color}">${content}</span>`) - 1;
-      return `SLASHDOCCOLOR${index}TOKEN`;
-    })
     .replaceAll(/<a\b([^>]*)>(.*?)<\/a>/gis, (_match, attributes: string, content: string) => {
       const pageId = readInlineAttribute(attributes, 'data-page-id');
       const href = pageId ? `slash-doc://page/${encodeURIComponent(pageId)}` : readInlineAttribute(attributes, 'href');
       if (!href) return content;
       return `[${content}](${href.replaceAll(' ', '%20').replaceAll(')', '%29')})`;
     });
-  return stripHtml(formatted).replaceAll(
-    /SLASHDOCCOLOR(\d+)TOKEN/g,
-    (_match, index: string) => colorSpans[Number(index)] ?? '',
+  const spanPattern = /<span\b([^>]*)>((?:(?!<span\b)[\s\S])*?)<\/span>/gi;
+  while (/<span\b/i.test(formatted)) {
+    const previous = formatted;
+    formatted = formatted.replaceAll(spanPattern, (_match, attributes: string, content: string) => {
+      const { color, background } = readInlineColors(attributes);
+      if (readInlineAttribute(attributes, 'class').split(/\s+/).includes('inline-code'))
+        content = markdownInlineCode(content);
+      if (!color && !background) return content;
+      const styles = [color ? `color:${color}` : '', background ? `background-color:${background}` : '']
+        .filter(Boolean)
+        .join(';');
+      const index = colorSpans.push(`<span style="${styles}">${content}</span>`) - 1;
+      return `SLASHDOCCOLOR${index}TOKEN`;
+    });
+    if (previous === formatted) break;
+  }
+  return colorSpans.reduceRight(
+    (result, span, index) => result.replaceAll(`SLASHDOCCOLOR${index}TOKEN`, span),
+    stripHtml(formatted),
   );
 }
 
@@ -135,8 +145,8 @@ function readInlineAttribute(attributes: string, name: string): string {
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
 }
 
-function readInlineTextColor(attributes: string): string | undefined {
-  const dataColor = /\bdata-slash-text-color\s*=\s*["'](#[0-9a-f]{6})["']/i.exec(attributes)?.[1];
-  const styleColor = /\bstyle\s*=\s*["'][^"']*\bcolor\s*:\s*(#[0-9a-f]{6})\b[^"']*["']/i.exec(attributes)?.[1];
-  return (dataColor ?? styleColor)?.toLowerCase();
+export function tableCellToMarkdown(value: string): string {
+  return (/<(?:ul|ol)\b/i.test(value) ? sanitizeTableCellHtml(value) : htmlToMarkdownInline(value))
+    .replaceAll('|', '\\|')
+    .replaceAll(/\r?\n/g, '<br>');
 }

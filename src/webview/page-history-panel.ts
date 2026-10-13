@@ -1,4 +1,4 @@
-import EditorJS, { type OutputData } from '@editorjs/editorjs';
+import SlashDocEditor, { type OutputData } from './block-editor';
 import type { EditorTools } from './editor-tool-registry';
 import { LUCIDE_ICONS } from './lucide-icons';
 import { normalizeEditorData } from './editor-data';
@@ -17,7 +17,7 @@ export function installPageHistoryPanel(tools: EditorTools, postMessage: Message
   document.body.append(view.overlay);
   const versions = new Map<string, OutputData>();
   const pending = new Map<string, { resolve(value: unknown): void; reject(error: Error): void }>();
-  let viewer: EditorJS | undefined;
+  let viewer: SlashDocEditor | undefined;
   let commitsLoaded = false;
   let activeMode: 'history' | 'comparison' = 'history';
 
@@ -52,7 +52,15 @@ export function installPageHistoryPanel(tools: EditorTools, postMessage: Message
       viewer.destroy();
       viewer = undefined;
     }
-    viewer = new EditorJS({ holder: view.viewer, tools, data, minHeight: 0, autofocus: false, inlineToolbar: false });
+    viewer = new SlashDocEditor({
+      holder: view.viewer,
+      tools,
+      data,
+      minHeight: 0,
+      autofocus: false,
+      inlineToolbar: false,
+      readOnly: true,
+    });
     await viewer.isReady;
     view.viewer.setAttribute('aria-readonly', 'true');
     view.viewer.querySelectorAll<HTMLElement>('[contenteditable="true"]').forEach((item) => {
@@ -175,8 +183,8 @@ function renderTextDiff(block: HTMLElement, entry: PageBlockDiffEntry): void {
     output.append(element);
   }
   const textElement =
-    entry.block.type === 'paragraph' || entry.block.type === 'header'
-      ? block.querySelector<HTMLElement>('.ce-paragraph, .ce-header')
+    entry.block.type === 'paragraph' || entry.block.type === 'header' || entry.block.type === 'quote'
+      ? block.querySelector<HTMLElement>('.ce-paragraph, .ce-header, .ce-quote')
       : undefined;
   if (textElement) textElement.replaceChildren(output);
   else block.querySelector<HTMLElement>('.ce-block__content')?.append(output);

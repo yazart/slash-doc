@@ -6,6 +6,8 @@ import {
   markdownTableToRows,
 } from './document-import-common';
 import { migrateApprovalTableData } from '../shared/approval-table-migration';
+import { importHtmlBlocks } from './document-import-html';
+import { readMkDocsGridMarkdown } from './document-import-grid';
 import {
   importedCodeLanguage,
   readApiEndpointHtml,
@@ -37,6 +39,14 @@ export function importMarkdownBlocks(markdown: string): Record<string, unknown>[
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const trimmed = line.trim();
+
+    const grid = readMkDocsGridMarkdown(lines, index);
+    if (grid) {
+      flushParagraph();
+      blocks.push(createEditorBlock('mkdocsGrid', grid.data));
+      index = grid.endIndex;
+      continue;
+    }
 
     if (trimmed.startsWith('<details') && trimmed.includes('data-slash-doc-mkdocs-details=')) {
       const html = [line];
@@ -118,6 +128,13 @@ export function importMarkdownBlocks(markdown: string): Record<string, unknown>[
     }
 
     const codeFence = /^(`{3,})\s*([^\s`]*)\s*$/.exec(trimmed);
+    if (/^<(?:table|div)\b/i.test(trimmed) && /<table\b/i.test(trimmed)) {
+      flushParagraph();
+      const html = [line];
+      while (!html.at(-1)?.includes('</table>') && index + 1 < lines.length) html.push(lines[++index]);
+      blocks.push(...importHtmlBlocks(html.join('\n')));
+      continue;
+    }
 
     if (codeFence) {
       flushParagraph();
@@ -151,12 +168,24 @@ export function importMarkdownBlocks(markdown: string): Record<string, unknown>[
       continue;
     }
 
+    if (/^>\s?/.test(trimmed)) {
+      flushParagraph();
+      const quote: string[] = [];
+      while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
+        quote.push(markdownInlineToHtml(lines[index].trim().replace(/^>\s?/, '')));
+        index += 1;
+      }
+      index -= 1;
+      blocks.push(createEditorBlock('quote', { text: quote.join('<br>') }));
+      continue;
+    }
+
     const heading = /^(#{1,6})\s+(.+)$/.exec(trimmed);
 
     if (heading) {
       flushParagraph();
       blocks.push(
-        createEditorBlock('header', {
+        createEditorBlock('paragraph', {
           text: markdownInlineToHtml(heading[2].trim()),
           level: heading[1].length,
         }),

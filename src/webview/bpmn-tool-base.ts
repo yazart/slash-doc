@@ -17,7 +17,7 @@ export abstract class BpmnToolBase {
     };
   }
 
-  protected createRoot(className: string, titleText: string): HTMLDivElement {
+  protected createRoot(className: string): HTMLDivElement {
     this.surface = createToolSurface(styles, 'slash-bpmn-surface', true);
     const root = document.createElement('div');
     root.className = `slash-bpmn-tool ${className}`;
@@ -27,20 +27,21 @@ export abstract class BpmnToolBase {
       }
     });
 
-    const header = document.createElement('div');
-    header.className = 'slash-bpmn-header';
-    const title = document.createElement('strong');
-    title.textContent = titleText;
     this.status = document.createElement('div');
     this.status.className = 'slash-bpmn-status';
-    header.append(title, this.status);
 
     this.canvas = document.createElement('div');
     this.canvas.className = 'slash-bpmn-canvas';
-    root.append(header, this.canvas);
+    root.append(this.status, this.canvas);
     this.surface.content.append(root);
     this.root = root;
     return root;
+  }
+
+  renderHeaderControls(): HTMLElement {
+    const controls = document.createElement('span');
+    if (this.status) controls.append(this.status);
+    return controls;
   }
 
   protected renderedSurface(fallback: HTMLElement): HTMLElement {

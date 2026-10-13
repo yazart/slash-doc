@@ -28,14 +28,8 @@ export default class DiffBlockTool {
     const surface = createToolSurface(styles, 'slash-code-surface');
     const root = document.createElement('div');
     root.className = 'slash-code-tool slash-diff-tool';
-    const toolbar = document.createElement('div');
-    toolbar.className = 'slash-code-toolbar';
-    const title = document.createElement('span');
-    title.className = 'slash-code-title';
-    title.textContent = 'Diff';
-    toolbar.append(title);
     this.editor = new HighlightedCodeEditor(this.source, 'diff', 'Изменения в формате diff');
-    root.append(toolbar, this.editor.root);
+    root.append(this.editor.root);
     surface.content.append(root);
     return surface;
   }

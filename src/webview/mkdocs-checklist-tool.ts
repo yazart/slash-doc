@@ -1,3 +1,5 @@
+import { iconButton } from './block-editor-view';
+import { createMkDocsContent } from './mkdocs-content';
 import { LUCIDE_ICONS } from './lucide-icons';
 import { createMkDocsChecklistItem, type MkDocsChecklistData, type MkDocsChecklistItem } from './mkdocs-widget-types';
 import styles from './mkdocs-widgets.shadow.css?raw';
@@ -6,8 +8,10 @@ import { createToolSurface } from './tool-surface';
 type ToolArgs = { data?: Partial<MkDocsChecklistData> };
 
 export default class MkDocsChecklistTool {
+  private headerControls?: HTMLElement;
   private items: MkDocsChecklistItem[];
   private list?: HTMLDivElement;
+  private activeIndex = 0;
 
   static get toolbox() {
     return { title: 'Чеклист MkDocs', icon: LUCIDE_ICONS.listChecks };
@@ -22,20 +26,31 @@ export default class MkDocsChecklistTool {
     const surface = createToolSurface(styles, 'mkdocs-widget-surface');
     const root = document.createElement('section');
     root.className = 'mkdocs-widget';
-    const header = document.createElement('header');
-    header.className = 'mkdocs-widget-header';
-    header.textContent = 'Чеклист MkDocs';
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.textContent = '+ Пункт';
+    const header = document.createElement('span');
+    header.className = 'mkdocs-header-controls';
+    this.headerControls = header;
+    const add = iconButton('Добавить пункт', LUCIDE_ICONS.plus);
     add.addEventListener('click', () => this.addItem(this.items.length));
-    header.append(add);
+    header.append(
+      add,
+      this.iconButton('Уменьшить отступ пункта', LUCIDE_ICONS.indentDecrease, () =>
+        this.changeLevel(this.activeIndex, -1),
+      ),
+      this.iconButton('Увеличить отступ пункта', LUCIDE_ICONS.indentIncrease, () =>
+        this.changeLevel(this.activeIndex, 1),
+      ),
+      this.iconButton('Удалить выбранный пункт', LUCIDE_ICONS.trash2, () => this.removeItem(this.activeIndex), true),
+    );
     this.list = document.createElement('div');
     this.list.className = 'mkdocs-checklist';
-    root.append(header, this.list);
+    root.append(this.list);
     surface.content.append(root);
     this.refresh();
     return surface;
+  }
+
+  renderHeaderControls(): HTMLElement {
+    return this.headerControls ?? document.createElement('span');
   }
 
   save(): MkDocsChecklistData {
@@ -44,8 +59,9 @@ export default class MkDocsChecklistTool {
 
   private refresh(focusId?: string): void {
     if (!this.list) return;
+    this.activeIndex = Math.max(0, Math.min(this.activeIndex, this.items.length - 1));
     this.list.replaceChildren(...this.items.map((item, index) => this.renderItem(item, index)));
-    if (focusId) this.list.querySelector<HTMLInputElement>(`[data-checklist-id="${CSS.escape(focusId)}"]`)?.focus();
+    if (focusId) this.list.querySelector<HTMLElement>(`[data-checklist-id="${CSS.escape(focusId)}"]`)?.focus();
   }
 
   private renderItem(item: MkDocsChecklistItem, index: number): HTMLElement {
@@ -60,33 +76,25 @@ export default class MkDocsChecklistTool {
       item.checked = checked.checked;
       this.changed();
     });
-    const text = document.createElement('input');
-    text.type = 'text';
-    text.value = item.text;
-    text.placeholder = 'Текст пункта в Markdown';
-    text.dataset.checklistId = item.id;
-    text.addEventListener('input', () => {
-      item.text = text.value;
+    const text = createMkDocsContent(item.text, 'Текст пункта', (html) => {
+      item.text = html;
       this.changed();
     });
+    text.dataset.checklistId = item.id;
     text.addEventListener('keydown', (event) => this.handleTextKeydown(event, index));
-    row.append(
-      checked,
-      text,
-      this.iconButton('Уменьшить отступ', LUCIDE_ICONS.indentDecrease, () => this.changeLevel(index, -1)),
-      this.iconButton('Увеличить отступ', LUCIDE_ICONS.indentIncrease, () => this.changeLevel(index, 1)),
-      this.iconButton('Удалить пункт', LUCIDE_ICONS.trash2, () => this.removeItem(index), true),
-    );
+    text.addEventListener('focus', () => {
+      this.activeIndex = index;
+      this.list
+        ?.querySelectorAll('.mkdocs-checklist-row')
+        .forEach((element) => element.classList.toggle('mkdocs-checklist-row--active', element === row));
+    });
+    row.append(checked, text);
     return row;
   }
 
   private iconButton(label: string, icon: string, action: () => void, danger = false): HTMLButtonElement {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `mkdocs-icon-button${danger ? ' mkdocs-danger-button' : ''}`;
-    button.title = label;
-    button.setAttribute('aria-label', label);
-    button.innerHTML = icon;
+    const button = iconButton(label, icon);
+    if (danger) button.classList.add('mkdocs-danger-button');
     button.addEventListener('click', action);
     return button;
   }
@@ -96,7 +104,7 @@ export default class MkDocsChecklistTool {
       event.preventDefault();
       event.stopPropagation();
       this.changeLevel(index, event.shiftKey ? -1 : 1);
-    } else if (event.key === 'Enter' && !event.isComposing) {
+    } else if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
       event.preventDefault();
       event.stopPropagation();
       this.addItem(index + 1, this.items[index]?.level ?? 0);

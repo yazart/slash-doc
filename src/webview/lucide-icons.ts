@@ -10,12 +10,36 @@ export function outlineSvgPrimitives(content: string): string {
 }
 
 export const LUCIDE_ICONS = {
+  grid: lucideIcon(
+    '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  ),
+  plus: lucideIcon('<path d="M12 5v14"/><path d="M5 12h14"/>'),
+  columnPlus: lucideIcon(
+    '<rect x="3" y="3" width="12" height="18" rx="2"/><path d="M9 3v18"/><path d="M18 12h6"/><path d="M21 9v6"/>',
+  ),
+  columnMinus: lucideIcon('<rect x="3" y="3" width="12" height="18" rx="2"/><path d="M9 3v18"/><path d="M18 12h6"/>'),
+  rowPlus: lucideIcon(
+    '<rect x="3" y="3" width="18" height="12" rx="2"/><path d="M3 9h18"/><path d="M9 21h6"/><path d="M12 18v6"/>',
+  ),
+  rowMinus: lucideIcon('<rect x="3" y="3" width="18" height="12" rx="2"/><path d="M3 9h18"/><path d="M9 21h6"/>'),
+  gripVertical: lucideIcon(
+    '<circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/>',
+  ),
+  arrowUp: lucideIcon('<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>'),
+  arrowDown: lucideIcon('<path d="m5 12 7 7 7-7"/><path d="M12 5v14"/>'),
+  copy: lucideIcon(
+    '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  ),
+  settings: lucideIcon(
+    '<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8"/><path d="m9 3-1 3-3 1-2 3 2 2-2 2 2 3 3 1 1 3h6l1-3 3-1 2-3-2-2 2-2-2-3-3-1-1-3Z"/>',
+  ),
   bold: lucideIcon('<path d="M14 12a4 4 0 0 0 0-8H6v8"/><path d="M15 20a4 4 0 0 0 0-8H6v8Z"/>'),
   italic: lucideIcon(
     '<line x1="19" x2="10" y1="4" y2="4"/><line x1="14" x2="5" y1="20" y2="20"/><line x1="15" x2="9" y1="4" y2="20"/>',
   ),
   pilcrow: lucideIcon('<path d="M13 4v16"/><path d="M17 4v16"/><path d="M19 4H9.5a4.5 4.5 0 0 0 0 9H13"/>'),
   heading: lucideIcon('<path d="M6 12h12"/><path d="M6 20V4"/><path d="M18 20V4"/>'),
+  quote: lucideIcon('<path d="M3 21c3 0 7-3 7-8V3H2v10h8"/><path d="M14 21c3 0 7-3 7-8V3h-8v10h8"/>'),
   list: lucideIcon(
     '<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
   ),

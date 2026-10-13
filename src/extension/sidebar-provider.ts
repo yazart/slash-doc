@@ -250,7 +250,7 @@ export class SlashDocSidebarProvider implements vscode.WebviewViewProvider {
     await initializeDocumentation(this.extensionUri, true);
 
     const name = await vscode.window.showInputBox({
-      prompt: 'Название Editor.js аддона',
+      prompt: 'Название аддона редактора',
       value: 'customTool',
       valueSelection: [0, 'customTool'.length],
     });

@@ -6,6 +6,9 @@ import { getDocumentationSearchText } from './documentation-search-text';
 import { readMenu, readPageContent } from './pages';
 import { readSettings } from './settings-store';
 import { flattenPages, prepareCompiledPage, renderHostHtml } from './site-renderer';
+import { compiledPageOptions } from './site-navigation';
+import { attachClipboardImages } from './site-copy-html';
+import { withCompiledFavicon } from './site-favicon';
 import { readPageRevisionMetadata, resolvePageRevisionFile, resolvePageYamlFile } from '../shared/page-revision';
 
 export type CompiledDocumentation = {
@@ -43,11 +46,15 @@ export async function compileDocumentationSite(
       page.id,
       pageIds,
       revision,
+      compiledPageOptions(pages, page.id, settings.exportOptions),
     );
     const result = settings.exportOptions.separateFiles
       ? extractEmbeddedImages(exported, `${page.id}-image`)
       : { content: exported, images: [] };
-    await writeText(vscode.Uri.joinPath(pagesRoot, `${page.id}.html`), result.content);
+    await writeText(
+      vscode.Uri.joinPath(pagesRoot, `${page.id}.html`),
+      withCompiledFavicon(attachClipboardImages(result.content, result.images), settings.exportOptions.favicon),
+    );
     await Promise.all(
       result.images.map((image) =>
         vscode.workspace.fs.writeFile(vscode.Uri.joinPath(pagesRoot, image.fileName), image.data),
@@ -57,7 +64,17 @@ export async function compileDocumentationSite(
 
   const projectName = workspaceRoot.path.split('/').filter(Boolean).at(-1) ?? 'Документация';
   const indexUri = vscode.Uri.joinPath(outputRoot, 'index.html');
-  await writeText(indexUri, renderHostHtml(projectName, menu.items, pages[0]?.id, searchIndex));
+  await writeText(
+    indexUri,
+    renderHostHtml(
+      projectName,
+      menu.items,
+      pages[0]?.id,
+      searchIndex,
+      settings.exportOptions.favicon,
+      settings.exportOptions,
+    ),
+  );
   return { indexUri, pageCount: pages.length };
 }
 

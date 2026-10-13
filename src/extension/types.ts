@@ -41,6 +41,10 @@ export type SlashDocSettings = {
   autoSave: AutoSaveSettings;
   exportOptions: {
     separateFiles: boolean;
+    showCopyHtmlButton: boolean;
+    showPageNavigation: boolean;
+    showRepositoryLink: boolean;
+    favicon: string;
     repositoryUrl: string;
     defaultBranch: string;
     markdownRootFileName: string;
@@ -70,6 +74,7 @@ export type SlashDocSettings = {
     mkdocsTabs: boolean;
     mkdocsDetails: boolean;
     mkdocsChecklist: boolean;
+    mkdocsGrid: boolean;
   };
   customEditorAddons: CustomEditorAddon[];
   apiPrefix: string;

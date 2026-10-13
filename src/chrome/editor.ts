@@ -1,4 +1,4 @@
-import EditorJS, { type OutputData } from '@editorjs/editorjs';
+import SlashDocEditor, { type OutputData } from '../webview/block-editor';
 import { createBrowserPageStorage } from './browser-page-storage';
 import { createEditorTools } from '../webview/editor-tool-registry';
 import { normalizeEditorData, preserveInlineMarkup } from '../webview/editor-data';
@@ -16,7 +16,6 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
 import '../webview/editor-foundation.css';
 import '../webview/editor-layout.css';
 import '../webview/editor-components.css';
-import '../webview/editor-editorjs.css';
 import '../webview/text-inline-toolbar.css';
 import '../webview/nested-list-tool.css';
 import './editor.css';
@@ -24,7 +23,7 @@ import './editor.css';
 const token = location.hash.slice(1);
 const status = document.querySelector<HTMLElement>('#save-status')!;
 let parentOrigin: string | undefined;
-let editor: EditorJS | undefined;
+let editor: SlashDocEditor | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let revision = 0;
 let restoring = false;
@@ -58,7 +57,7 @@ const users = createUserDirectoryBridge({
 window.__SLASH_DOC_USER_DIRECTORY__ = users;
 window.__SLASH_DOC_READ_CLIPBOARD__ = () => navigator.clipboard.readText();
 window.__SLASH_DOC_WRITE_CLIPBOARD__ = (text) => {
-  void navigator.clipboard.writeText(text);
+  return navigator.clipboard.writeText(text);
 };
 installEditorPasteHandlers(window.__SLASH_DOC_READ_CLIPBOARD__);
 installEditorTextStyles();
@@ -104,10 +103,6 @@ window.addEventListener('message', (event) => {
   }
 });
 
-document.querySelector('#save-page')?.addEventListener('click', () => {
-  clearTimeout(timer);
-  enqueueSave();
-});
 window.addEventListener(
   'keydown',
   (event) => {
@@ -142,7 +137,7 @@ async function initialize(message: { source: string; pages: any[]; pageId: strin
       await editor.render(data);
     } else {
       const { tools, inlineToolbarTools } = createEditorTools({}, users);
-      editor = new EditorJS({
+      editor = new SlashDocEditor({
         holder: 'editor',
         defaultBlock: 'paragraph',
         placeholder: 'Начните писать…',

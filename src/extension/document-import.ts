@@ -1,3 +1,4 @@
+import { textHeadingLevel } from '../shared/text-block';
 import * as vscode from 'vscode';
 import type { ImportedDocument } from './types';
 import { escapeHtml, isRecord, stripHtml } from './utils';
@@ -14,7 +15,7 @@ export function importDocumentContent(text: string, source: vscode.Uri): Importe
     blocks.length > 0
       ? blocks
       : [
-          createEditorBlock('header', {
+          createEditorBlock('paragraph', {
             text: escapeHtml(title),
             level: 2,
           }),
@@ -22,7 +23,7 @@ export function importDocumentContent(text: string, source: vscode.Uri): Importe
 
   if (!getImportTitle(normalizedBlocks)) {
     normalizedBlocks.unshift(
-      createEditorBlock('header', {
+      createEditorBlock('paragraph', {
         text: escapeHtml(title),
         level: 2,
       }),
@@ -39,7 +40,7 @@ export function importDocumentContent(text: string, source: vscode.Uri): Importe
 }
 
 function getImportTitle(blocks: Record<string, unknown>[]): string {
-  const firstHeader = blocks.find((block) => block.type === 'header' && isRecord(block.data));
+  const firstHeader = blocks.find((block) => textHeadingLevel(block) > 0 && isRecord(block.data));
 
   if (!firstHeader || !isRecord(firstHeader.data) || typeof firstHeader.data.text !== 'string') {
     return '';

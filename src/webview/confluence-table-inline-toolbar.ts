@@ -1,13 +1,33 @@
+import {
+  configureLink,
+  findSelectedLinks,
+  isRangeInside,
+  unwrapAnchor,
+  readClipboardText,
+  createButton,
+  populatePageOptions,
+  positionToolbar,
+  selectNode,
+  normalizeExternalUrl,
+  matchesTags,
+  matchesCode,
+  matchesTextColor,
+} from './confluence-table-inline-utils';
+export { calculateToolbarPosition, selectContainedRange } from './confluence-table-inline-utils';
+import { toggleRichTextList } from './rich-text-list';
 import { LUCIDE_ICONS } from './lucide-icons';
-import { readActiveEditorRange, selectionForNode, selectRangeForNode } from './editor-selection';
-import { toggleInlineFormat, type InlineFormatMatcher } from './inline-format-toggle';
+import { selectRangeForNode } from './editor-selection';
+import { toggleInlineFormat, removeInlineFormat, type InlineFormatMatcher } from './inline-format-toggle';
+import { createBackgroundControls } from './inline-background-controls';
 import type { DocumentationPageLink } from './page-link-tool';
-
-type SelectionRoot = ShadowRoot & { getSelection?: () => Selection | null };
+import { installInlineToolbarSelection, readInlineToolbarRange } from './inline-toolbar-selection';
 
 export type TextInlineToolbar = {
   element: HTMLElement;
+  close(): void;
+  destroy(): void;
   bindCell(cell: HTMLElement): void;
+  captureSelection(cell: HTMLElement): void;
 };
 
 export type TextInlineToolbarConfig = {
@@ -22,8 +42,17 @@ export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): T
   let range: Range | undefined;
   let cell: HTMLElement | undefined;
   let captureFrame: number | undefined;
+  const selection = installInlineToolbarSelection(element, {
+    current: () => (cell ? { cell, range } : undefined),
+    remember: (selected) => {
+      range = selected;
+    },
+    close,
+  });
 
   const tools: Array<{ title: string; icon: string; action: () => void }> = [
+    { title: 'Маркированный список', icon: LUCIDE_ICONS.list, action: () => applyList(false) },
+    { title: 'Нумерованный список', icon: LUCIDE_ICONS.listOrdered, action: () => applyList(true) },
     { title: 'Полужирный', icon: LUCIDE_ICONS.bold, action: () => toggleFormat(matchesTags('b', 'strong'), 'strong') },
     { title: 'Курсив', icon: LUCIDE_ICONS.italic, action: () => toggleFormat(matchesTags('em', 'i'), 'em') },
     { title: 'Подчёркивание', icon: LUCIDE_ICONS.underline, action: () => toggleFormat(matchesTags('u'), 'u') },
@@ -106,24 +135,34 @@ export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): T
   color.setAttribute('aria-label', 'Цвет текста');
   color.addEventListener('change', () => applyColor(color.value));
   element.append(color);
+  const backgrounds = createBackgroundControls(element, applyBackground, clearBackground);
   element.addEventListener('pointerdown', (event) => event.stopPropagation());
   element.addEventListener('click', (event) => event.stopPropagation());
 
   function capture(current: HTMLElement): void {
-    const selected = selectContainedRange(current, [
-      readSelectionRange(selectionForNode(current)),
-      readActiveEditorRange(),
-      readSelectionRange(window.getSelection()),
-    ]);
-    if (!selected) {
+    if (!current.isConnected || !current.isContentEditable) {
       element.hidden = true;
       return;
     }
+    const selected = readInlineToolbarRange(current);
+    if (!selected && cell === current && range && !range.collapsed && selection.isInteracting()) return;
+    if (!selected && cell && cell !== current && readInlineToolbarRange(cell)) return;
+    if (!selected) {
+      close();
+      return;
+    }
     cell = current;
-    range = selected.cloneRange();
-    unlink.disabled = findSelectedLinks(current, selected).length === 0;
+    range = selected?.cloneRange();
+    element
+      .querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>('button, input, select')
+      .forEach((control) => {
+        control.disabled = !selected;
+      });
+    unlink.disabled = !selected || findSelectedLinks(current, selected).length === 0;
+    if (!selected) closePanels();
+    backgrounds.update(Boolean(selected));
     element.hidden = false;
-    positionToolbar(element, selected);
+    positionToolbar(element, selected ?? current);
   }
 
   function scheduleCapture(current: HTMLElement): void {
@@ -132,6 +171,11 @@ export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): T
       captureFrame = undefined;
       capture(current);
     });
+  }
+
+  function applyList(ordered: boolean): void {
+    if (!range || !cell) return;
+    range = toggleRichTextList(cell, range, ordered);
   }
 
   function applyColor(value: string): void {
@@ -155,7 +199,7 @@ export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): T
     configure?: (element: HTMLElement) => void,
     normalizeMatcher?: InlineFormatMatcher,
   ): void {
-    if (!range || !cell) return;
+    if (!range || !cell?.isConnected || !cell.isContentEditable) return;
     range = toggleInlineFormat(cell, range, {
       matcher,
       normalizeMatcher,
@@ -165,6 +209,28 @@ export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): T
         return span;
       },
     });
+    selectRangeForNode(cell, range);
+    cell.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+  }
+
+  function applyBackground(value: string): void {
+    if (!/^#[0-9a-f]{6}$/i.test(value)) return;
+    const normalized = value.toLowerCase();
+    toggleFormat(
+      (element) => matchesBackground(element) && element.getAttribute('data-slash-text-background') === normalized,
+      'span',
+      (span) => {
+        span.className = 'slash-text-background';
+        span.dataset.slashTextBackground = normalized;
+        span.style.backgroundColor = normalized;
+      },
+      matchesBackground,
+    );
+  }
+
+  function clearBackground(): void {
+    if (!range || !cell?.isConnected || !cell.isContentEditable) return;
+    range = removeInlineFormat(cell, range, matchesBackground);
     selectRangeForNode(cell, range);
     cell.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
   }
@@ -218,8 +284,8 @@ export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): T
   function finishCellChange(): void {
     cell?.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
     closePanels();
-    range = undefined;
-    element.hidden = true;
+    range = cell ? readInlineToolbarRange(cell)?.cloneRange() : undefined;
+    if (!range) close();
   }
 
   function togglePanel(panel: HTMLElement): void {
@@ -234,9 +300,24 @@ export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): T
     externalPanel.hidden = true;
     pageSelect.value = '';
   }
+  function close(): void {
+    selection.reset();
+    if (captureFrame !== undefined) window.cancelAnimationFrame(captureFrame);
+    captureFrame = undefined;
+    range = undefined;
+    cell = undefined;
+    element.hidden = true;
+    closePanels();
+  }
 
   return {
     element,
+    close,
+    destroy() {
+      close();
+      selection.destroy();
+    },
+    captureSelection: scheduleCapture,
     bindCell(current) {
       current.addEventListener('mouseup', () => scheduleCapture(current));
       current.addEventListener('keyup', () => scheduleCapture(current));
@@ -245,136 +326,6 @@ export function createTextInlineToolbar(config: TextInlineToolbarConfig = {}): T
   };
 }
 
-function configureLink(
-  anchor: HTMLAnchorElement,
-  href: string,
-  className: 'slash-page-link' | 'slash-external-link',
-  attributes: { pageId?: string; rel?: string; target?: string },
-): void {
-  anchor.classList.remove('slash-page-link', 'slash-external-link');
-  anchor.classList.add(className);
-  anchor.href = href;
-  if (attributes.pageId) anchor.dataset.pageId = attributes.pageId;
-  else delete anchor.dataset.pageId;
-  if (attributes.target) anchor.target = attributes.target;
-  else anchor.removeAttribute('target');
-  if (attributes.rel) anchor.rel = attributes.rel;
-  else anchor.removeAttribute('rel');
-}
-
-function findSelectedLinks(cell: HTMLElement, range: Range): HTMLAnchorElement[] {
-  return Array.from(cell.querySelectorAll<HTMLAnchorElement>('a[href]')).filter((anchor) =>
-    range.intersectsNode(anchor),
-  );
-}
-
-function isRangeInside(range: Range, element: HTMLElement): boolean {
-  return element.contains(range.startContainer) && element.contains(range.endContainer);
-}
-
-function unwrapAnchor(anchor: HTMLAnchorElement): void {
-  const parent = anchor.parentNode;
-  if (!parent) return;
-  while (anchor.firstChild) parent.insertBefore(anchor.firstChild, anchor);
-  anchor.remove();
-}
-
-async function readClipboardText(): Promise<string> {
-  if (window.__SLASH_DOC_READ_CLIPBOARD__) return window.__SLASH_DOC_READ_CLIPBOARD__();
-  return navigator.clipboard.readText();
-}
-
-function createButton(title: string, icon: string): HTMLButtonElement {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.title = title;
-  button.setAttribute('aria-label', title);
-  button.innerHTML = icon;
-  button.addEventListener('pointerdown', (event) => event.preventDefault());
-  return button;
-}
-
-function populatePageOptions(
-  select: HTMLSelectElement,
-  pages: DocumentationPageLink[],
-  currentPageId: string | undefined,
-): void {
-  const placeholder = document.createElement('option');
-  placeholder.value = '';
-  placeholder.textContent = pages.length > 0 ? 'Выберите страницу…' : 'Нет доступных страниц';
-  select.append(placeholder);
-  for (const page of pages) {
-    const option = document.createElement('option');
-    option.value = page.id;
-    option.textContent = `${'\u00a0'.repeat(page.depth * 2)}${page.title}${page.id === currentPageId ? ' (текущая)' : ''}`;
-    select.append(option);
-  }
-}
-
-export function calculateToolbarPosition(
-  selection: Pick<DOMRect, 'bottom' | 'left' | 'top' | 'width'>,
-  toolbar: Pick<DOMRect, 'height' | 'width'>,
-  viewport: { height: number; width: number },
-): { left: number; top: number } {
-  const gap = 8;
-  const left = Math.max(
-    gap,
-    Math.min(selection.left + selection.width / 2 - toolbar.width / 2, viewport.width - toolbar.width - gap),
-  );
-  const above = selection.top - toolbar.height - gap;
-  const top = above >= gap ? above : Math.min(selection.bottom + gap, viewport.height - toolbar.height - gap);
-  return { left, top: Math.max(gap, top) };
-}
-
-function positionToolbar(toolbar: HTMLElement, range: Range): void {
-  const selectionRect = range.getBoundingClientRect();
-  const toolbarRect = toolbar.getBoundingClientRect();
-  const position = calculateToolbarPosition(selectionRect, toolbarRect, {
-    width: window.innerWidth,
-    height: window.innerHeight,
-  });
-  toolbar.style.left = `${position.left}px`;
-  toolbar.style.top = `${position.top}px`;
-}
-
-export function selectContainedRange(container: Node, candidates: Array<Range | undefined>): Range | undefined {
-  return candidates.find((candidate): candidate is Range =>
-    Boolean(candidate && !candidate.collapsed && container.contains(candidate.commonAncestorContainer)),
-  );
-}
-
-function readSelectionRange(selection: Selection | null): Range | undefined {
-  return selection?.rangeCount ? selection.getRangeAt(0) : undefined;
-}
-
-function selectNode(node: Node): void {
-  const root = node.getRootNode() as SelectionRoot;
-  const selection = root.getSelection?.() ?? window.getSelection();
-  const selected = document.createRange();
-  selected.selectNodeContents(node);
-  selection?.removeAllRanges();
-  selection?.addRange(selected);
-}
-
-function normalizeExternalUrl(value: string): string | undefined {
-  const candidate = /^[a-z][a-z0-9+.-]*:/i.test(value.trim()) ? value.trim() : `https://${value.trim()}`;
-  try {
-    const url = new URL(candidate);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function matchesTags(...tags: string[]): InlineFormatMatcher {
-  const normalized = new Set(tags.map((tag) => tag.toUpperCase()));
-  return (element) => normalized.has(element.tagName);
-}
-
-function matchesCode(element: Element): boolean {
-  return element.tagName === 'CODE' || element.classList.contains('inline-code');
-}
-
-function matchesTextColor(element: Element): boolean {
-  return element.classList.contains('slash-text-color') || element.hasAttribute('data-slash-text-color');
+function matchesBackground(element: Element): boolean {
+  return element.classList.contains('slash-text-background') || element.hasAttribute('data-slash-text-background');
 }

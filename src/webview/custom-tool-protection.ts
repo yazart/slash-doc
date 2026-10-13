@@ -1,4 +1,4 @@
-import type { ToolConstructable } from '@editorjs/editorjs/types/tools';
+import type { ToolConstructable } from './block-editor-types';
 
 export type CustomAddonModule = { id: string; toolName: string; uri: string };
 export type CustomBlockTool = { render(...args: unknown[]): HTMLElement };

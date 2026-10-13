@@ -13,6 +13,9 @@ import { exportPageContent, type CustomBlockExporter } from '../extension/docume
 import { getDocumentationSearchText } from '../extension/documentation-search-text';
 import { getDefaultSettings, normalizeSettings } from '../extension/settings';
 import { flattenPages, prepareCompiledPage, renderHostHtml } from '../extension/site-renderer';
+import { compiledPageOptions } from '../extension/site-navigation';
+import { attachClipboardImages } from '../extension/site-copy-html';
+import { withCompiledFavicon } from '../extension/site-favicon';
 import type { SlashDocMenuItem } from '../extension/types';
 import { isRecord } from '../extension/utils';
 import { readPageRevisionMetadata, resolvePageRevisionFile, resolvePageYamlFile } from '../shared/page-revision';
@@ -69,18 +72,26 @@ export async function compileDocumentation(
       options.defaultBranch ?? settings.exportOptions.defaultBranch,
     );
     searchIndex.push({ pageId: page.id, title: page.title, text: getDocumentationSearchText(data) });
-    await writeCompiledPage(outputRoot, page, pageIds, data, settings, customExporter, revision);
+    await writeCompiledPage(outputRoot, page, pages, pageIds, data, settings, customExporter, revision);
   }
 
   const indexPath = resolve(outputRoot, 'index.html');
   const projectName = options.projectName?.trim() || basename(projectRoot) || 'Документация';
-  await writeFile(indexPath, renderHostHtml(projectName, items, pages[0]?.id, searchIndex), 'utf8');
+  await writeFile(
+    indexPath,
+    renderHostHtml(projectName, items, pages[0]?.id, searchIndex, settings.exportOptions.favicon, {
+      ...settings.exportOptions,
+      repositoryUrl: options.repositoryUrl ?? settings.exportOptions.repositoryUrl,
+    }),
+    'utf8',
+  );
   return { indexPath, outputRoot, pageCount: pages.length };
 }
 
 async function writeCompiledPage(
   outputRoot: string,
   page: SlashDocMenuItem,
+  pages: SlashDocMenuItem[],
   pageIds: Set<string>,
   data: unknown,
   settings: ReturnType<typeof getDefaultSettings>,
@@ -89,11 +100,21 @@ async function writeCompiledPage(
 ): Promise<void> {
   const exported = await exportPageContent(data, 'html', settings, customExporter);
   const outputPath = resolveInside(resolve(outputRoot, 'pages'), `${page.id}.html`);
-  const html = prepareCompiledPage(exported, page.id, pageIds, revision);
+  const html = prepareCompiledPage(
+    exported,
+    page.id,
+    pageIds,
+    revision,
+    compiledPageOptions(pages, page.id, settings.exportOptions),
+  );
   const result = settings.exportOptions.separateFiles
     ? extractEmbeddedImages(html, `${page.id}-image`)
     : { content: html, images: [] };
-  await writeFile(outputPath, result.content, 'utf8');
+  await writeFile(
+    outputPath,
+    withCompiledFavicon(attachClipboardImages(result.content, result.images), settings.exportOptions.favicon),
+    'utf8',
+  );
   await Promise.all(
     result.images.map((image) => writeFile(resolveInside(resolve(outputRoot, 'pages'), image.fileName), image.data)),
   );
@@ -147,7 +168,7 @@ async function readPage(docsRoot: string, page: SlashDocMenuItem): Promise<unkno
     if (!isMissingFile(legacyError)) throw legacyError;
     if (!isMissingFile(storageError)) throw storageError;
     return {
-      blocks: [{ type: 'header', data: { text: page.title, level: 2 } }],
+      blocks: [{ type: 'paragraph', data: { text: page.title, level: 2 } }],
       version: '2.23.2',
     };
   }

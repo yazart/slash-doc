@@ -22,3 +22,10 @@
   min-width: 0;
   max-width: 100%;
 }
+
+[contenteditable] :is(ul, ol, li) {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}

@@ -68,6 +68,8 @@
   background: var(--vscode-editorWidget-background);
 }
 .ct-cell {
+  position: relative;
+  z-index: 1;
   width: max-content;
   min-width: 100%;
   min-height: 36px;
@@ -77,15 +79,22 @@
   font-size: 12px;
   line-height: 1.35;
 }
-.ct-cell:focus,
-.ct-cell.selected {
-  box-shadow: inset 0 0 0 2px var(--vscode-focusBorder);
-  background: color-mix(in srgb, var(--vscode-focusBorder) 8%, transparent);
+.ct-table :is(td, th):has(> .ct-cell:is(:focus, .selected, .range-selected))::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--vscode-focusBorder, #3b82f6);
+  background: color-mix(in srgb, var(--vscode-focusBorder, #3b82f6) 10%, transparent);
 }
-.ct-cell.range-selected {
-  color: var(--vscode-list-activeSelectionForeground, #fff);
-  background: var(--vscode-list-activeSelectionBackground, var(--vscode-focusBorder));
-  box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+.ct-table :is(td, th):has(> .ct-cell.range-selected)::after {
+  background: color-mix(
+    in srgb,
+    var(--vscode-list-activeSelectionBackground, var(--vscode-focusBorder, #3b82f6)) 10%,
+    transparent
+  );
+  box-shadow: inset 0 0 0 1px var(--vscode-focusBorder, #3b82f6);
 }
 .slash-confluence-table-tool.selecting,
 .slash-confluence-table-tool.selecting * {

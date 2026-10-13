@@ -6,14 +6,16 @@ export function isolateEditorEvent(event: EditorEvent): void {
 }
 
 export function findClipboardImage(clipboard: DataTransfer | null): File | undefined {
-  const file = Array.from(clipboard?.files ?? []).find((item) => item.type.startsWith('image/'));
-  if (file) return file;
+  return findClipboardImages(clipboard)[0];
+}
 
-  return (
-    Array.from(clipboard?.items ?? [])
-      .find((item) => item.kind === 'file' && item.type.startsWith('image/'))
-      ?.getAsFile() ?? undefined
-  );
+export function findClipboardImages(clipboard: DataTransfer | null): File[] {
+  const files = Array.from(clipboard?.files ?? []).filter((item) => item.type.startsWith('image/'));
+  if (files.length) return files;
+  return Array.from(clipboard?.items ?? []).flatMap((item) => {
+    const file = item.kind === 'file' && item.type.startsWith('image/') ? item.getAsFile() : null;
+    return file ? [file] : [];
+  });
 }
 
 export function consumeClipboardImage(

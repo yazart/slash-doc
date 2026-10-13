@@ -4,6 +4,21 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import puppeteer from 'puppeteer';
+import { smokeBlockEditor } from './block-editor-smoke.mjs';
+import { smokeBlockEditorInteractions } from './block-editor-interactions-smoke.mjs';
+import { smokeBlockEditorImages } from './block-editor-images-smoke.mjs';
+import { smokeImageDropzone } from './image-dropzone-smoke.mjs';
+import { smokeBlockHeaderControls } from './block-header-controls-smoke.mjs';
+import { smokeMkDocsGrid } from './mkdocs-grid-smoke.mjs';
+import { smokeBlockDragScroll } from './block-drag-scroll-smoke.mjs';
+import { smokeNestedListBackspace } from './nested-list-backspace-smoke.mjs';
+import { smokeBackgroundFormatting } from './background-formatting-smoke.mjs';
+import { smokeInlineColors } from './inline-colors-smoke.mjs';
+import { smokeCellSelectionColors } from './cell-selection-colors-smoke.mjs';
+import { smokeBlockAreaSelection } from './block-area-selection-smoke.mjs';
+import { smokeTableClipboard } from './table-clipboard-smoke.mjs';
+import { smokeInlineToolbarSelection } from './inline-toolbar-selection-smoke.mjs';
+import { smokeTableHeaderControls } from './table-header-controls-smoke.mjs';
 import { stringify, parse } from 'yaml';
 
 const output = resolve('dist/chrome-extension');
@@ -62,6 +77,7 @@ const server = createServer(async (request, response) => {
 await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 let browser;
+let diagnosticPage;
 try {
   browser = await puppeteer.launch({
     executablePath: process.env.SLASH_DOC_CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -72,6 +88,7 @@ try {
       : ['--no-sandbox'],
   });
   const page = await browser.newPage();
+  diagnosticPage = page;
   const errors = [];
   page.on('pageerror', (error) => {
     errors.push(error.message);
@@ -116,6 +133,7 @@ try {
   const frame = page.frames().find((frame) => frame.url().includes('/editor.html'));
   assert.ok(frame, 'Visual editor iframe mounted');
   await frame.waitForSelector('.ce-paragraph');
+  assert.equal(await frame.$('main.shell > header'), null, 'Chrome editor has no redundant top header');
   await frame.evaluate(() => {
     const text = document.querySelector('.ce-paragraph');
     text.innerHTML = 'Visual change';
@@ -157,10 +175,33 @@ try {
   assert.equal(committed.editor.blocks[1].type, 'confluenceTable');
   assert.equal(committed.editor.blocks[2].type, 'codeBlock');
   assert.equal(committed.editor.time, undefined);
+  await smokeBlockEditor(frame);
+  await smokeBlockEditorInteractions(frame);
+  await smokeBlockEditorImages(frame);
+  await smokeImageDropzone(frame, page);
+  await smokeBlockHeaderControls(frame, page);
+  await smokeMkDocsGrid(frame);
+  await smokeBlockDragScroll(frame, page);
+  await smokeNestedListBackspace(frame, page);
+  await smokeBackgroundFormatting(frame);
+  await smokeInlineColors(frame);
+  await smokeCellSelectionColors(frame, page);
+  await smokeBlockAreaSelection(frame, page);
+  await smokeTableClipboard(frame, page);
+  await smokeInlineToolbarSelection(frame);
+  await smokeTableHeaderControls(frame);
   assert.deepEqual(errors, []);
   console.log(
     'Chrome editor smoke passed: initial render, widgets, two-way switching, modal and form commit synchronization.',
   );
+} catch (error) {
+  for (const frame of diagnosticPage?.frames() ?? [])
+    console.error(
+      'Frame diagnostic:',
+      frame.url(),
+      await frame.evaluate(() => document.body.innerText).catch(() => 'unavailable'),
+    );
+  throw error;
 } finally {
   await browser?.close();
   await new Promise((resolve) => server.close(resolve));

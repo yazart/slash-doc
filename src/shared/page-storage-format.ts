@@ -20,7 +20,7 @@ export function encodeStoredPage(data: unknown): { yaml: string; resources: Page
 
 export async function decodeStoredPage(source: string, readResource: ResourceReader): Promise<unknown> {
   const parsed = parse(source) as unknown;
-  if (!isRecord(parsed) || !isRecord(parsed.editor)) throw new Error('В странице отсутствует состояние Editor.js.');
+  if (!isRecord(parsed) || !isRecord(parsed.editor)) throw new Error('В странице отсутствует состояние редактора.');
   const metadata = parsed.storage;
   if (!isRecord(metadata) || metadata.format !== 'slash-doc-page') {
     throw new Error('Неизвестный формат страницы Slash Doc.');

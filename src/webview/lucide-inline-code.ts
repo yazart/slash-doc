@@ -1,8 +1,3 @@
-import InlineCode from '@editorjs/inline-code';
+import { createBasicInlineTool } from './basic-inline-tool';
 import { LUCIDE_ICONS } from './lucide-icons';
-
-export default class LucideInlineCode extends InlineCode {
-  get toolboxIcon(): string {
-    return LUCIDE_ICONS.code;
-  }
-}
+export default createBasicInlineTool('code', LUCIDE_ICONS.code, 'Встроенный код');

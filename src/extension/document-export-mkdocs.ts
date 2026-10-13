@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { renderSafeMarkdown } from '../shared/markdown';
+import { renderEditableContent, isRichContent } from '../shared/editable-content';
+import { sanitizeTableCellHtml } from '../shared/table-cell-html';
 import mkdocsStyles from './styles/mkdocs-widgets-export.embedded.css?raw';
 import { escapeAttribute, escapeHtml, isRecord } from './utils';
 
@@ -14,7 +15,7 @@ export function exportMkDocsAdmonitionToHtml(data: Record<string, unknown>): str
     collapsible: data.collapsible === true,
     open: data.open !== false,
   });
-  const body = `<div class="slash-mkdocs-admonition-body">${renderSafeMarkdown(content)}</div>`;
+  const body = `<div class="slash-mkdocs-admonition-body">${renderEditableContent(content)}</div>`;
   const titleHtml = `<div class="slash-mkdocs-admonition-title">${escapeHtml(title || kind)}</div>`;
   const className = `slash-mkdocs-admonition slash-mkdocs-admonition-${escapeAttribute(kind)}`;
   const rendered =
@@ -38,7 +39,7 @@ export function exportMkDocsTabsToHtml(data: Record<string, unknown>, blockIndex
   const panels = tabs
     .map(
       (tab, index) =>
-        `<section class="slash-mkdocs-tab-panel" role="tabpanel" id="${group}-panel-${index}" aria-labelledby="${group}-tab-${index}"${index === 0 ? '' : ' hidden'}>${renderSafeMarkdown(tab.content)}</section>`,
+        `<section class="slash-mkdocs-tab-panel" role="tabpanel" id="${group}-panel-${index}" aria-labelledby="${group}-tab-${index}"${index === 0 ? '' : ' hidden'}>${renderEditableContent(tab.content)}</section>`,
     )
     .join('');
   const behavior = `<script>(()=>{const root=document.currentScript.previousElementSibling;if(!root)return;const buttons=[...root.querySelectorAll('[role="tab"]')];const panels=[...root.querySelectorAll('[role="tabpanel"]')];buttons.forEach((button,index)=>button.addEventListener('click',()=>{buttons.forEach((item,itemIndex)=>item.setAttribute('aria-selected',String(itemIndex===index)));panels.forEach((panel,itemIndex)=>panel.hidden=itemIndex!==index)}))})()</script>`;
@@ -49,7 +50,7 @@ export function exportMkDocsDetailsToHtml(data: Record<string, unknown>): string
   const summary = typeof data.summary === 'string' ? data.summary : 'Подробнее';
   const content = typeof data.content === 'string' ? data.content : '';
   const state = encodeState({ summary, content, open: data.open === true });
-  return `<style>${mkdocsStyles}</style><details class="slash-mkdocs-details" data-slash-doc-mkdocs-details="${state}"${data.open === true ? ' open' : ''}><summary>${escapeHtml(summary)}</summary><div class="slash-mkdocs-details-body">${renderSafeMarkdown(content)}</div></details>`;
+  return `<style>${mkdocsStyles}</style><details class="slash-mkdocs-details" data-slash-doc-mkdocs-details="${state}"${data.open === true ? ' open' : ''}><summary>${escapeHtml(summary)}</summary><div class="slash-mkdocs-details-body">${renderEditableContent(content)}</div></details>`;
 }
 
 export function exportMkDocsChecklistToHtml(data: Record<string, unknown>): string {
@@ -63,12 +64,12 @@ export function exportMkDocsAdmonitionToMarkdown(data: Record<string, unknown>):
   const marker = data.collapsible === true ? (data.open !== false ? '???+' : '???') : '!!!';
   const kind = normalizeKind(data.kind);
   const title = typeof data.title === 'string' && data.title.trim() ? ` "${escapeTitle(data.title)}"` : '';
-  return `${marker} ${kind}${title}\n\n${indentMarkdown(typeof data.content === 'string' ? data.content : '')}`;
+  return `${marker} ${kind}${title}\n\n${indentMarkdown(markdownContent(typeof data.content === 'string' ? data.content : ''))}`;
 }
 
 export function exportMkDocsTabsToMarkdown(data: Record<string, unknown>): string {
   return normalizeTabs(data.tabs)
-    .map((tab) => `=== "${escapeTitle(tab.title)}"\n\n${indentMarkdown(tab.content)}`)
+    .map((tab) => `=== "${escapeTitle(tab.title)}"\n\n${indentMarkdown(markdownContent(tab.content))}`)
     .join('\n\n');
 }
 
@@ -76,12 +77,12 @@ export function exportMkDocsDetailsToMarkdown(data: Record<string, unknown>): st
   const summary = typeof data.summary === 'string' ? data.summary : 'Подробнее';
   const content = typeof data.content === 'string' ? data.content : '';
   const state = encodeState({ summary, content, open: data.open === true });
-  return `<details data-slash-doc-mkdocs-details="${state}"${data.open === true ? ' open' : ''}>\n<summary>${escapeHtml(summary)}</summary>\n\n${content}\n\n</details>`;
+  return `<details data-slash-doc-mkdocs-details="${state}"${data.open === true ? ' open' : ''}>\n<summary>${escapeHtml(summary)}</summary>\n\n${markdownContent(content)}\n\n</details>`;
 }
 
 export function exportMkDocsChecklistToMarkdown(data: Record<string, unknown>): string {
   return normalizeChecklistItems(data.items)
-    .map((item) => `${'    '.repeat(item.level)}- [${item.checked ? 'x' : ' '}] ${item.text}`)
+    .map((item) => `${'    '.repeat(item.level)}- [${item.checked ? 'x' : ' '}] ${markdownContent(item.text)}`)
     .join('\n');
 }
 
@@ -131,7 +132,7 @@ function renderChecklistTree(nodes: ChecklistNode[]): string {
   return `<ul>${nodes
     .map(
       (node) =>
-        `<li><label><input type="checkbox"${node.checked ? ' checked' : ''} disabled><span>${renderSafeMarkdown(node.text)}</span></label>${node.children.length ? renderChecklistTree(node.children) : ''}</li>`,
+        `<li><label><input type="checkbox"${node.checked ? ' checked' : ''} disabled><span>${renderEditableContent(node.text)}</span></label>${node.children.length ? renderChecklistTree(node.children) : ''}</li>`,
     )
     .join('')}</ul>`;
 }
@@ -155,4 +156,8 @@ function indentMarkdown(value: string): string {
 
 function escapeTitle(value: string): string {
   return value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+}
+
+function markdownContent(value: string): string {
+  return isRichContent(value) ? sanitizeTableCellHtml(value) : value;
 }

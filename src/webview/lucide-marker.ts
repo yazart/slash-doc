@@ -1,8 +1,3 @@
-import Marker from '@editorjs/marker';
+import { createBasicInlineTool } from './basic-inline-tool';
 import { LUCIDE_ICONS } from './lucide-icons';
-
-export default class LucideMarker extends Marker {
-  get toolboxIcon(): string {
-    return LUCIDE_ICONS.highlighter;
-  }
-}
+export default createBasicInlineTool('mark', LUCIDE_ICONS.highlighter, 'Маркер');

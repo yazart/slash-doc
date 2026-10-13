@@ -8,7 +8,7 @@ describe('Editor paste routing', () => {
     expect(findPasteActionInPath([listItem])).toBeTypeOf('function');
   });
 
-  it.each(['.ce-paragraph', '.ce-header'])('routes paste to Editor.js text element %s', (selector) => {
+  it.each(['.ce-paragraph', '.ce-header', '.ce-quote'])('routes paste to text element %s', (selector) => {
     expect(findPasteActionInPath([elementMatching(selector)])).toBeTypeOf('function');
   });
 

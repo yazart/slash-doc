@@ -1,4 +1,9 @@
+import { insertRichText } from './rich-text-paste';
+import { BLOCK_CLIPBOARD_MIME, BLOCK_CLIPBOARD_PREFIX } from './block-clipboard';
 import { consumeClipboardImage } from './editor-event-isolation';
+import { pasteClipboardImages } from './block-editor-image-paste';
+import type { BlockEditorElement } from './block-editor-element';
+import { notifyTablePasteReceived } from './confluence-table-clipboard';
 
 type TablePasteElement = HTMLElement & {
   __slashDocPasteTable?: (text: string, html: string) => void;
@@ -18,8 +23,28 @@ export function installEditorPasteHandlers(readClipboard: () => Promise<string>)
   window.addEventListener(
     'paste',
     (event) => {
+      const clipboard = event.clipboardData;
+      if (
+        clipboard &&
+        (clipboard.getData('text/plain') ||
+          clipboard.getData('text/html') ||
+          clipboard.files.length ||
+          Array.from(clipboard.items).some((item) => item.kind === 'file'))
+      )
+        notifyTablePasteReceived(event);
+      if (
+        event.clipboardData?.getData(BLOCK_CLIPBOARD_MIME) ||
+        event.clipboardData?.getData('text/plain').startsWith(BLOCK_CLIPBOARD_PREFIX)
+      )
+        return;
       const imageTarget = findImageAnnotationTarget(event);
       if (imageTarget?.pasteImage && consumeClipboardImage(event, imageTarget.pasteImage.bind(imageTarget))) return;
+      const editor = event
+        .composedPath()
+        .find(
+          (target): target is BlockEditorElement => target instanceof HTMLElement && target.matches('slash-doc-editor'),
+        );
+      if (editor && pasteClipboardImages(editor, event)) return;
       const paste = findPasteAction(event);
       if (!paste) return;
       const text = event.clipboardData?.getData('text/plain') ?? '';
@@ -33,25 +58,10 @@ export function installEditorPasteHandlers(readClipboard: () => Promise<string>)
   );
 
   window.addEventListener(
-    'keydown',
-    (event) => {
-      const isPasteKey = event.code === 'KeyV' || ['v', 'м'].includes(event.key.toLowerCase());
-      if (!(event.metaKey || event.ctrlKey) || event.altKey || !isPasteKey) return;
-      const paste = findPasteAction(event);
-      if (!paste) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      void readClipboard()
-        .then((text) => paste(text, ''))
-        .catch(() => undefined);
-    },
-    true,
-  );
-
-  window.addEventListener(
     'beforeinput',
     (event) => {
       if (!(event instanceof InputEvent) || event.inputType !== 'insertFromPaste') return;
+      if (event.composedPath().some((target) => target instanceof HTMLElement && target.isContentEditable)) return;
       const paste = findPasteAction(event);
       if (!paste) return;
       event.preventDefault();
@@ -106,16 +116,26 @@ export function findPasteActionInPath(path: EventTarget[]): PasteAction | undefi
   );
   if (highlightedCode) return (text) => insertTextIntoControl(highlightedCode, text);
   const listItem = path.find((item): item is HTMLElement => matchesElement(item, '.cdx-list__item'));
-  if (listItem) return (text) => insertTextIntoContentEditable(listItem, text);
+  if (listItem) return (text, html) => insertRichText(listItem, text, html);
   const editorText = path.find(
-    (item): item is HTMLElement => matchesElement(item, '.ce-paragraph') || matchesElement(item, '.ce-header'),
+    (item): item is HTMLElement =>
+      matchesElement(item, '.ce-paragraph') ||
+      matchesElement(item, '.ce-header') ||
+      matchesElement(item, '.ce-quote') ||
+      matchesElement(item, '.mkdocs-content') ||
+      matchesElement(item, '.image-tool__caption'),
   );
-  if (editorText) return (text) => insertTextIntoContentEditable(editorText, text);
+  if (editorText) return (text, html) => insertRichText(editorText, text, html);
   const tableTarget = path.find(
     (item): item is TablePasteElement =>
       matchesElement(item, '.ct-cell') && typeof (item as TablePasteElement).__slashDocPasteTable === 'function',
   );
-  return tableTarget?.__slashDocPasteTable;
+  if (tableTarget) return tableTarget.__slashDocPasteTable;
+  const editable = path.find(
+    (item): item is HTMLElement =>
+      matchesElement(item, '[contenteditable="true"]') || matchesElement(item, '[contenteditable=""]'),
+  );
+  return editable ? (text, html) => insertRichText(editable, text, html) : undefined;
 }
 
 function matchesElement(target: EventTarget, selector: string): target is HTMLElement {
@@ -135,33 +155,5 @@ export function insertTextIntoControl(target: HTMLTextAreaElement, text: string)
 }
 
 export function insertTextIntoContentEditable(target: HTMLElement, text: string): void {
-  target.focus();
-  const selection = window.getSelection();
-  const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
-  if (!selection || !range || !target.contains(range.commonAncestorContainer)) {
-    target.append(createTextFragment(text));
-  } else {
-    range.deleteContents();
-    const fragment = createTextFragment(text);
-    const lastNode = fragment.lastChild;
-    range.insertNode(fragment);
-    if (lastNode) range.setStartAfter(lastNode);
-    range.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }
-  target.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
-}
-
-function createTextFragment(text: string): DocumentFragment {
-  const fragment = document.createDocumentFragment();
-  text
-    .replaceAll('\r\n', '\n')
-    .replaceAll('\r', '\n')
-    .split('\n')
-    .forEach((line, index) => {
-      if (index > 0) fragment.append(document.createElement('br'));
-      fragment.append(document.createTextNode(line));
-    });
-  return fragment;
+  insertRichText(target, text);
 }

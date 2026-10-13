@@ -1,8 +1,3 @@
-import Underline from '@editorjs/underline';
+import { createBasicInlineTool } from './basic-inline-tool';
 import { LUCIDE_ICONS } from './lucide-icons';
-
-export default class LucideUnderline extends Underline {
-  get toolboxIcon(): string {
-    return LUCIDE_ICONS.underline;
-  }
-}
+export default createBasicInlineTool('u', LUCIDE_ICONS.underline, 'Подчёркивание');

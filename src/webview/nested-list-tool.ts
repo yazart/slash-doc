@@ -1,5 +1,9 @@
-import type { API, BlockToolConstructorOptions } from '@editorjs/editorjs/types';
+import { sanitizeTableCellHtml } from '../shared/table-cell-html';
+import type { API, BlockToolConstructorOptions } from './block-editor-types';
 import { LUCIDE_ICONS } from './lucide-icons';
+import { handleEmptyListBackspace } from './nested-list-backspace';
+import { convertBlockType } from './block-editor-conversion';
+import type { BlockEditorElement } from './block-editor-element';
 
 export type NestedListItem = { content: string; items: NestedListItem[] };
 export type NestedListData = { style: 'ordered' | 'unordered'; items: NestedListItem[] };
@@ -119,13 +123,14 @@ export default class NestedListTool {
     const content = document.createElement('div');
     content.className = 'cdx-list__item';
     content.contentEditable = String(!this.readOnly);
-    content.innerHTML = item.content;
+    content.innerHTML = sanitizeTableCellHtml(item.content);
     row.append(content);
     if (item.items.length) row.append(this.renderList(item.items));
     return row;
   }
 
   private handleKeydown(event: KeyboardEvent): void {
+    if (handleEmptyListBackspace(this.root, event, () => this.exitEmptyList())) return;
     if (event.key === 'Tab') {
       if (changeSelectedListLevel(this.root, event.shiftKey ? -1 : 1)) {
         event.preventDefault();
@@ -156,6 +161,27 @@ export default class NestedListTool {
     if (!list.children.length) list.remove();
     focusContent(content);
     return true;
+  }
+
+  private exitEmptyList(): void {
+    if (!this.root) return;
+    const block = this.api.blocks.getBlockByElement(this.root);
+    const editor = this.root.closest<BlockEditorElement>('slash-doc-editor');
+    if (editor && block) {
+      void convertBlockType(editor, block.id, 'paragraph').catch((error: unknown) => {
+        this.api.notifier.show({ message: error instanceof Error ? error.message : String(error) });
+      });
+    } else {
+      this.api.blocks.insert(
+        'paragraph',
+        { text: '' },
+        undefined,
+        this.api.blocks.getCurrentBlockIndex(),
+        true,
+        true,
+        block?.id,
+      );
+    }
   }
 
   private exitList(content: HTMLElement): boolean {

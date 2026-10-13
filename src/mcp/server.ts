@@ -8,7 +8,7 @@ const pageId = z.string().min(1).describe('Идентификатор стран
 const editorContent = z
   .object({ blocks: z.array(z.record(z.string(), z.unknown())) })
   .passthrough()
-  .describe('Полное состояние Editor.js');
+  .describe('Полное состояние редактора');
 const editorBlock = z.object({ type: z.string().min(1), data: z.record(z.string(), z.unknown()) }).passthrough();
 
 export function createSlashDocMcpServer(repository: SlashDocRepository): McpServer {
@@ -74,7 +74,7 @@ function registerReadTools(server: McpServer, repository: SlashDocRepository): v
     'read_page',
     {
       title: 'Прочитать страницу Slash Doc',
-      description: 'Возвращает метаданные страницы и полное состояние Editor.js, включая восстановленные ресурсы.',
+      description: 'Возвращает метаданные страницы и полное состояние редактора, включая восстановленные ресурсы.',
       inputSchema: z.object({ pageId }),
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
@@ -116,7 +116,7 @@ function registerWriteTools(server: McpServer, repository: SlashDocRepository): 
     'replace_page',
     {
       title: 'Заменить содержимое страницы Slash Doc',
-      description: 'Полностью заменяет состояние Editor.js указанной страницы.',
+      description: 'Полностью заменяет состояние редактора указанной страницы.',
       inputSchema: z.object({ pageId, content: editorContent }),
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     },
@@ -130,7 +130,7 @@ function registerWriteTools(server: McpServer, repository: SlashDocRepository): 
     'append_blocks',
     {
       title: 'Добавить блоки на страницу Slash Doc',
-      description: 'Добавляет Editor.js-блоки в конец существующей страницы.',
+      description: 'Добавляет блоки редактора в конец существующей страницы.',
       inputSchema: z.object({ pageId, blocks: z.array(editorBlock).min(1) }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },

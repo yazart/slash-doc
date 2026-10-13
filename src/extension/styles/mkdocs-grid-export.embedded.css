@@ -1,0 +1,33 @@
+.slash-mkdocs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 16px;
+  margin: 0 0 1em;
+}
+.slash-mkdocs-grid-item {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.slash-mkdocs-grid.cards > .slash-mkdocs-grid-item {
+  padding: 16px;
+  border: 1px solid var(--slash-page-border);
+  border-radius: 6px;
+  background: var(--slash-page-background);
+  transition:
+    box-shadow 150ms,
+    border-color 150ms;
+}
+.slash-mkdocs-grid.cards > .slash-mkdocs-grid-item:hover {
+  border-color: var(--slash-page-link);
+  box-shadow: 0 3px 8px #0002;
+}
+.slash-mkdocs-grid-item > :first-child {
+  margin-top: 0;
+}
+.slash-mkdocs-grid-item > :last-child {
+  margin-bottom: 0;
+}
+.slash-mkdocs-grid-item :is(ul, ol, li) {
+  margin-block: 0;
+  padding-block: 0;
+}

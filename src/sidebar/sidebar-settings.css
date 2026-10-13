@@ -74,3 +74,18 @@ slash-switch[checked]::part(control) {
   border-color: var(--vscode-button-background);
   background: var(--vscode-button-background);
 }
+.settings-favicon-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.settings-favicon-row input[type='file'] {
+  min-width: 0;
+  max-width: 100%;
+  font: inherit;
+}
+#favicon-status {
+  width: 100%;
+  font-size: 11px;
+}

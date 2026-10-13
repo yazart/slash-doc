@@ -2,6 +2,7 @@
   position: fixed;
   z-index: 1000;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   width: fit-content;
   max-width: calc(100vw - 16px);

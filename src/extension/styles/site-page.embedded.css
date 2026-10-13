@@ -1,6 +1,16 @@
 body {
   max-width: 1940px;
+  padding-top: 32px;
+}
+
+body[data-slash-doc-copy-enabled] {
   padding-top: 72px;
+}
+
+.slash-doc-page-creator {
+  margin: -0.25em 0 0.65em;
+  color: var(--slash-page-muted);
+  font-size: 13px;
 }
 
 .slash-doc-page-revision {
@@ -70,8 +80,39 @@ body {
   stroke-linejoin: round;
 }
 
+.slash-doc-page-navigation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--slash-page-border);
+}
+.slash-doc-page-navigation > a,
+.slash-doc-page-navigation > .disabled {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--slash-page-border);
+  border-radius: 6px;
+  background: var(--slash-page-surface);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.slash-doc-page-navigation > :last-child {
+  text-align: right;
+}
+.slash-doc-page-navigation > a:hover {
+  border-color: var(--slash-page-link);
+}
+.slash-doc-page-navigation > .disabled {
+  color: var(--slash-page-muted);
+  opacity: 0.5;
+}
+
 @media (max-width: 650px) {
-  body {
+  body[data-slash-doc-copy-enabled] {
     padding-top: 64px;
   }
 
@@ -82,7 +123,8 @@ body {
 }
 
 @media print {
-  .slash-doc-copy-html {
+  .slash-doc-copy-html,
+  .slash-doc-page-navigation {
     display: none;
   }
 }

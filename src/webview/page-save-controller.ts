@@ -1,4 +1,4 @@
-import type { OutputData } from '@editorjs/editorjs';
+import type { OutputData } from './block-editor-types';
 import { normalizeAutoSaveSettings, type AutoSaveSettings } from '../shared/autosave';
 
 export type PageSaveSource = 'auto' | 'manual';

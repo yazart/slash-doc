@@ -44,15 +44,17 @@
   min-width: 100px;
 }
 
-.mkdocs-widget textarea {
+.mkdocs-content {
   width: 100%;
   min-height: 132px;
   padding: 9px 10px;
-  resize: vertical;
+  outline: none;
+  overflow-wrap: anywhere;
   line-height: 1.5;
 }
 
 .mkdocs-widget button {
+  border: none;
   cursor: pointer;
 }
 
@@ -113,7 +115,7 @@
 
 .mkdocs-checklist-row {
   display: grid;
-  grid-template-columns: auto minmax(100px, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(100px, 1fr);
   align-items: center;
   gap: 6px;
   margin-left: min(calc(var(--checklist-level, 0) * 24px), 50%);
@@ -139,8 +141,8 @@
 }
 
 .mkdocs-icon-button svg {
-  width: 17px;
-  height: 17px;
+  width: 24px;
+  height: 24px;
 }
 
 @media (max-width: 650px) {
@@ -148,4 +150,36 @@
     align-items: stretch;
     flex-direction: column;
   }
+}
+
+.mkdocs-widget-header {
+  flex-wrap: wrap;
+}
+.mkdocs-widget-header .mkdocs-widget-row {
+  flex: 1;
+  flex-wrap: wrap;
+}
+.mkdocs-content:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+.mkdocs-content:empty::before {
+  content: attr(data-placeholder);
+  color: var(--vscode-input-placeholderForeground);
+}
+.mkdocs-content ul,
+.mkdocs-content ol {
+  padding-left: 24px;
+}
+.mkdocs-content a {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: underline;
+}
+.mkdocs-checklist-row .mkdocs-content {
+  min-height: 30px;
+  padding: 4px 8px;
+}
+
+.mkdocs-checklist-row--active {
+  outline: 1px solid var(--vscode-focusBorder);
+  border-radius: 4px;
 }

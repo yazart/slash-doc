@@ -27,5 +27,6 @@ export type SlashDocWebviewSettings = {
     mkdocsTabs?: boolean;
     mkdocsDetails?: boolean;
     mkdocsChecklist?: boolean;
+    mkdocsGrid?: boolean;
   };
 };

@@ -9,6 +9,10 @@ export function collectSettings() {
     },
     exportOptions: {
       separateFiles: isSwitchEnabled('separate-files', false),
+      showCopyHtmlButton: isSwitchEnabled('show-copy-html-button', true),
+      showPageNavigation: isSwitchEnabled('show-page-navigation', false),
+      showRepositoryLink: isSwitchEnabled('show-repository-link', false),
+      favicon: document.querySelector<HTMLInputElement>('#favicon-data')?.value ?? '',
       repositoryUrl: document.querySelector<HTMLInputElement>('#repository-url')?.value.trim() ?? '',
       defaultBranch: document.querySelector<HTMLInputElement>('#default-branch')?.value.trim() || 'master',
       markdownRootFileName:
@@ -39,6 +43,7 @@ export function collectSettings() {
       mkdocsTabs: isAddonEnabled('mkdocsTabs'),
       mkdocsDetails: isAddonEnabled('mkdocsDetails'),
       mkdocsChecklist: isAddonEnabled('mkdocsChecklist'),
+      mkdocsGrid: isAddonEnabled('mkdocsGrid'),
     },
     customEditorAddons: Array.from(document.querySelectorAll<HTMLElement>('[data-custom-addon-id]')).map((row) => ({
       id: row.dataset.customAddonId ?? createId('addon'),

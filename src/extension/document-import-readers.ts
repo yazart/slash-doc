@@ -131,7 +131,7 @@ export function readTaskTableHtml(sectionHtml: string): Record<string, unknown> 
 
 export function readMkDocsWidgetHtml(html: string):
   | {
-      type: 'mkdocsAdmonition' | 'mkdocsTabs' | 'mkdocsDetails' | 'mkdocsChecklist';
+      type: 'mkdocsAdmonition' | 'mkdocsTabs' | 'mkdocsDetails' | 'mkdocsChecklist' | 'mkdocsGrid';
       data: Record<string, unknown>;
     }
   | undefined {
@@ -140,6 +140,7 @@ export function readMkDocsWidgetHtml(html: string):
     ['data-slash-doc-mkdocs-tabs', 'mkdocsTabs'],
     ['data-slash-doc-mkdocs-details', 'mkdocsDetails'],
     ['data-slash-doc-mkdocs-checklist', 'mkdocsChecklist'],
+    ['data-slash-doc-mkdocs-grid', 'mkdocsGrid'],
   ] as const;
   for (const [attribute, type] of definitions) {
     const encoded = getHtmlAttribute(html, attribute);

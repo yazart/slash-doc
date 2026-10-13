@@ -164,8 +164,11 @@ export function insertTableData(
   while (data.rows.length < requiredRows) {
     data.rows.push(Array.from({ length: Math.max(currentColumns, requiredColumns) }, () => ''));
     data.rowHeights.push(0);
+    data.rowBackgrounds.push('');
+    data.cellBackgrounds.push(Array.from({ length: Math.max(currentColumns, requiredColumns) }, () => ''));
   }
   for (const row of data.rows) while (row.length < requiredColumns) row.push('');
+  for (const row of data.cellBackgrounds) while (row.length < requiredColumns) row.push('');
   while (data.columnWidths.length < requiredColumns) data.columnWidths.push(0);
   pasted.forEach((row, rowOffset) =>
     row.forEach((value, columnOffset) => {

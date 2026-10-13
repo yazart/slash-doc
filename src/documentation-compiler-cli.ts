@@ -65,7 +65,7 @@ export function getCompilerHelp(): string {
 
 Параметры:
   -o, --output <папка>  Папка результата (slash-doc-site или slash-doc-markdown)
-      --addons <папка>  Каталог модулей пользовательских Editor.js-виджетов
+      --addons <папка>  Каталог модулей пользовательских виджетов редактора
       --name <название> Название документации в сайдбаре
       --repository <url> URL GitLab-репозитория для ссылок редактирования
       --default-branch <ветка> Ветка для ссылки, если текущая ветка недоступна (master)

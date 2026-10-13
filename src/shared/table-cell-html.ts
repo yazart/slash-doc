@@ -1,9 +1,25 @@
-const SIMPLE_TAGS = new Set(['b', 'strong', 'i', 'em', 'u', 'mark', 'code']);
+const SIMPLE_TAGS = new Set([
+  'b',
+  'strong',
+  'i',
+  'em',
+  'u',
+  'mark',
+  'code',
+  'ul',
+  'ol',
+  'li',
+  'del',
+  'blockquote',
+  'pre',
+]);
 
-export function sanitizeTableCellHtml(value: string): string {
+const BLOCK_TAGS = new Set(['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr']);
+
+export function sanitizeTableCellHtml(value: string, preserveBlocks = false): string {
   const tokens: string[] = [];
   const tokenized = value.replaceAll(/<[^>]*>/g, (tag) => {
-    const safe = sanitizeTag(tag);
+    const safe = sanitizeTag(tag, preserveBlocks);
     const token = `\u0000SLASHDOCTAG${tokens.length}\u0000`;
     tokens.push(safe ?? escapeHtml(tag));
     return token;
@@ -17,41 +33,53 @@ export function sanitizeTableCellHtml(value: string): string {
 export function tableCellHtmlToText(value: string): string {
   return decodeHtmlEntities(
     sanitizeTableCellHtml(value)
-      .replaceAll(/<br\s*\/?>/gi, '\n')
+      .replaceAll(/<br\s*\/?>|<\/li>|<\/p>|<\/div>/gi, '\n')
       .replaceAll(/<[^>]*>/g, ''),
   );
 }
 
-function sanitizeTag(tag: string): string | undefined {
+function sanitizeTag(tag: string, preserveBlocks: boolean): string | undefined {
   const closing = /^<\s*\/\s*([a-z0-9-]+)\s*>$/i.exec(tag)?.[1]?.toLowerCase();
+  if (preserveBlocks && closing && BLOCK_TAGS.has(closing) && closing !== 'hr') return `</${closing}>`;
   if (closing && (SIMPLE_TAGS.has(closing) || closing === 'span' || closing === 'a')) return `</${closing}>`;
   if (closing === 'div' || closing === 'p') return '';
   const name = /^<\s*([a-z0-9-]+)/i.exec(tag)?.[1]?.toLowerCase();
   if (!name) return undefined;
+  if (preserveBlocks && BLOCK_TAGS.has(name)) return `<${name}>`;
   if (SIMPLE_TAGS.has(name)) return `<${name}>`;
   if (name === 'br') return '<br>';
   if (name === 'div' || name === 'p') return '<br>';
   if (name === 'span') return sanitizeSpan(tag);
-  if (name === 'a') return sanitizeAnchor(tag);
+  if (name === 'a') return sanitizeAnchor(tag, preserveBlocks);
   return undefined;
 }
 
 function sanitizeSpan(tag: string): string {
-  const color =
-    /\bdata-slash-text-color\s*=\s*["'](#[0-9a-f]{6})["']/i.exec(tag)?.[1] ??
-    /\bstyle\s*=\s*["'][^"']*\bcolor\s*:\s*(#[0-9a-f]{6})/i.exec(tag)?.[1];
+  const { color, background } = readInlineColors(tag);
   const inlineCode = /\bclass\s*=\s*["'][^"']*\binline-code\b/i.test(tag);
-  if (color) {
-    const normalized = color.toLowerCase();
-    return `<span class="slash-text-color" data-slash-text-color="${normalized}" style="color:${normalized}">`;
+  if (color || background) {
+    const classes = [
+      color ? 'slash-text-color' : '',
+      background ? 'slash-text-background' : '',
+      inlineCode ? 'inline-code' : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const data = `${color ? ` data-slash-text-color="${color}"` : ''}${background ? ` data-slash-text-background="${background}"` : ''}`;
+    const style = [color ? `color:${color}` : '', background ? `background-color:${background}` : '']
+      .filter(Boolean)
+      .join(';');
+    return `<span class="${classes}"${data} style="${style}">`;
   }
   return inlineCode ? '<span class="inline-code">' : '<span>';
 }
 
-function sanitizeAnchor(tag: string): string | undefined {
+function sanitizeAnchor(tag: string, allowRelativeLinks: boolean): string | undefined {
   const pageId = readAttribute(tag, 'data-page-id');
   const href = pageId ? `slash-doc://page/${encodeURIComponent(pageId)}` : readAttribute(tag, 'href');
-  if (!href || !/^(?:https?:|mailto:|slash-doc:)/i.test(href)) return undefined;
+  const relative = allowRelativeLinks && /^(?:#|\/(?!\/)|\.{1,2}\/)/.test(href);
+  if (!href || (!/^(?:https?:|mailto:|slash-doc:)/i.test(href) && !relative)) return undefined;
+  if (relative) return `<a href="${escapeAttribute(href)}">`;
   if (/\bclass\s*=\s*["'][^"']*\bslash-user-mention\b/i.test(tag) && /^https?:/i.test(href)) {
     const attributes = ['id', 'name', 'email', 'photo', 'link']
       .map((name) => {
@@ -70,7 +98,7 @@ function sanitizeAnchor(tag: string): string | undefined {
 
 function readAttribute(tag: string, name: string): string {
   const match = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(tag);
-  return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
+  return decodeHtmlEntities(match?.[1] ?? match?.[2] ?? match?.[3] ?? '');
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -97,3 +125,4 @@ function escapeHtml(value: string): string {
 function escapeAttribute(value: string): string {
   return escapeHtml(value).replaceAll("'", '&#39;').replaceAll('`', '&#96;');
 }
+import { readInlineColors } from './inline-colors';

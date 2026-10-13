@@ -1,3 +1,4 @@
+import { textHeadingLevel } from '../shared/text-block';
 import * as vscode from 'vscode';
 import { getMenuUri, pathExists, writeJson } from './filesystem';
 import { readStoredPageContent } from './page-storage';
@@ -31,7 +32,7 @@ export async function readPageContent(
 
 export function createDefaultPageContent(title: string): unknown {
   return {
-    blocks: [{ type: 'header', data: { text: title, level: 2 } }],
+    blocks: [{ type: 'paragraph', data: { text: title, level: 2 } }],
     version: '2.30.8',
   };
 }
@@ -39,7 +40,7 @@ export function createDefaultPageContent(title: string): unknown {
 export function createNewPageContent(title: string): unknown {
   return {
     blocks: [
-      { type: 'header', data: { text: escapeHtml(title), level: 2 } },
+      { type: 'paragraph', data: { text: escapeHtml(title), level: 2 } },
       { type: 'paragraph', data: { text: '' } },
     ],
     version: '2.30.8',
@@ -54,10 +55,10 @@ export function updatePageContentTitle(data: unknown, title: string): unknown {
   const blocks = [...data.blocks];
   const firstBlock = blocks[0];
 
-  if (isRecord(firstBlock) && firstBlock.type === 'header' && isRecord(firstBlock.data)) {
+  if (isRecord(firstBlock) && textHeadingLevel(firstBlock) > 0 && isRecord(firstBlock.data)) {
     blocks[0] = { ...firstBlock, data: { ...firstBlock.data, text: escapeHtml(title) } };
   } else {
-    blocks.unshift({ type: 'header', data: { text: escapeHtml(title), level: 2 } });
+    blocks.unshift({ type: 'paragraph', data: { text: escapeHtml(title), level: 2 } });
   }
 
   return removePageTime({ ...data, blocks });
@@ -220,7 +221,12 @@ export function getFirstHeaderText(data: unknown): string | undefined {
     return undefined;
   }
   const header = data.blocks[0];
-  if (!isRecord(header) || header.type !== 'header' || !isRecord(header.data) || typeof header.data.text !== 'string') {
+  if (
+    !isRecord(header) ||
+    !textHeadingLevel(header) ||
+    !isRecord(header.data) ||
+    typeof header.data.text !== 'string'
+  ) {
     return undefined;
   }
   const text = stripHtml(header.data.text).trim();

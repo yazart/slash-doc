@@ -1,3 +1,4 @@
+import { textHeadingLevel } from '../shared/text-block';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -92,7 +93,7 @@ export class SlashDocRepository {
     return this.mutate(async () => {
       const current = await this.readPage(pageId);
       if (!isRecord(current.content) || !Array.isArray(current.content.blocks)) {
-        throw new Error('Страница не содержит корректный массив Editor.js blocks.');
+        throw new Error('Страница не содержит корректный массив blocks.');
       }
       blocks.forEach(validateBlock);
       const content = { ...current.content, blocks: [...current.content.blocks, ...blocks] };
@@ -206,7 +207,7 @@ function createPageContent(title: string): unknown {
   return {
     version: '2.23.2',
     blocks: [
-      { type: 'header', data: { text: escapeHtml(title), level: 2 } },
+      { type: 'paragraph', data: { text: escapeHtml(title), level: 2 } },
       { type: 'paragraph', data: { text: '' } },
     ],
   };
@@ -216,9 +217,9 @@ function updateFirstHeader(content: unknown, title: string): unknown {
   if (!isRecord(content) || !Array.isArray(content.blocks)) return createPageContent(title);
   const blocks = [...content.blocks];
   const first = blocks[0];
-  const header = { type: 'header', data: { text: escapeHtml(title), level: 2 } };
+  const header = { type: 'paragraph', data: { text: escapeHtml(title), level: 2 } };
   blocks[0] =
-    isRecord(first) && first.type === 'header' && isRecord(first.data)
+    isRecord(first) && textHeadingLevel(first) > 0 && isRecord(first.data)
       ? { ...first, data: { ...first.data, text: escapeHtml(title) } }
       : header;
   if (blocks[0] === header && first) blocks.splice(1, 0, first);
@@ -227,7 +228,7 @@ function updateFirstHeader(content: unknown, title: string): unknown {
 
 function validateEditorContent(content: unknown): void {
   if (!isRecord(content) || !Array.isArray(content.blocks)) {
-    throw new Error('content должен быть объектом Editor.js с массивом blocks.');
+    throw new Error('content должен быть объектом редактора с массивом blocks.');
   }
   content.blocks.forEach(validateBlock);
 }

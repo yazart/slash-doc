@@ -1,3 +1,4 @@
+import { iconButton } from './block-editor-view';
 import Modeler from 'bpmn-js/lib/Modeler';
 import { BpmnToolBase } from './bpmn-tool-base';
 import type { BpmnCanvasService, BpmnData } from './bpmn-tool-types';
@@ -41,18 +42,21 @@ export class BpmnModelerTool extends BpmnToolBase {
   }
 
   render(): HTMLElement {
-    const root = this.createRoot('slash-bpmn-modeler-tool', 'BPMN Modeler');
-    const reset = document.createElement('button');
-    reset.type = 'button';
-    reset.className = 'slash-bpmn-button';
-    reset.textContent = 'Новая диаграмма';
-    reset.addEventListener('click', () => void this.importDiagram(EMPTY_BPMN_XML));
-    this.status?.before(reset);
-
+    const root = this.createRoot('slash-bpmn-modeler-tool');
     this.modeler = new Modeler({ container: this.canvas });
     this.modeler.on('commandStack.changed', () => this.scheduleSnapshot());
     this.snapshotPromise = this.importDiagram(this.data.xml || EMPTY_BPMN_XML);
     return this.renderedSurface(root);
+  }
+
+  renderHeaderControls(): HTMLElement {
+    const controls = super.renderHeaderControls();
+    const reset = iconButton('Новая диаграмма', LUCIDE_ICONS.workflow);
+    reset.addEventListener('click', () => {
+      this.snapshotPromise = this.importDiagram(EMPTY_BPMN_XML);
+    });
+    controls.prepend(reset);
+    return controls;
   }
 
   async save(): Promise<BpmnData> {

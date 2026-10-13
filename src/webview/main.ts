@@ -1,4 +1,4 @@
-import EditorJS, { type OutputData } from '@editorjs/editorjs';
+import SlashDocEditor, { type OutputData } from './block-editor';
 import type { FileProcessorBridge } from './file-processor-tool';
 import type { DocumentationPageLink } from './page-link-tool';
 import { createUserDirectoryBridge } from './user-directory';
@@ -20,7 +20,6 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css';
 import './editor-foundation.css';
 import './editor-layout.css';
 import './editor-components.css';
-import './editor-editorjs.css';
 import './text-inline-toolbar.css';
 import './page-history-panel.css';
 import './nested-list-tool.css';
@@ -42,7 +41,7 @@ declare global {
 const vscode = acquireVsCodeApi();
 const userDirectory = createUserDirectoryBridge(vscode);
 window.__SLASH_DOC_USER_DIRECTORY__ = userDirectory;
-let editor: EditorJS;
+let editor: SlashDocEditor;
 const settings = window.__SLASH_DOC_SETTINGS__ ?? {};
 const { tools, inlineToolbarTools } = createEditorTools(settings, userDirectory);
 const editorHistory = createEditorUndoHistory<OutputData>(5);
@@ -208,11 +207,11 @@ async function initEditor() {
   const initialData = normalizeEditorData(window.__SLASH_DOC_INITIAL_DATA__);
   editorHistory.reset(initialData);
 
-  editor = new EditorJS({
+  editor = new SlashDocEditor({
     holder: 'editor',
     defaultBlock: 'paragraph',
     autofocus: true,
-    placeholder: 'Начните писать в Editor.js…',
+    placeholder: 'Начните писать…',
     inlineToolbar: inlineToolbarTools,
     i18n: {
       messages: {

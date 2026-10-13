@@ -1,4 +1,4 @@
-import type { API } from '@editorjs/editorjs/types';
+import type { API } from './block-editor-types';
 import { LUCIDE_ICONS } from './lucide-icons';
 
 type ExtendedSelection = API['selection'] & {

@@ -1,6 +1,7 @@
 export type ExtractedImage = {
   fileName: string;
   data: Uint8Array;
+  mimeType?: string;
 };
 
 export function extractEmbeddedImages(
@@ -16,7 +17,7 @@ export function extractEmbeddedImages(
       if (existing) return existing;
       const fileName = `${filePrefix}-${images.length + 1}.${imageExtension(mimeSubtype)}`;
       names.set(source, fileName);
-      images.push({ fileName, data: Buffer.from(payload, 'base64') });
+      images.push({ fileName, data: Buffer.from(payload, 'base64'), mimeType: `image/${mimeSubtype.toLowerCase()}` });
       return fileName;
     },
   );
@@ -28,7 +29,7 @@ export function extractEmbeddedImages(
       if (existing) return svgReference(existing, isHtml);
       const fileName = `${filePrefix}-${images.length + 1}.svg`;
       names.set(source, fileName);
-      images.push({ fileName, data: Buffer.from(source, 'utf8') });
+      images.push({ fileName, data: Buffer.from(source, 'utf8'), mimeType: 'image/svg+xml' });
       return svgReference(fileName, isHtml);
     },
   );

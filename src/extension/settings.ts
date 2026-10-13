@@ -1,5 +1,6 @@
 import type { ApiService, CustomEditorAddon, SettingsVariable, SlashDocSettings } from './types';
 import { DEFAULT_AUTO_SAVE_SETTINGS, normalizeAutoSaveSettings } from '../shared/autosave';
+import { normalizeFavicon } from '../shared/favicon';
 import { createSettingsId, escapeJavaScriptString, isRecord } from './utils';
 
 export function getDefaultSettings(): SlashDocSettings {
@@ -8,6 +9,10 @@ export function getDefaultSettings(): SlashDocSettings {
     autoSave: { ...DEFAULT_AUTO_SAVE_SETTINGS },
     exportOptions: {
       separateFiles: false,
+      showCopyHtmlButton: true,
+      showPageNavigation: false,
+      showRepositoryLink: false,
+      favicon: '',
       repositoryUrl: '',
       defaultBranch: 'master',
       markdownRootFileName: 'README.md',
@@ -37,6 +42,7 @@ export function getDefaultSettings(): SlashDocSettings {
       mkdocsTabs: true,
       mkdocsDetails: true,
       mkdocsChecklist: true,
+      mkdocsGrid: true,
     },
     customEditorAddons: [],
     apiPrefix: '/api',
@@ -57,6 +63,22 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
     version: 1,
     autoSave: normalizeAutoSaveSettings(value.autoSave),
     exportOptions: {
+      favicon: normalizeFavicon(isRecord(value.exportOptions) ? value.exportOptions.favicon : undefined),
+      showCopyHtmlButton: getBooleanSetting(
+        value.exportOptions,
+        'showCopyHtmlButton',
+        defaults.exportOptions.showCopyHtmlButton,
+      ),
+      showPageNavigation: getBooleanSetting(
+        value.exportOptions,
+        'showPageNavigation',
+        defaults.exportOptions.showPageNavigation,
+      ),
+      showRepositoryLink: getBooleanSetting(
+        value.exportOptions,
+        'showRepositoryLink',
+        defaults.exportOptions.showRepositoryLink,
+      ),
       separateFiles: getBooleanSetting(
         value.exportOptions,
         'separateFiles',
@@ -108,6 +130,7 @@ export function normalizeSettings(value: unknown): SlashDocSettings {
       mkdocsTabs: getBooleanSetting(value.editorAddons, 'mkdocsTabs', defaults.editorAddons.mkdocsTabs),
       mkdocsDetails: getBooleanSetting(value.editorAddons, 'mkdocsDetails', defaults.editorAddons.mkdocsDetails),
       mkdocsChecklist: getBooleanSetting(value.editorAddons, 'mkdocsChecklist', defaults.editorAddons.mkdocsChecklist),
+      mkdocsGrid: getBooleanSetting(value.editorAddons, 'mkdocsGrid', defaults.editorAddons.mkdocsGrid),
     },
     customEditorAddons: normalizeCustomEditorAddons(value.customEditorAddons),
     apiPrefix: typeof value.apiPrefix === 'string' ? normalizeApiPrefix(value.apiPrefix) : defaults.apiPrefix,

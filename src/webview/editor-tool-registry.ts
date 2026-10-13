@@ -1,8 +1,7 @@
-import type { EditorConfig } from '@editorjs/editorjs/types/configs';
-import type { InlineToolConstructable, ToolConstructable } from '@editorjs/editorjs/types/tools';
-import Header from '@editorjs/header';
-import ImageTool from '@editorjs/image';
-import mermaid from 'mermaid';
+import type { EditorConfig } from './block-editor-types';
+import type { InlineToolConstructable, ToolConstructable } from './block-editor-types';
+import Header from './header-tool';
+import ImageTool from './image-tool';
 import ApiEndpointTool from './api-endpoint-tool';
 import { BpmnModelerTool, BpmnPreviewTool } from './bpmn-tools';
 import CodeBlockTool from './code-block-tool';
@@ -21,10 +20,12 @@ import MkDocsAdmonitionTool from './mkdocs-admonition-tool';
 import MkDocsChecklistTool from './mkdocs-checklist-tool';
 import MkDocsDetailsTool from './mkdocs-details-tool';
 import MkDocsTabsTool from './mkdocs-tabs-tool';
+import MkDocsGridTool from './mkdocs-grid-tool';
 import NetworkCanvasTool from './network-canvas-tool';
 import NestedListTool from './nested-list-tool';
 import PageLinkTool from './page-link-tool';
 import PersistentParagraphTool from './persistent-paragraph-tool';
+import QuoteTool from './quote-tool';
 import TaskTableTool from './task-table-tool';
 import TextColorTool from './text-color-tool';
 import { setupUserMentions, type UserDirectoryBridge } from './user-directory';
@@ -35,17 +36,15 @@ export function createEditorTools(
   settings: SlashDocWebviewSettings,
   userDirectory: UserDirectoryBridge,
 ): { tools: EditorTools; inlineToolbarTools: string[] } {
-  initializeMermaid();
   const tools: EditorTools = {};
   const addons = settings.editorAddons;
-  tools.paragraph = { class: PersistentParagraphTool as unknown as ToolConstructable, inlineToolbar: false };
-  if (addons?.header !== false) {
-    tools.header = {
-      class: Header as unknown as ToolConstructable,
-      inlineToolbar: false,
-      toolbox: { title: 'Заголовок', icon: LUCIDE_ICONS.heading },
-    };
-  }
+  tools.paragraph = {
+    class: PersistentParagraphTool as unknown as ToolConstructable,
+    inlineToolbar: false,
+    config: { allowHeadings: addons?.header !== false },
+  };
+  tools.header = { class: Header, toolbox: false };
+  tools.quote = QuoteTool;
   if (addons?.list !== false) {
     tools.list = {
       class: NestedListTool as unknown as ToolConstructable,
@@ -104,6 +103,7 @@ export function createEditorTools(
   if (addons?.mkdocsTabs !== false) tools.mkdocsTabs = MkDocsTabsTool;
   if (addons?.mkdocsDetails !== false) tools.mkdocsDetails = MkDocsDetailsTool;
   if (addons?.mkdocsChecklist !== false) tools.mkdocsChecklist = MkDocsChecklistTool;
+  if (addons?.mkdocsGrid !== false) tools.mkdocsGrid = MkDocsGridTool;
   return {
     tools,
     inlineToolbarTools: [
@@ -117,24 +117,6 @@ export function createEditorTools(
   };
 }
 
-function initializeMermaid(): void {
-  mermaid.initialize({
-    startOnLoad: false,
-    securityLevel: 'strict',
-    theme: 'base',
-    themeVariables: {
-      background: getCssVariable('--vscode-editor-background', '#1e1e1e'),
-      primaryColor: getCssVariable('--vscode-editorWidget-background', '#252526'),
-      primaryTextColor: getCssVariable('--vscode-editor-foreground', '#cccccc'),
-      primaryBorderColor: getCssVariable('--vscode-panel-border', '#3c3c3c'),
-      lineColor: getCssVariable('--vscode-descriptionForeground', '#8f8f8f'),
-      textColor: getCssVariable('--vscode-editor-foreground', '#cccccc'),
-      secondaryColor: getCssVariable('--vscode-list-hoverBackground', '#2a2d2e'),
-      tertiaryColor: getCssVariable('--vscode-input-background', '#3c3c3c'),
-    },
-  });
-}
-
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -142,8 +124,4 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.addEventListener('error', () => reject(reader.error));
     reader.readAsDataURL(file);
   });
-}
-
-function getCssVariable(name: string, fallback: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }

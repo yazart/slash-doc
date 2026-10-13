@@ -1,6 +1,9 @@
 import { stripHtml } from './utils';
+import { readInlineColors } from '../shared/inline-colors';
+import { readTableCellBackgrounds } from '../shared/table-cell-backgrounds';
 import { migrateApprovalTableData } from '../shared/approval-table-migration';
 import { createEditorBlock } from './document-import-common';
+import { htmlElementEnd, isMkDocsGridOpening, readMkDocsGrid } from './document-import-grid';
 import {
   decodeHtmlEntities,
   getHtmlAttribute,
@@ -34,6 +37,15 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
     const tag = (match[1] ?? 'img').toLowerCase();
     const outer = match[0];
     const inner = match[2] ?? '';
+    if (isMkDocsGridOpening(outer)) {
+      const end = htmlElementEnd(body, match.index);
+      const grid = end === undefined ? undefined : readMkDocsGrid(body.slice(match.index, end));
+      if (grid && end !== undefined) {
+        blocks.push(createEditorBlock('mkdocsGrid', grid));
+        blockPattern.lastIndex = consumedUntil = end;
+        continue;
+      }
+    }
     const mkDocsWidget = readMkDocsWidgetHtml(outer);
     if (mkDocsWidget) {
       blocks.push(createEditorBlock(mkDocsWidget.type, mkDocsWidget.data));
@@ -66,14 +78,12 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
       continue;
     }
 
-    if (
-      tag === 'div' ||
-      tag === 'article' ||
-      tag === 'main' ||
-      tag === 'blockquote' ||
-      tag === 'aside' ||
-      tag === 'details'
-    ) {
+    if (tag === 'blockquote') {
+      blocks.push(createEditorBlock('quote', { text: cleanEditorHtml(inner) }));
+      continue;
+    }
+
+    if (tag === 'div' || tag === 'article' || tag === 'main' || tag === 'aside' || tag === 'details') {
       blocks.push(...importHtmlBlocks(inner));
       continue;
     }
@@ -91,7 +101,7 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
 
     if (/^h[1-6]$/.test(tag)) {
       blocks.push(
-        createEditorBlock('header', {
+        createEditorBlock('paragraph', {
           text: cleanEditorHtml(inner),
           level: Number(tag.slice(1)),
         }),
@@ -131,6 +141,8 @@ export function importHtmlBlocks(html: string): Record<string, unknown>[] {
           headerRow: Boolean(htmlRows[0] && /<th\b/i.test(htmlRows[0])),
           headerColumn: htmlRows.length > 0 && htmlRows.every((row) => /^\s*<tr\b[^>]*>\s*<th\b/i.test(row)),
           rows: extractHtmlTableRows(inner),
+          rowBackgrounds: htmlRows.map((row) => readInlineColors(row.slice(0, row.indexOf('>') + 1)).background),
+          cellBackgrounds: htmlRows.map(readTableCellBackgrounds),
         }),
       );
       continue;
@@ -248,7 +260,8 @@ function skipUnclosedHtmlElement(
   const closings = outer.match(new RegExp(`</${tag}\\s*>`, 'gi'))?.length ?? 0;
 
   if (openings > closings) {
-    skipContainingHtmlElement(body, contentIndex, pattern, tag);
+    const end = htmlElementEnd(body, contentIndex);
+    if (end !== undefined) pattern.lastIndex = end;
   }
 }
 

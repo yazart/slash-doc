@@ -3,6 +3,10 @@ import type { PageRevisionMetadata } from '../shared/page-revision';
 import { escapeAttribute, escapeHtml, escapeScriptJson } from './utils';
 import hostStyles from './styles/site-host.embedded.css?raw';
 import pageStyles from './styles/site-page.embedded.css?raw';
+import { renderCopyHtmlControl } from './site-copy-html';
+import { getNavigationToggleScript, renderPageNavigation, type CompiledPageOptions } from './site-navigation';
+import { renderRepositoryLink, type RepositoryLinkOptions } from './site-repository';
+import { renderFavicon } from './site-favicon';
 
 type SearchIndexItem = { pageId: string; title: string; text: string };
 
@@ -15,18 +19,17 @@ export function prepareCompiledPage(
   pageId: string,
   pageIds: Set<string>,
   revision?: PageRevisionMetadata,
+  options: CompiledPageOptions = {},
 ): string {
   const withLinks = injectPageRevision(rewriteDocumentationLinks(html, pageIds), revision);
   const additions = `<meta name="slash-doc-page-id" content="${escapeAttribute(pageId)}">
   <style>${pageStyles}</style>
   <script>try{const theme=window.parent.document.documentElement.dataset.slashDocTheme;if(theme)document.documentElement.dataset.slashDocTheme=theme}catch{}window.parent.postMessage({type:'slash-doc-page',pageId:${escapeScriptJson(pageId)}}, '*');</script>`;
   const prepared = withLinks.replace('</head>', `${additions}\n  </head>`);
-  const copyControl = `<button class="slash-doc-copy-html" type="button" data-slash-doc-copy-control aria-label="Скопировать HTML страницы" title="Скопировать HTML страницы">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-    <span>Скопировать HTML</span>
-  </button>
-  <script data-slash-doc-copy-script>${getCopyPageScript()}</script>`;
-  return prepared.replace('</body>', `${copyControl}\n  </body>`);
+  const copyControl = options.showCopyHtmlButton !== false ? renderCopyHtmlControl() : '';
+  const navigation = renderPageNavigation(options);
+  const result = prepared.replace('</body>', `${navigation}${copyControl}\n  </body>`);
+  return copyControl ? result.replace(/<body\b/i, '<body data-slash-doc-copy-enabled') : result;
 }
 
 function injectPageRevision(html: string, revision: PageRevisionMetadata | undefined): string {
@@ -37,51 +40,17 @@ function injectPageRevision(html: string, revision: PageRevisionMetadata | undef
       ? ` <a href="${escapeAttribute(revision.editUrl)}" target="_blank" rel="noopener noreferrer">Редактировать</a>`
       : '';
   const metadata = `<p class="slash-doc-page-revision">Изменено: <time datetime="${escapeAttribute(revision.changedAt)}">${escapeHtml(date)}</time> <span class="slash-doc-page-revision-user">${escapeHtml(revision.user)}</span>${editLink}</p>`;
+  const creator = revision.creator
+    ? `<p class="slash-doc-page-creator">Создал: <span>${escapeHtml(revision.creator)}</span></p>`
+    : '';
   const heading = /<h([1-6])\b[^>]*>[\s\S]*?<\/h\1\s*>/i;
-  if (heading.test(html)) return html.replace(heading, (value) => `${value}\n${metadata}`);
-  return html.replace(/<body\b[^>]*>/i, (value) => `${value}\n${metadata}`);
+  if (heading.test(html)) return html.replace(heading, (value) => `${value}\n${creator}${metadata}`);
+  return html.replace(/<body\b[^>]*>/i, (value) => `${value}\n${creator}${metadata}`);
 }
 
 function formatRevisionDate(value: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
   return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
-}
-
-function getCopyPageScript(): string {
-  return `(() => {
-    const button = document.querySelector('[data-slash-doc-copy-control]');
-    if (!button) return;
-    const writeClipboard = async (value) => {
-      if (navigator.clipboard?.writeText) {
-        try { await navigator.clipboard.writeText(value); return true; } catch {}
-      }
-      const textarea = document.createElement('textarea');
-      textarea.value = value;
-      textarea.setAttribute('readonly', '');
-      textarea.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
-      document.body.append(textarea);
-      textarea.select();
-      let copied = false;
-      try { copied = document.execCommand('copy'); } catch {}
-      textarea.remove();
-      return copied;
-    };
-    button.addEventListener('click', async () => {
-      const clone = document.documentElement.cloneNode(true);
-      clone.removeAttribute('data-slash-doc-theme');
-      clone.querySelectorAll('[data-slash-doc-copy-control],script[data-slash-doc-copy-script]').forEach((item) => item.remove());
-      const source = '<!DOCTYPE html>\\n' + clone.outerHTML;
-      const copied = await writeClipboard(source);
-      const label = button.querySelector('span');
-      const original = 'Скопировать HTML';
-      if (label) label.textContent = copied ? 'Скопировано' : 'Не удалось скопировать';
-      button.classList.toggle('copied', copied);
-      window.setTimeout(() => {
-        if (label) label.textContent = original;
-        button.classList.remove('copied');
-      }, 1800);
-    });
-  })();`;
 }
 
 function rewriteDocumentationLinks(html: string, pageIds: Set<string>): string {
@@ -154,6 +123,8 @@ export function renderHostHtml(
   items: SlashDocMenuItem[],
   firstPageId: string | undefined,
   searchIndex: SearchIndexItem[],
+  favicon = '',
+  options: RepositoryLinkOptions = {},
 ): string {
   const firstPage = firstPageId ? `pages/${firstPageId}.html` : 'about:blank';
   return `<!DOCTYPE html>
@@ -162,11 +133,13 @@ export function renderHostHtml(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(projectName)}</title>
+  ${renderFavicon(favicon)}
   <style>${hostStyles}</style>
 </head>
 <body>
-  <aside class="sidebar">
-    <header class="sidebar-title"><span>${escapeHtml(projectName)}</span><button class="theme-toggle" type="button" aria-label="Включить тёмную тему" title="Включить тёмную тему">☾</button></header>
+  <button class="navigation-toggle" type="button" aria-controls="documentation-sidebar" aria-expanded="true" aria-label="Скрыть навигацию" title="Скрыть навигацию">‹</button>
+  <aside class="sidebar" id="documentation-sidebar">
+    <header class="sidebar-title"><div class="sidebar-heading"><a class="documentation-logo" href="/" aria-label="На главную">${escapeHtml(projectName)}</a>${renderRepositoryLink(options)}</div><button class="theme-toggle" type="button" aria-label="Включить тёмную тему" title="Включить тёмную тему">☾</button></header>
     <div class="documentation-search"><input type="search" placeholder="Поиск по документации" aria-label="Поиск по документации"></div>
     <nav class="navigation" aria-label="Страницы документации">${renderHostMenu(items)}</nav>
     <div class="search-results" hidden></div>
@@ -174,6 +147,7 @@ export function renderHostHtml(
   <div class="sidebar-resizer" role="separator" aria-label="Изменить ширину меню" aria-orientation="vertical" aria-valuemin="180" aria-valuemax="600" tabindex="0"></div>
   <iframe class="content" name="content" title="Документация" src="${escapeAttribute(firstPage)}"></iframe>
   <script>
+    ${getNavigationToggleScript()}
     const links = Array.from(document.querySelectorAll('.page-link'));
     const content = document.querySelector('.content');
     const themeToggle = document.querySelector('.theme-toggle');

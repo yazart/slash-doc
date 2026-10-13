@@ -1,3 +1,4 @@
+import { iconButton } from './block-editor-view';
 import NavigatedViewer from 'bpmn-js/lib/NavigatedViewer';
 import { BpmnToolBase } from './bpmn-tool-base';
 import { replaceClipboardRange } from './bpmn-preview-clipboard';
@@ -16,18 +17,9 @@ export class BpmnPreviewTool extends BpmnToolBase {
   }
 
   render(): HTMLElement {
-    const root = this.createRoot('slash-bpmn-preview-tool', 'BPMN Preview');
+    const root = this.createRoot('slash-bpmn-preview-tool');
     const controls = document.createElement('div');
     controls.className = 'slash-bpmn-preview-controls';
-    const fileLabel = document.createElement('label');
-    fileLabel.className = 'slash-bpmn-button';
-    fileLabel.textContent = 'Выбрать XML';
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = '.bpmn,.xml,application/xml,text/xml';
-    fileInput.hidden = true;
-    fileInput.addEventListener('change', () => void this.readFile(fileInput.files?.[0]));
-    fileLabel.append(fileInput);
     this.textarea = document.createElement('textarea');
     this.textarea.className = 'slash-bpmn-xml';
     this.textarea.placeholder = 'Вставьте BPMN XML или перетащите сюда XML-файл';
@@ -39,7 +31,7 @@ export class BpmnPreviewTool extends BpmnToolBase {
       }
     ).__slashDocPasteText = (text) => this.pasteText(text);
     this.textarea.addEventListener('input', () => this.scheduleImport());
-    controls.append(fileLabel, this.textarea);
+    controls.append(this.textarea);
     root.insertBefore(controls, this.canvas ?? null);
 
     root.addEventListener('dragover', (event) => {
@@ -55,6 +47,23 @@ export class BpmnPreviewTool extends BpmnToolBase {
     this.viewer = new NavigatedViewer({ container: this.canvas });
     if (this.data.xml.trim()) void this.queueImport(this.data.xml, false);
     return this.renderedSurface(root);
+  }
+
+  renderHeaderControls(): HTMLElement {
+    const controls = super.renderHeaderControls();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.bpmn,.xml,application/xml,text/xml';
+    input.hidden = true;
+    input.setAttribute('aria-label', 'Выбрать BPMN XML');
+    input.addEventListener('change', () => {
+      void this.readFile(input.files?.[0]);
+      input.value = '';
+    });
+    const choose = iconButton('Выбрать XML', LUCIDE_ICONS.fileSearch);
+    choose.addEventListener('click', () => input.click());
+    controls.prepend(choose, input);
+    return controls;
   }
 
   async save(): Promise<BpmnData> {

@@ -1,4 +1,4 @@
-import mermaid from 'mermaid';
+import { readMermaidPalette, renderThemedMermaid, watchMermaidTheme } from './mermaid-theme';
 import { LUCIDE_ICONS } from './lucide-icons';
 import styles from './mermaid-tool.shadow.css?raw';
 import { createToolSurface } from './tool-surface';
@@ -20,6 +20,10 @@ export default class MermaidTool {
   private renderTimer?: ReturnType<typeof setTimeout>;
   private renderedCode = '';
   private renderedSvg = '';
+  private renderedTheme = '';
+  private renderVersion = 0;
+  private rendering = Promise.resolve();
+  private unwatchTheme?: () => void;
 
   static get toolbox() {
     return { title: 'Диаграмма Mermaid', icon: LUCIDE_ICONS.chart };
@@ -54,6 +58,9 @@ export default class MermaidTool {
     this.textarea.addEventListener('input', () => this.scheduleRender());
     this.caption.addEventListener('input', () => this.scheduleRender());
     this.wrapper.append(this.textarea, this.caption, this.preview);
+    this.unwatchTheme = watchMermaidTheme(() => {
+      if (JSON.stringify(readMermaidPalette()) !== this.renderedTheme) this.scheduleRender();
+    });
     this.scheduleRender();
     surface.content.append(this.wrapper);
     return surface;
@@ -69,6 +76,8 @@ export default class MermaidTool {
 
   destroy(): void {
     if (this.renderTimer) clearTimeout(this.renderTimer);
+    this.renderVersion += 1;
+    this.unwatchTheme?.();
     mermaidTools.delete(this);
   }
 
@@ -77,8 +86,13 @@ export default class MermaidTool {
       clearTimeout(this.renderTimer);
       this.renderTimer = undefined;
     }
+    await this.rendering;
     const code = this.textarea?.value.trim() ?? '';
-    if (code !== this.renderedCode || (!this.renderedSvg && code)) {
+    if (
+      code !== this.renderedCode ||
+      JSON.stringify(readMermaidPalette()) !== this.renderedTheme ||
+      (!this.renderedSvg && code)
+    ) {
       await this.renderPreview();
     }
   }
@@ -88,9 +102,14 @@ export default class MermaidTool {
     this.renderTimer = setTimeout(() => void this.renderPreview(), 150);
   }
 
-  private async renderPreview(): Promise<void> {
+  private renderPreview(): Promise<void> {
+    this.rendering = this.updatePreview(++this.renderVersion);
+    return this.rendering;
+  }
+  private async updatePreview(version: number): Promise<void> {
     if (!this.preview) return;
     const code = this.textarea?.value.trim() ?? '';
+    const palette = readMermaidPalette();
     if (!code) {
       this.preview.textContent = '';
       this.renderedCode = '';
@@ -99,10 +118,14 @@ export default class MermaidTool {
     }
     try {
       const id = `slash-mermaid-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-      this.renderedSvg = await renderMermaid(id, code);
+      const svg = await renderThemedMermaid(id, code, palette);
+      if (version !== this.renderVersion) return;
+      this.renderedTheme = JSON.stringify(palette);
+      this.renderedSvg = svg;
       this.renderedCode = code;
       this.preview.innerHTML = this.renderedSvg;
     } catch (error) {
+      if (version !== this.renderVersion) return;
       this.renderedCode = code;
       this.renderedSvg = '';
       this.preview.textContent = error instanceof Error ? error.message : 'Ошибка отрисовки Mermaid';
@@ -112,14 +135,4 @@ export default class MermaidTool {
 
 export async function renderPendingMermaidDiagrams(): Promise<void> {
   await Promise.all([...mermaidTools].map((tool) => tool.renderForSave()));
-}
-
-function renderMermaid(id: string, code: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    try {
-      mermaid.render(id, code, resolve);
-    } catch (error) {
-      reject(error instanceof Error ? error : new Error(String(error)));
-    }
-  });
 }

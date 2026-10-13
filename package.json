@@ -1,7 +1,7 @@
 {
   "name": "slash-doc",
   "displayName": "Slash Doc",
-  "description": "Расширение VS Code с интерфейсом Shoelace и редактором документов Editor.js.",
+  "description": "Расширение VS Code с интерфейсом Shoelace и собственным блочным редактором документов.",
   "version": "0.0.1",
   "publisher": "local",
   "license": "MIT",
@@ -55,6 +55,7 @@
     "compile": "node scripts/vite-build.mjs",
     "compile:chrome": "node scripts/build-chrome-extension.mjs",
     "test:chrome": "npm run compile:chrome && node scripts/smoke-chrome-extension.mjs",
+    "test:site": "npm run compile && node scripts/smoke-compiled-site.mjs",
     "compile:docs": "node dist/slash-doc-compile.js",
     "compile:docs:md": "node dist/slash-doc-compile.js --format md",
     "mcp": "node dist/slash-doc-mcp.js",
@@ -75,13 +76,6 @@
     "version": "npm run changelog && git add CHANGELOG.md"
   },
   "dependencies": {
-    "@editorjs/editorjs": "2.23.2",
-    "@editorjs/header": "^2.8.8",
-    "@editorjs/image": "^2.10.3",
-    "@editorjs/inline-code": "^1.5.2",
-    "@editorjs/list": "^1.10.0",
-    "@editorjs/marker": "^1.4.0",
-    "@editorjs/underline": "^1.2.1",
     "@modelcontextprotocol/server": "2.1.0",
     "bpmn-js": "9.0.0",
     "csv": "6.0.5",

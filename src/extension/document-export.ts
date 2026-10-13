@@ -1,11 +1,14 @@
 import { highlightSource, normalizeCodeLanguage } from '../shared/syntax-highlighter';
 import { migrateApprovalTableData } from '../shared/approval-table-migration';
+import { textHeadingLevel } from '../shared/text-block';
+import { normalizeHexColor } from '../shared/inline-colors';
 import type { SlashDocSettings } from './types';
 import { escapeAttribute, escapeHtml, isRecord, stripHtml } from './utils';
 import { createFlowDesignerDataUri, createNetworkCanvasDataUri } from './document-export-diagrams';
 import { exportImageAnnotationToHtml, exportImageAnnotationToMarkdown } from './document-export-annotation';
 import { exportMermaidFigure } from './document-export-mermaid';
 import { exportTableToHtml } from './document-export-table';
+import { exportMkDocsGrid } from './document-export-grid';
 import {
   exportMkDocsAdmonitionToHtml,
   exportMkDocsAdmonitionToMarkdown,
@@ -27,7 +30,6 @@ import {
   exportTaskTableToHtml,
 } from './document-export-widgets';
 import {
-  clampHeadingLevel,
   exportBpmnSvg,
   getEditorBlocks,
   getExportTitle,
@@ -35,6 +37,7 @@ import {
   type ExportListItem,
   getTableRows,
   htmlToMarkdownInline,
+  tableCellToMarkdown,
   markdownCodeFence,
 } from './document-export-common';
 
@@ -110,14 +113,16 @@ function wrapHtmlExportBlock(type: string, html: string): string {
 }
 
 function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>, blockIndex: number): string {
-  if (type === 'header') {
-    const level = clampHeadingLevel(data.level);
+  if (textHeadingLevel({ type, data })) {
+    const level = textHeadingLevel({ type, data });
     return `<h${level}>${data.text ?? ''}</h${level}>`;
   }
 
   if (type === 'paragraph') {
     return `<p>${data.text ?? ''}</p>`;
   }
+
+  if (type === 'quote') return `<blockquote>${data.text ?? ''}</blockquote>`;
 
   if (type === 'list') {
     return renderListHtml(getListItems(data), data.style === 'ordered');
@@ -185,13 +190,14 @@ function exportBuiltInBlockToHtml(type: string, data: Record<string, unknown>, b
   if (type === 'mkdocsTabs') return exportMkDocsTabsToHtml(data, blockIndex);
   if (type === 'mkdocsDetails') return exportMkDocsDetailsToHtml(data);
   if (type === 'mkdocsChecklist') return exportMkDocsChecklistToHtml(data);
+  if (type === 'mkdocsGrid') return exportMkDocsGrid(data, 'html');
 
   return `<pre><code>${escapeHtml(JSON.stringify(data, null, 2))}</code></pre>`;
 }
 
 function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown>): string {
-  if (type === 'header') {
-    const level = clampHeadingLevel(data.level);
+  if (textHeadingLevel({ type, data })) {
+    const level = textHeadingLevel({ type, data });
     return `${'#'.repeat(level)} ${htmlToMarkdownInline(String(data.text ?? ''))}`;
   }
 
@@ -199,18 +205,34 @@ function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown
     return htmlToMarkdownInline(String(data.text ?? ''));
   }
 
+  if (type === 'quote')
+    return htmlToMarkdownInline(
+      String(data.text ?? '')
+        .replaceAll(/<br\s*\/?>/gi, '\n')
+        .replaceAll(/<\/(?:p|div)>\s*<(?:p|div)\b[^>]*>/gi, '\n'),
+    )
+      .split('\n')
+      .map((line) => `> ${line}`)
+      .join('\n');
+
   if (type === 'list') {
     return renderListMarkdown(getListItems(data), data.style === 'ordered');
   }
 
   if (type === 'table' || type === 'confluenceTable') {
     const rows = getTableRows(data);
+    if (
+      (Array.isArray(data.rowBackgrounds) && data.rowBackgrounds.some((color) => normalizeHexColor(color))) ||
+      (Array.isArray(data.cellBackgrounds) &&
+        data.cellBackgrounds.some((row) => Array.isArray(row) && row.some((color) => normalizeHexColor(color))))
+    )
+      return exportTableToHtml(type, data);
 
     if (rows.length === 0) {
       return '';
     }
 
-    const normalizedRows = rows.map((row) => row.map((cell) => htmlToMarkdownInline(String(cell ?? ''))));
+    const normalizedRows = rows.map((row) => row.map((cell) => tableCellToMarkdown(String(cell ?? ''))));
     const header = normalizedRows[0];
     const separator = header.map(() => '---');
     return [header, separator, ...normalizedRows.slice(1)].map((row) => `| ${row.join(' | ')} |`).join('\n');
@@ -269,6 +291,7 @@ function exportBuiltInBlockToMarkdown(type: string, data: Record<string, unknown
   if (type === 'mkdocsTabs') return exportMkDocsTabsToMarkdown(data);
   if (type === 'mkdocsDetails') return exportMkDocsDetailsToMarkdown(data);
   if (type === 'mkdocsChecklist') return exportMkDocsChecklistToMarkdown(data);
+  if (type === 'mkdocsGrid') return exportMkDocsGrid(data, 'md');
 
   return `\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
 }

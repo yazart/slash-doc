@@ -41,7 +41,7 @@ function applyInlineFormat(range: Range, create: () => HTMLElement, normalizeMat
   return rangeAroundContents(wrapper);
 }
 
-function removeInlineFormat(container: HTMLElement, range: Range, matcher: InlineFormatMatcher): Range {
+export function removeInlineFormat(container: HTMLElement, range: Range, matcher: InlineFormatMatcher): Range {
   const fragment = range.extractContents();
   unwrapMatchingDescendants(fragment, matcher);
   const marker = document.createElement('span');

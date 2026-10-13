@@ -8,6 +8,7 @@ const execFileAsync = promisify(execFile);
 export type PageRevisionMetadata = {
   changedAt: string;
   user: string;
+  creator?: string;
   editUrl?: string;
 };
 
@@ -38,9 +39,13 @@ export async function readPageRevisionMetadata(
     process.env.USER ||
     '—';
   const ref = gitRoot ? await gitOptional(gitRoot, ['symbolic-ref', '--quiet', '--short', 'HEAD']) : '';
+  const creation = gitRoot
+    ? await gitOptional(gitRoot, ['log', '--follow', '--diff-filter=A', '--format=%an', '--', revisionPath])
+    : '';
   return {
     changedAt: commitDate || fallbackDate,
     user: commitUser || fallbackUser,
+    creator: creation.split('\n').filter(Boolean).at(-1) || fallbackUser,
     editUrl: repositoryUrl ? createGitLabEditUrl(repositoryUrl, ref || defaultBranch, editPath) : undefined,
   };
 }

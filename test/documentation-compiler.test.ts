@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { compileDocumentation } from '../src/compiler/documentation-compiler';
 import { encodeStoredPage } from '../src/shared/page-storage-format';
+import { renderRepositoryLink } from '../src/extension/site-repository';
 
 const temporaryDirectories: string[] = [];
 const execFileAsync = promisify(execFile);
@@ -47,10 +48,17 @@ describe('standalone documentation compiler', () => {
     expect(firstPage).toContain('slash-doc-page-id');
     expect(firstPage).toContain("type:'slash-doc-page'");
     expect(firstPage).toContain("data-slash-doc-theme='dark'");
-    expect(firstPage.match(/Изменено:[\s\S]*?<\/p>/)?.[0]).toBe(
-      'Изменено: <time datetime="2024-05-06T12:00:00Z">06/05/2024</time> <span class="slash-doc-page-revision-user">Test User</span> <a href="https://gitlab.example/group/project/-/edit/main/.slash-doc/docs/pages/start/content.yaml" target="_blank" rel="noopener noreferrer">Редактировать</a></p>',
+    const revision = firstPage.match(/Изменено: <time datetime="([^"]+)">([\s\S]*?<\/p>)/);
+    expect(Date.parse(revision?.[1] ?? '')).toBe(Date.parse('2024-05-06T12:00:00Z'));
+    expect(revision?.[2]).toBe(
+      '06/05/2024</time> <span class="slash-doc-page-revision-user">Test User</span> <a href="https://gitlab.example/group/project/-/edit/main/.slash-doc/docs/pages/start/content.yaml" target="_blank" rel="noopener noreferrer">Редактировать</a></p>',
     );
     expect(firstPage).toContain('<span class="slash-doc-page-revision-user">Test User</span>');
+    expect(firstPage).toContain('Создал: <span>Test User</span>');
+    expect(index).toContain('class="documentation-logo" href="/"');
+    expect(index).toContain('<link rel="icon" href="data:image/svg+xml,');
+    expect(firstPage).toContain('<link rel="icon" href="data:image/svg+xml,');
+    expect(index).toContain('aria-controls="documentation-sidebar"');
     expect(firstPage).toContain(
       'href="https://gitlab.example/group/project/-/edit/main/.slash-doc/docs/pages/start/content.yaml"',
     );
@@ -72,6 +80,65 @@ describe('standalone documentation compiler', () => {
 
     expect(result.outputRoot).toBe(join(projectRoot, 'slash-doc-site'));
     expect(missingPage).toContain('<h2>Details</h2>');
+  });
+
+  it('adds the optional repository link below the sidebar title when a URL is configured', async () => {
+    const projectRoot = await createProject();
+    const settingsFile = join(projectRoot, '.slash-doc', 'sdsettings.json');
+    const repositoryUrl = 'https://gitlab.example/group/project?view=docs&tab=files';
+    await writeFile(settingsFile, JSON.stringify({ exportOptions: { repositoryUrl } }));
+    let result = await compileDocumentation({ projectRoot });
+    expect(await readFile(result.indexPath, 'utf8')).not.toContain('<a class="documentation-repository"');
+    await writeFile(settingsFile, JSON.stringify({ exportOptions: { showRepositoryLink: true, repositoryUrl } }));
+    result = await compileDocumentation({ projectRoot });
+    expect(await readFile(result.indexPath, 'utf8')).toContain(
+      '</a><a class="documentation-repository" href="https://gitlab.example/group/project?view=docs&amp;tab=files" target="_blank" rel="noopener noreferrer">Репозиторий</a>',
+    );
+    result = await compileDocumentation({ projectRoot, repositoryUrl: 'https://example.com/override' });
+    expect(await readFile(result.indexPath, 'utf8')).toContain(
+      'class="documentation-repository" href="https://example.com/override"',
+    );
+    result = await compileDocumentation({ projectRoot, repositoryUrl: '' });
+    expect(await readFile(result.indexPath, 'utf8')).not.toContain('<a class="documentation-repository"');
+    for (const repositoryUrl of ['javascript:alert(1)', 'https://'])
+      expect(renderRepositoryLink({ showRepositoryLink: true, repositoryUrl })).toBe('');
+  });
+
+  it('embeds a custom favicon in the host and documents even with extracted files', async () => {
+    const projectRoot = await createProject();
+    const favicon = 'data:image/png;base64,aGVsbG8=';
+    await writeFile(
+      join(projectRoot, '.slash-doc', 'sdsettings.json'),
+      JSON.stringify({ exportOptions: { favicon, separateFiles: true } }),
+    );
+    const result = await compileDocumentation({ projectRoot });
+    for (const path of [result.indexPath, join(result.outputRoot, 'pages', 'start.html')]) {
+      expect(await readFile(path, 'utf8')).toContain(`<link rel="icon" href="${favicon}">`);
+    }
+  });
+
+  it('compiles optional copy and ordered document navigation controls', async () => {
+    const projectRoot = await createProject();
+    const settingsFile = join(projectRoot, '.slash-doc', 'sdsettings.json');
+    await writeFile(
+      settingsFile,
+      JSON.stringify({ exportOptions: { showCopyHtmlButton: false, showPageNavigation: true, separateFiles: true } }),
+    );
+    const result = await compileDocumentation({ projectRoot });
+    const start = await readFile(join(result.outputRoot, 'pages', 'start.html'), 'utf8');
+    const last = await readFile(join(result.outputRoot, 'pages', 'details.html'), 'utf8');
+    expect(start).toContain('href="details.html" rel="next"');
+    expect(start).not.toContain('rel="prev"');
+    expect(last).toContain('href="start.html" rel="prev"');
+    expect(last).not.toContain('rel="next"');
+    expect(start).not.toContain('<button class="slash-doc-copy-html"');
+    expect(start).not.toContain('<script data-slash-doc-copy-script>');
+    expect(start).not.toMatch(/<body\b[^>]*data-slash-doc-copy-enabled/);
+    await writeFile(settingsFile, JSON.stringify({ exportOptions: { showPageNavigation: false } }));
+    await compileDocumentation({ projectRoot });
+    expect(await readFile(join(result.outputRoot, 'pages', 'start.html'), 'utf8')).not.toContain(
+      '<nav class="slash-doc-page-navigation"',
+    );
   });
 
   it('loads YAML page state with adjacent resources before legacy JSON', async () => {
@@ -156,6 +223,8 @@ describe('standalone documentation compiler', () => {
 
     expect(page).toContain('src="start-image-1.png"');
     expect(page).not.toContain('data:image/png;base64');
+    expect(page).toContain('data-slash-doc-copy-images');
+    expect(page).toContain('"type":"image/png","data":"aGVsbG8="');
     expect(image.toString('utf8')).toBe('hello');
   });
 
